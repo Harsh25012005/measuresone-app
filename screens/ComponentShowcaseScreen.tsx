@@ -56,7 +56,7 @@ export default function ComponentShowcaseScreen() {
     <View className="flex-1 bg-gray-50">
       <Header title="UI Component Showcase" showBack />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224 }}>
         <Text className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
           All Design System & UI Components
         </Text>

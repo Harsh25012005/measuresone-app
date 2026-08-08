@@ -121,8 +121,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps<'Sett
           icon="ruler-combined"
           iconBg="bg-blue-50 dark:bg-blue-950"
           iconColor="#1D4ED8"
-          label={t('customMeasurementFields.menuTitle')}
-          onPress={() => navigation.navigate('CustomMeasurementFields')}
+          label={t('universalMeasurements.menuTitle')}
+          onPress={() => navigation.navigate('UniversalMeasurements')}
           isLast
         />
       </SectionCard>

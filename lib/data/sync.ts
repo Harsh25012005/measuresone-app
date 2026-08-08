@@ -24,9 +24,12 @@ const ENTITY_COLUMNS: Record<SyncedEntity, string[]> = {
   ],
   bills: ['id', 'shop_id', 'order_id', 'customer_id', 'fabric_cost', 'stitching_charge', 'discount', 'tax', 'total_amount', 'payment_status', 'created_at', 'updated_at'],
   payments: ['id', 'shop_id', 'bill_id', 'customer_id', 'amount_paid', 'payment_mode', 'payment_date'],
+  universal_measurement_templates: ['id', 'shop_id', 'template_name', 'sort_order', 'created_at', 'updated_at'],
+  universal_measurement_fields: ['id', 'template_id', 'field_name', 'sort_order', 'created_at'],
+  customer_measurements: ['id', 'customer_id', 'template_id', 'measurements', 'created_at', 'updated_at'],
 };
 
-// order_items and payments have no updated_at column server-side — fall back
+// order_items, payments and universal_measurement_fields have no updated_at column server-side — fall back
 // to created_at as the sync watermark for those.
 const WATERMARK_COLUMN: Record<SyncedEntity, string> = {
   customers: 'updated_at',
@@ -35,6 +38,9 @@ const WATERMARK_COLUMN: Record<SyncedEntity, string> = {
   staff: 'updated_at',
   bills: 'updated_at',
   payments: 'payment_date',
+  universal_measurement_templates: 'updated_at',
+  universal_measurement_fields: 'created_at',
+  customer_measurements: 'updated_at',
 };
 
 function toSqliteValue(v: unknown): string | number | null {
@@ -54,7 +60,10 @@ async function pullEntity(shopId: string, entity: SyncedEntity) {
   const watermarkCol = WATERMARK_COLUMN[entity];
   const columns = ENTITY_COLUMNS[entity];
 
-  let query = supabase.from(entity).select(columns.join(',')).eq('shop_id', shopId);
+  let query = (supabase.from(entity) as any).select(columns.join(','));
+  if (columns.includes('shop_id')) {
+    query = query.eq('shop_id', shopId);
+  }
   if (meta?.last_synced_at) {
     query = query.gt(watermarkCol, meta.last_synced_at);
   }

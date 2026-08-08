@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +23,6 @@ import type { BillWithRelations } from '../../types';
 export default function BillDetailScreen({ navigation, route }: BillingScreenProps<'BillDetail'>) {
   const { billId } = route.params;
   const shop = useShop();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('billing');
 
@@ -134,7 +132,7 @@ export default function BillDetailScreen({ navigation, route }: BillingScreenPro
           </Pressable>
         }
       />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
         {/* Hero card: total / paid / balance due */}
         <View className="rounded-xl bg-[#101828] p-5 dark:border dark:border-gray-700">
           <View className="mb-4 flex-row items-center justify-between">

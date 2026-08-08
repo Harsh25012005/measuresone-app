@@ -164,6 +164,115 @@ export type Database = {
           },
         ]
       }
+      universal_measurement_templates: {
+        Row: {
+          created_at: string
+          id: string
+          shop_id: string
+          sort_order: number
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shop_id: string
+          sort_order?: number
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shop_id?: string
+          sort_order?: number
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "universal_measurement_templates_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      universal_measurement_fields: {
+        Row: {
+          created_at: string
+          field_name: string
+          id: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_name: string
+          id?: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          field_name?: string
+          id?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "universal_measurement_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "universal_measurement_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_measurements: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          measurements: Json
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          measurements?: Json
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          measurements?: Json
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_measurements_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_measurements_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "universal_measurement_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       measurement_field_definitions: {
         Row: {
           created_at: string

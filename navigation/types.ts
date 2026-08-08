@@ -20,7 +20,7 @@ export type CustomersStackParamList = SharedOrderRoutes & {
   CustomerList: undefined;
   CustomerDetail: { customerId: string; initialTab?: 'info' | 'orders' | 'bills' };
   CustomerForm: { customerId?: string } | undefined;
-  MeasurementForm: { customerId: string; measurementId?: string };
+  MeasurementForm: { customerId: string };
 };
 
 export type OrdersStackParamList = SharedOrderRoutes & {
@@ -53,6 +53,8 @@ export type SettingsStackParamList = {
   /** The whole Billing stack, nested here since Billing is no longer a tab. */
   Billing: undefined;
   CustomMeasurementFields: undefined;
+  UniversalMeasurements: undefined;
+  UniversalTemplateDetail: { templateId: string };
 };
 
 /**

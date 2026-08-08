@@ -96,6 +96,32 @@ create table if not exists payments (
   payment_date text not null
 );
 
+create table if not exists universal_measurement_templates (
+  id text primary key,
+  shop_id text not null,
+  template_name text not null,
+  sort_order integer not null default 0,
+  created_at text not null,
+  updated_at text not null
+);
+
+create table if not exists universal_measurement_fields (
+  id text primary key,
+  template_id text not null,
+  field_name text not null,
+  sort_order integer not null default 0,
+  created_at text not null
+);
+
+create table if not exists customer_measurements (
+  id text primary key,
+  customer_id text not null unique,
+  template_id text,
+  measurements text not null default '{}',
+  created_at text not null,
+  updated_at text not null
+);
+
 -- Local-only bookkeeping (never synced to Supabase directly).
 create table if not exists pending_ops (
   op_id text primary key,
@@ -172,6 +198,9 @@ export const SYNCED_ENTITIES = [
   'staff',
   'bills',
   'payments',
+  'universal_measurement_templates',
+  'universal_measurement_fields',
+  'customer_measurements',
 ] as const;
 
 export type SyncedEntity = (typeof SYNCED_ENTITIES)[number];

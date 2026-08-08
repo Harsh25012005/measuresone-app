@@ -5,13 +5,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Avatar, Badge, Card, EmptyState, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
-import { customersRepo, ordersRepo, billsRepo } from '../../lib/data/repository';
+import { customersRepo, ordersRepo, billsRepo, customerMeasurementsRepo, universalTemplatesRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage, buildPaymentDueMessage } from '../../lib/whatsapp';
-import { getMeasurementFieldEntries } from '../../lib/measurementFields';
 import { useShop } from '../../context/AuthContext';
 import type { CustomersScreenProps } from '../../navigation/types';
-import type { Bill, Customer, Measurement, Order } from '../../types';
+import type { Bill, Customer, Order } from '../../types';
+import type { Tables } from '../../lib/database.types';
 
 const TABS = ['info', 'orders', 'bills'] as const;
 type TabKey = (typeof TABS)[number];
@@ -26,7 +26,8 @@ export default function CustomerDetailScreen({
   const showToast = useToast();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [customerMeasurementProfile, setCustomerMeasurementProfile] = useState<Tables<'customer_measurements'> | null>(null);
+  const [profileTemplateName, setProfileTemplateName] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [bills, setBills] = useState<(Bill & { paid: number })[]>([]);
   const [balance, setBalance] = useState(0);
@@ -34,8 +35,6 @@ export default function CustomerDetailScreen({
   // Billing list deep-links straight into the Bills tab for a client.
   const [tab, setTab] = useState<TabKey>(route.params?.initialTab ?? 'info');
   const [search, setSearch] = useState('');
-
-
 
   const q = search.trim().toLowerCase();
   const filteredOrders = q
@@ -57,18 +56,15 @@ export default function CustomerDetailScreen({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Core record + orders + balance all come from the local-first mirror,
-      // so they load reliably offline and don't race the background sync.
-      const [customerData, allOrders, balanceByCustomer, allBills] = await Promise.all([
+      const [customerData, allOrders, balanceByCustomer, allBills, profile] = await Promise.all([
         customersRepo.get(customerId),
         ordersRepo.list(shop.id),
         billsRepo.pendingBalanceByCustomer(shop.id),
         billsRepo.listWithPayments(shop.id),
+        customerMeasurementsRepo.getByCustomer(customerId),
       ]);
 
       if (!customerData) {
-        // Client no longer exists (e.g. deleted elsewhere) — leave, but say
-        // why instead of silently bouncing back with no explanation.
         showToast(t('detail.loadError'), 'error');
         navigation.goBack();
         return;
@@ -87,17 +83,12 @@ export default function CustomerDetailScreen({
           .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       );
 
-      // Measurements aren't mirrored locally, so a transient network blip
-      // here shouldn't take down the rest of an otherwise-loaded page.
-      try {
-        const { data } = await supabase
-          .from('measurements')
-          .select('*')
-          .eq('customer_id', customerId)
-          .order('updated_at', { ascending: false });
-        setMeasurements(data ?? []);
-      } catch {
-        setMeasurements([]);
+      setCustomerMeasurementProfile(profile);
+      if (profile?.template_id) {
+        const tmpl = await universalTemplatesRepo.get(profile.template_id);
+        setProfileTemplateName(tmpl?.template_name ?? null);
+      } else {
+        setProfileTemplateName(null);
       }
     } catch {
       showToast(t('detail.loadError'), 'error');
@@ -275,62 +266,50 @@ export default function CustomerDetailScreen({
               onPress={() => navigation.navigate('MeasurementForm', { customerId })}
               className="rounded-md bg-primary-50 px-3 py-1.5 dark:bg-primary-950"
             >
-              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('detail.addShort')}</Text>
+              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">
+                {customerMeasurementProfile ? 'Edit Measurements' : 'Add Measurements'}
+              </Text>
             </Pressable>
           </View>
-          {measurements.length > 0 ? (
-            <View className="gap-2">
-              {measurements.map((m) => {
-                const fieldEntries = getMeasurementFieldEntries(m, t);
-                return (
-                  <Card
-                    key={m.id}
-                    onPress={() =>
-                      navigation.navigate('MeasurementForm', { customerId, measurementId: m.id })
-                    }
-                  >
-                    {/* Values as a labelled grid rather than one run-on
-                        "Chest 38 · Waist 32 · ..." line — a tailor reads
-                        one number at a time, and blank fields are simply
-                        omitted instead of printing an em-dash. */}
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{m.garment_type}</Text>
-                      <Pressable
-                        onPress={() => handleDeleteMeasurement(m.id, m.garment_type)}
-                        hitSlop={10}
-                        className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-                      >
-                        <FontAwesome5 name="trash-alt" size={14} color="#DC2626" />
-                      </Pressable>
-                    </View>
 
-                    <View className="mt-3 flex-row flex-wrap gap-y-3">
-                      {fieldEntries.map((f, i) => (
-                        <View key={`${f.label}-${i}`} className="w-1/3 pr-2">
-                          <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{f.label}</Text>
-                          <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{f.value}</Text>
-                        </View>
-                      ))}
-                    </View>
+          {customerMeasurementProfile ? (
+            <Card
+              onPress={() => navigation.navigate('MeasurementForm', { customerId })}
+              className="p-4"
+            >
+              <View className="flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">
+                <View>
+                  <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                    {profileTemplateName ?? 'Customer Measurements'}
+                  </Text>
+                  <Text className="text-xs text-gray-500">Universal Profile</Text>
+                </View>
+                <Text className="text-xs text-primary-600 font-semibold">Edit</Text>
+              </View>
 
-                    {m.notes ? (
-                      <Text className="font-sans mt-3 border-t border-gray-100 pt-2 text-base text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                        {m.notes}
-                      </Text>
-                    ) : null}
-                    <Text className="font-sans mt-2 text-base text-gray-400 dark:text-gray-500">
-                      {t('detail.updated', { date: formatDate(m.updated_at) })}
-                    </Text>
-                  </Card>
-                );
-              })}
-            </View>
+              <View className="flex-row flex-wrap gap-y-3">
+                {Object.entries(
+                  typeof customerMeasurementProfile.measurements === 'object' && customerMeasurementProfile.measurements
+                    ? (customerMeasurementProfile.measurements as Record<string, unknown>)
+                    : {}
+                ).map(([key, val]) => (
+                  <View key={key} className="w-1/3 pr-2">
+                    <Text className="font-sans text-xs text-gray-500 dark:text-gray-400">{key}</Text>
+                    <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{String(val)}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text className="font-sans mt-3 text-xs text-gray-400 dark:text-gray-500">
+                {t('detail.updated', { date: formatDate(customerMeasurementProfile.updated_at) })}
+              </Text>
+            </Card>
           ) : (
             <EmptyState
               variant="compact"
               icon="ruler-combined"
-              title={t('detail.noMeasurementsTitle')}
-              description={t('detail.noMeasurementsDescription')}
+              title="No measurements added"
+              description="Add measurements once for this customer to reuse across all orders."
             />
           )}
         </View>

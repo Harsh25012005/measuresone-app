@@ -113,12 +113,14 @@ export const customersRepo = {
       await billsRepo.remove(bill.id, shopId);
     }
 
-    // Measurements aren't mirrored locally (screens read/write them via
-    // Supabase directly), so their cleanup is a best-effort remote delete.
+    // Customer measurement profile cleanup
+    await customerMeasurementsRepo.remove(id, shopId);
+
+    // Measurements legacy fallback cleanup
     try {
       await supabase.from('measurements').delete().eq('customer_id', id);
     } catch {
-      // Non-fatal — an orphaned measurement row isn't worth blocking the delete over.
+      // Non-fatal
     }
 
     await db.runAsync('delete from customers where id = ?', [id]);
@@ -596,5 +598,181 @@ export const paymentsRepo = {
     const db = await getDb();
     const rows = await db.getAllAsync<Record<string, unknown>>('select * from payments where shop_id = ? order by payment_date desc', [shopId]);
     return rows.map((r) => fromSqlite<Tables<'payments'>>(r));
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Universal Measurement Templates & Fields
+// ---------------------------------------------------------------------------
+
+export const universalTemplatesRepo = {
+  async list(shopId: string): Promise<Tables<'universal_measurement_templates'>[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'select * from universal_measurement_templates where shop_id = ? order by sort_order asc, template_name asc',
+      [shopId]
+    );
+    return rows.map((r) => fromSqlite<Tables<'universal_measurement_templates'>>(r));
+  },
+
+  async get(id: string): Promise<Tables<'universal_measurement_templates'> | null> {
+    const db = await getDb();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'select * from universal_measurement_templates where id = ?',
+      [id]
+    );
+    return row ? fromSqlite<Tables<'universal_measurement_templates'>>(row) : null;
+  },
+
+  async create(input: TablesInsert<'universal_measurement_templates'>): Promise<Tables<'universal_measurement_templates'>> {
+    const db = await getDb();
+    const row: Tables<'universal_measurement_templates'> = {
+      id: input.id ?? Crypto.randomUUID(),
+      shop_id: input.shop_id,
+      template_name: input.template_name,
+      sort_order: input.sort_order ?? 0,
+      created_at: input.created_at ?? nowIso(),
+      updated_at: input.updated_at ?? nowIso(),
+    };
+    await db.runAsync(
+      'insert into universal_measurement_templates (id, shop_id, template_name, sort_order, created_at, updated_at) values (?,?,?,?,?,?)',
+      [row.id, row.shop_id, row.template_name, row.sort_order, row.created_at, row.updated_at]
+    );
+    await enqueueOp('universal_measurement_templates', row.id, 'insert', row);
+    kickSync(row.shop_id);
+    return row;
+  },
+
+  async update(id: string, shopId: string, patch: TablesUpdate<'universal_measurement_templates'>): Promise<void> {
+    const db = await getDb();
+    const existing = await this.get(id);
+    if (!existing) throw new Error(`template ${id} not found locally`);
+    const updated_at = nowIso();
+    const merged = { ...existing, ...patch, updated_at };
+    await db.runAsync(
+      'update universal_measurement_templates set template_name=?, sort_order=?, updated_at=? where id=?',
+      [merged.template_name, merged.sort_order, updated_at, id]
+    );
+    await enqueueOp('universal_measurement_templates', id, 'update', { id, ...patch, updated_at });
+    kickSync(shopId);
+  },
+
+  async remove(id: string, shopId: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync('delete from universal_measurement_fields where template_id = ?', [id]);
+    await db.runAsync('delete from universal_measurement_templates where id = ?', [id]);
+    await enqueueOp('universal_measurement_templates', id, 'delete', { id });
+    kickSync(shopId);
+  },
+};
+
+export const universalFieldsRepo = {
+  async listForTemplate(templateId: string): Promise<Tables<'universal_measurement_fields'>[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'select * from universal_measurement_fields where template_id = ? order by sort_order asc',
+      [templateId]
+    );
+    return rows.map((r) => fromSqlite<Tables<'universal_measurement_fields'>>(r));
+  },
+
+  async replaceFields(templateId: string, shopId: string, fields: { id?: string; field_name: string; sort_order: number }[]): Promise<Tables<'universal_measurement_fields'>[]> {
+    const db = await getDb();
+
+    // Remove current fields locally
+    const existing = await this.listForTemplate(templateId);
+    for (const f of existing) {
+      await db.runAsync('delete from universal_measurement_fields where id = ?', [f.id]);
+      await enqueueOp('universal_measurement_fields', f.id, 'delete', { id: f.id });
+    }
+
+    const created: Tables<'universal_measurement_fields'>[] = [];
+    for (const f of fields) {
+      const row: Tables<'universal_measurement_fields'> = {
+        id: f.id ?? Crypto.randomUUID(),
+        template_id: templateId,
+        field_name: f.field_name,
+        sort_order: f.sort_order,
+        created_at: nowIso(),
+      };
+      await db.runAsync(
+        'insert into universal_measurement_fields (id, template_id, field_name, sort_order, created_at) values (?,?,?,?,?)',
+        [row.id, row.template_id, row.field_name, row.sort_order, row.created_at]
+      );
+      await enqueueOp('universal_measurement_fields', row.id, 'insert', row);
+      created.push(row);
+    }
+    kickSync(shopId);
+    return created;
+  },
+};
+
+export const customerMeasurementsRepo = {
+  async getByCustomer(customerId: string): Promise<Tables<'customer_measurements'> | null> {
+    const db = await getDb();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'select * from customer_measurements where customer_id = ?',
+      [customerId]
+    );
+    return row ? fromSqlite<Tables<'customer_measurements'>>(row, ['measurements']) : null;
+  },
+
+  async save(shopId: string, input: TablesInsert<'customer_measurements'>): Promise<Tables<'customer_measurements'>> {
+    const db = await getDb();
+    const existing = await this.getByCustomer(input.customer_id);
+    const updated_at = nowIso();
+    const measurementsJson = typeof input.measurements === 'string' ? input.measurements : JSON.stringify(input.measurements ?? {});
+
+    if (existing) {
+      const row: Tables<'customer_measurements'> = {
+        id: existing.id,
+        customer_id: input.customer_id,
+        template_id: input.template_id ?? existing.template_id ?? null,
+        measurements: input.measurements ?? existing.measurements,
+        created_at: existing.created_at,
+        updated_at,
+      };
+      await db.runAsync(
+        'update customer_measurements set template_id = ?, measurements = ?, updated_at = ? where customer_id = ?',
+        [row.template_id, measurementsJson, updated_at, input.customer_id]
+      );
+      await enqueueOp('customer_measurements', existing.id, 'update', {
+        id: existing.id,
+        customer_id: input.customer_id,
+        template_id: row.template_id,
+        measurements: row.measurements,
+        updated_at,
+      });
+      kickSync(shopId);
+      return row;
+    } else {
+      const row: Tables<'customer_measurements'> = {
+        id: input.id ?? Crypto.randomUUID(),
+        customer_id: input.customer_id,
+        template_id: input.template_id ?? null,
+        measurements: input.measurements ?? {},
+        created_at: input.created_at ?? nowIso(),
+        updated_at,
+      };
+      await db.runAsync(
+        'insert into customer_measurements (id, customer_id, template_id, measurements, created_at, updated_at) values (?,?,?,?,?,?)',
+        [row.id, row.customer_id, row.template_id, measurementsJson, row.created_at, row.updated_at]
+      );
+      await enqueueOp('customer_measurements', row.id, 'insert', {
+        ...row,
+        measurements: row.measurements,
+      });
+      kickSync(shopId);
+      return row;
+    }
+  },
+
+  async remove(customerId: string, shopId: string): Promise<void> {
+    const db = await getDb();
+    const existing = await this.getByCustomer(customerId);
+    if (!existing) return;
+    await db.runAsync('delete from customer_measurements where customer_id = ?', [customerId]);
+    await enqueueOp('customer_measurements', existing.id, 'delete', { id: existing.id });
+    kickSync(shopId);
   },
 };

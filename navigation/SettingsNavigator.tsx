@@ -7,6 +7,8 @@ import StaffDetailScreen from '../screens/staff/StaffDetailScreen';
 import StaffWorkEntryFormScreen from '../screens/staff/StaffWorkEntryFormScreen';
 import RevenueScreen from '../screens/revenue/RevenueScreen';
 import CustomMeasurementFieldsScreen from '../screens/settings/CustomMeasurementFieldsScreen';
+import UniversalMeasurementsScreen from '../screens/settings/UniversalMeasurementsScreen';
+import UniversalTemplateDetailScreen from '../screens/settings/UniversalTemplateDetailScreen';
 import { BillingNavigator } from './BillingNavigator';
 import type { SettingsStackParamList } from './types';
 
@@ -28,6 +30,8 @@ export function SettingsNavigator() {
           BillingScreenProps typing working unchanged. */}
       <Stack.Screen name="Billing" component={BillingNavigator} />
       <Stack.Screen name="CustomMeasurementFields" component={CustomMeasurementFieldsScreen} />
+      <Stack.Screen name="UniversalMeasurements" component={UniversalMeasurementsScreen} />
+      <Stack.Screen name="UniversalTemplateDetail" component={UniversalTemplateDetailScreen} />
     </Stack.Navigator>
   );
 }

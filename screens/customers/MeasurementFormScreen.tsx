@@ -1,400 +1,209 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View, Pressable } from 'react-native';
+import { useCallback, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { Button, Card, Dropdown, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
-import type { DropdownOption } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { runSync } from '../../lib/data/sync';
+import { Button, Card, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
 import { useShop } from '../../context/AuthContext';
-import { DEFAULT_SHIRT_FIELDS, DEFAULT_PANT_FIELDS, DEFAULT_ALL_FIELDS } from '../../lib/defaultMeasurementFields';
-import { fieldDefMatchesGarment } from '../../lib/measurementFieldScope';
+import {
+  universalTemplatesRepo,
+  universalFieldsRepo,
+  customerMeasurementsRepo,
+} from '../../lib/data/repository';
 import type { CustomersScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 
-/** The only three garment types the shop takes orders for. Stored verbatim in garment_type. */
-export const GARMENT_TYPE_VALUES = ['Shirt', 'Pant', 'Shirt+Pant'] as const;
-export type GarmentType = (typeof GARMENT_TYPE_VALUES)[number];
-
-const GARMENT_TYPE_KEYS: Record<GarmentType, string> = {
-  Shirt: 'shirt',
-  Pant: 'pant',
-  'Shirt+Pant': 'shirtPant',
-};
-
-type FieldDefinition = Tables<'measurement_field_definitions'>;
-type CustomField = { label: string; value: string };
-
-/** Common measurement fields per garment type — not shop-defined fields, just
- * a quick-fill shortcut so an owner who hasn't set up Custom Measurement
- * Fields in Settings still gets the usual tailoring fields with one tap. */
-const DEFAULT_FIELDS_BY_GARMENT: Record<GarmentType, string[]> = {
-  Shirt: DEFAULT_SHIRT_FIELDS,
-  Pant: DEFAULT_PANT_FIELDS,
-  'Shirt+Pant': DEFAULT_ALL_FIELDS,
-};
-
-/** Loose match for past measurement records when hunting for fields the shop
- * has used before — a "Shirt+Pant" record is relevant either way. */
-function recordMatchesGarment(recordGarmentType: string, selected: GarmentType): boolean {
-  return (
-    recordGarmentType === selected || selected === 'Shirt+Pant' || recordGarmentType === 'Shirt+Pant'
-  );
-}
+type Template = Tables<'universal_measurement_templates'>;
+type Field = Tables<'universal_measurement_fields'>;
 
 export default function MeasurementFormScreen({
   navigation,
   route,
 }: CustomersScreenProps<'MeasurementForm'>) {
+  const { customerId } = route.params;
   const { t } = useTranslation('customers');
-  const { customerId, measurementId } = route.params;
   const shop = useShop();
   const showToast = useToast();
-  const isEditing = !!measurementId;
 
-  const garmentTypeOptions: DropdownOption[] = useMemo(
-    () =>
-      GARMENT_TYPE_VALUES.map((value) => ({
-        label: t(`measurementForm.garmentTypes.${GARMENT_TYPE_KEYS[value]}`),
-        value,
-      })),
-    [t]
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [fields, setFields] = useState<Field[]>([]);
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const tmplList = await universalTemplatesRepo.list(shop.id);
+      setTemplates(tmplList);
+
+      const profile = await customerMeasurementsRepo.getByCustomer(customerId);
+
+      if (profile) {
+        setSelectedTemplateId(profile.template_id);
+        const parsedVals: Record<string, string> = {};
+        const raw = typeof profile.measurements === 'object' && profile.measurements ? (profile.measurements as Record<string, unknown>) : {};
+        for (const [k, v] of Object.entries(raw)) {
+          parsedVals[k] = v !== null && v !== undefined ? String(v) : '';
+        }
+        setValues(parsedVals);
+
+        if (profile.template_id) {
+          const fList = await universalFieldsRepo.listForTemplate(profile.template_id);
+          setFields(fList);
+        }
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to load measurements', 'error');
+    }
+  }, [customerId, shop.id, showToast]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      void loadData().finally(() => setLoading(false));
+    }, [loadData])
   );
 
-  const [garmentType, setGarmentType] = useState('');
-  const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
-  /** One entry per shop-defined field, in definition order — label + value. */
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState('');
-  const [extraFields, setExtraFields] = useState<CustomField[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loadingRecord, setLoadingRecord] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoadingRecord(true);
+  const handleSelectTemplate = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
     try {
-      const { data: definitions, error: defError } = await supabase
-        .from('measurement_field_definitions')
-        .select('*')
-        .eq('shop_id', shop.id)
-        .order('sort_order', { ascending: true });
-      if (defError) throw defError;
-      setFieldDefinitions(definitions ?? []);
-
-      const nextValues: Record<string, string> = {};
-      let extra: CustomField[] = [];
-
-      if (measurementId) {
-        const { data, error: fetchError } = await supabase
-          .from('measurements')
-          .select('*')
-          .eq('id', measurementId)
-          .single();
-        if (fetchError) throw fetchError;
-        if (data) {
-          setGarmentType(data.garment_type ?? '');
-          setNotes(data.notes ?? '');
-
-          const stored = Array.isArray(data.custom_fields)
-            ? (data.custom_fields as unknown as CustomField[])
-            : [];
-          const storedByLabel = new Map(stored.map((f) => [f.label, f.value]));
-
-          for (const def of definitions ?? []) {
-            nextValues[def.field_key] = storedByLabel.get(def.label) ?? '';
-          }
-          // Anything stored that doesn't match a known definition label is a
-          // one-off field from before this shop defined it in Settings.
-          const definedLabels = new Set((definitions ?? []).map((d) => d.label));
-          extra = stored.filter((f) => f.label && !definedLabels.has(f.label));
-        }
-      } else {
-        for (const def of definitions ?? []) {
-          nextValues[def.field_key] = '';
-        }
-      }
-
-      setFieldValues(nextValues);
-      setExtraFields(extra);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : t('measurementForm.loadError'), 'error');
-    } finally {
-      setLoadingRecord(false);
+      const fList = await universalFieldsRepo.listForTemplate(templateId);
+      setFields(fList);
+    } catch {
+      showToast('Could not load fields for template', 'error');
     }
-  }, [measurementId, shop.id, showToast, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  /** Only the shop-defined fields scoped to the garment type currently
-   * selected — a field marked "Pant" doesn't show up while editing a Shirt
-   * measurement, and vice versa. */
-  const visibleFieldDefinitions = useMemo(() => {
-    const match = GARMENT_TYPE_VALUES.find((v) => v === garmentType);
-    if (!match) return [];
-    return fieldDefinitions.filter((d) => fieldDefMatchesGarment(d.garment_type, match));
-  }, [fieldDefinitions, garmentType]);
-
-  // Once a garment type is picked on a new measurement, pull in any custom
-  // field label the shop has ever used for that garment type before — even
-  // if it was typed ad-hoc rather than added in Settings — so it reopens as
-  // a fillable field instead of having to be retyped from scratch.
-  useEffect(() => {
-    const match = GARMENT_TYPE_VALUES.find((v) => v === garmentType);
-    if (isEditing || !match) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from('measurements')
-        .select('garment_type, custom_fields')
-        .eq('shop_id', shop.id);
-      if (cancelled || !data) return;
-
-      const labels = new Set<string>();
-      for (const m of data) {
-        if (!recordMatchesGarment(m.garment_type, match)) continue;
-        const fields = Array.isArray(m.custom_fields) ? (m.custom_fields as unknown as CustomField[]) : [];
-        for (const f of fields) {
-          if (f?.label) labels.add(f.label);
-        }
-      }
-
-      setExtraFields((prev) => {
-        const known = new Set([...fieldDefinitions.map((d) => d.label), ...prev.map((f) => f.label)]);
-        const toAdd = [...labels].filter((l) => !known.has(l));
-        return toAdd.length > 0 ? [...prev, ...toAdd.map((label) => ({ label, value: '' }))] : prev;
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [garmentType, isEditing, shop.id]);
-
-  const setFieldValue = (key: string, value: string) =>
-    setFieldValues((prev) => ({ ...prev, [key]: value }));
-
-  const addExtraField = () => {
-    setExtraFields((prev) => [...prev, { label: '', value: '' }]);
   };
 
-  /** Appends the standard fields for the selected garment type, skipping any
-   * already present (as a shop-defined field or already added below). */
-  const addDefaultFields = () => {
-    const match = GARMENT_TYPE_VALUES.find((v) => v === garmentType);
-    if (!match) return;
-    const existingLabels = new Set([
-      ...visibleFieldDefinitions.map((d) => d.label),
-      ...extraFields.map((f) => f.label),
-    ]);
-    const toAdd = DEFAULT_FIELDS_BY_GARMENT[match].filter((label) => !existingLabels.has(label));
-    if (toAdd.length === 0) return;
-    setExtraFields((prev) => [...prev, ...toAdd.map((label) => ({ label, value: '' }))]);
-  };
-
-  const updateExtraField = (index: number, key: keyof CustomField, value: string) => {
-    setExtraFields((prev) => prev.map((f, i) => (i === index ? { ...f, [key]: value } : f)));
-  };
-
-  const removeExtraField = (index: number) => {
-    setExtraFields((prev) => prev.filter((_, i) => i !== index));
+  const handleValueChange = (fieldName: string, text: string) => {
+    // Keep only numeric and decimal
+    const numericOnly = text.replace(/[^0-9.]/g, '');
+    setValues((prev) => ({
+      ...prev,
+      [fieldName]: numericOnly,
+    }));
   };
 
   const handleSave = async () => {
-    if (!garmentType.trim()) {
-      setError(t('measurementForm.garmentTypeRequired'));
+    if (!selectedTemplateId) {
+      showToast('Please select a measurement template', 'error');
       return;
     }
-    setError('');
-    setLoading(true);
+
+    setSaving(true);
     try {
-      const definedCustomFields: CustomField[] = visibleFieldDefinitions
-        .map((def) => ({ label: def.label, value: (fieldValues[def.field_key] ?? '').trim() }))
-        .filter((f) => f.value);
-
-      const cleanedExtraFields = extraFields
-        .map((f) => ({ label: f.label.trim(), value: f.value.trim() }))
-        .filter((f) => f.label || f.value);
-
-      const payload = {
-        shop_id: shop.id,
-        customer_id: customerId,
-        garment_type: garmentType.trim(),
-        notes: notes.trim() || null,
-        custom_fields: [...definedCustomFields, ...cleanedExtraFields],
-      };
-
-      // Customers are written local-first (SQLite -> pending_ops -> push),
-      // but measurements go straight to Supabase. Saving a measurement for a
-      // client created moments ago therefore hit a foreign-key violation,
-      // because that customer row hadn't been pushed yet. Flushing the sync
-      // queue first guarantees the customer exists server-side.
-      await runSync(shop.id);
-
-      if (isEditing && measurementId) {
-        const { error: updateError } = await supabase
-          .from('measurements')
-          .update(payload)
-          .eq('id', measurementId);
-        if (updateError) throw updateError;
-      } else {
-        // Insert (not upsert): customers can have multiple measurement records,
-        // one per garment type, keyed off customer_id as a foreign key.
-        const { error: insertError } = await supabase.from('measurements').insert(payload);
-        if (insertError) throw insertError;
+      const numericMeasurements: Record<string, number> = {};
+      for (const [k, v] of Object.entries(values)) {
+        const parsed = parseFloat(v);
+        if (!isNaN(parsed)) {
+          numericMeasurements[k] = parsed;
+        }
       }
-      showToast(t('measurementForm.saveSuccess'), 'success');
+
+      await customerMeasurementsRepo.save(shop.id, {
+        customer_id: customerId,
+        template_id: selectedTemplateId,
+        measurements: numericMeasurements,
+      });
+
+      showToast('Measurement profile saved', 'success');
       navigation.goBack();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('measurementForm.saveError'), 'error');
+      showToast(err instanceof Error ? err.message : 'Could not save measurements', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  if (loadingRecord) return <LoadingSpinner fullScreen text={t('measurementForm.loading')} />;
+  if (loading) {
+    return (
+      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
+        <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
+        <LoadingSpinner />
+      </View>
+    );
+  }
 
   return (
-    <>
-      <Header
-        title={isEditing ? t('measurementForm.editTitle') : t('measurementForm.title')}
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-      <ScrollView
-        className="flex-1 bg-white dark:bg-gray-950"
-        contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Dropdown
-          label={t('measurementForm.garmentTypeLabel')}
-          value={garmentType}
-          onChange={setGarmentType}
-          options={garmentTypeOptions}
-          placeholder={t('measurementForm.garmentTypePlaceholder')}
-          error={error}
-          required
-        />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="bg-gray-50 dark:bg-gray-950"
+    >
+      <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
 
-        {!garmentType ? (
-          <Text className="font-sans mt-2 text-base text-gray-400 dark:text-gray-500">
-            {t('measurementForm.selectGarmentTypeFirst')}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 224, gap: 20 }}>
+        {/* Template Selector */}
+        <View className="gap-2">
+          <Text className="text-sm font-semibold text-gray-900 dark:text-white">
+            Which template?
           </Text>
-        ) : (
-          <>
-            <Pressable
-              onPress={addDefaultFields}
-              className="mb-4 flex-row items-center self-start rounded-md bg-primary-50 px-3 py-1.5 dark:bg-primary-950"
-            >
-              <FontAwesome5 name="magic" size={11} color="#1D4ED8" />
-              <Text className="ml-1.5 text-base font-semibold text-primary-600 dark:text-primary-400">
-                {t('measurementForm.addDefaultFields')}
-              </Text>
-            </Pressable>
 
-            {visibleFieldDefinitions.length > 0 ? (
-              <Card className="mb-4">
-                <Text className="mb-3 text-base font-semibold text-gray-900 dark:text-gray-50">
-                  {t('measurementForm.fieldsSection')}
-                </Text>
-                {/* Only the fields the shop scoped to this garment type in
-                    Settings, entered one by one in the order they were added. */}
-                <View className="gap-3">
-                  {visibleFieldDefinitions.map((def) => (
-                    <InputField
-                      key={def.id}
-                      label={def.label}
-                      value={fieldValues[def.field_key] ?? ''}
-                      onChangeText={(v) => setFieldValue(def.field_key, v)}
-                      placeholder={def.label}
-                      keyboardType={def.input_type === 'number' ? 'number-pad' : 'default'}
-                    />
-                  ))}
-                </View>
-              </Card>
-            ) : (
-              <Text className="font-sans mb-4 text-base text-gray-400 dark:text-gray-500">
-                {t('measurementForm.noFieldsDefined')}
-              </Text>
-            )}
-
-            <InputField
-              label={t('measurementForm.notesLabel')}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder={t('measurementForm.notesPlaceholder')}
-            />
-
-            <View className="mt-2">
-              <View className="mb-2 flex-row items-center justify-between">
-                <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                  {t('measurementForm.customFieldsLabel')}
-                </Text>
+          <View className="flex-row flex-wrap gap-2">
+            {templates.map((tmpl) => {
+              const active = tmpl.id === selectedTemplateId;
+              return (
                 <Pressable
-                  onPress={addExtraField}
-                  className="flex-row items-center rounded-md bg-primary-50 px-3 py-1.5 dark:bg-primary-950"
+                  key={tmpl.id}
+                  onPress={() => handleSelectTemplate(tmpl.id)}
+                  className={`rounded-xl border px-4 py-3 ${
+                    active
+                      ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
+                      : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'
+                  }`}
                 >
-                  <FontAwesome5 name="plus" size={11} color="#1D4ED8" />
-                  <Text className="ml-1.5 text-base font-semibold text-primary-600 dark:text-primary-400">
-                    {t('measurementForm.addCustomField')}
+                  <Text
+                    className={`text-sm font-semibold ${
+                      active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {tmpl.template_name}
                   </Text>
                 </Pressable>
-              </View>
+              );
+            })}
+          </View>
+        </View>
 
-              {extraFields.length === 0 ? (
-                <Text className="font-sans text-base text-gray-400 dark:text-gray-500">
-                  {t('measurementForm.noCustomFields')}
+        {/* Fields list */}
+        {selectedTemplateId && (
+          <View className="gap-3">
+            <Text className="text-sm font-semibold text-gray-900 dark:text-white">
+              Measurement Values (Numeric)
+            </Text>
+
+            {fields.length === 0 ? (
+              <Card className="p-4 items-center">
+                <Text className="text-sm text-gray-500">
+                  No fields defined for this template. Add fields in Settings → Universal Measurements.
                 </Text>
-              ) : (
-                <View className="gap-2">
-                  {extraFields.map((field, index) => (
-                    <View key={index} className="flex-row items-center gap-2">
-                      <View className="flex-1">
-                        <InputField
-                          label={index === 0 ? t('measurementForm.customFieldLabelLabel') : undefined}
-                          value={field.label}
-                          onChangeText={(v) => updateExtraField(index, 'label', v)}
-                          placeholder={t('measurementForm.customFieldLabelPlaceholder')}
-                        />
-                      </View>
-                      <View className="flex-1">
-                        <InputField
-                          label={index === 0 ? t('measurementForm.customFieldValueLabel') : undefined}
-                          value={field.value}
-                          onChangeText={(v) => updateExtraField(index, 'value', v)}
-                          placeholder={t('measurementForm.customFieldValuePlaceholder')}
-                          keyboardType="number-pad"
-                        />
-                      </View>
-                      <Pressable
-                        onPress={() => removeExtraField(index)}
-                        hitSlop={8}
-                        className="h-6 w-6 items-center justify-center"
-                      >
-                        <FontAwesome5 name="trash-alt" size={15} color="#EF4444" />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
+              </Card>
+            ) : (
+              <Card className="p-4 gap-3">
+                {fields.map((f) => (
+                  <View key={f.id} className="flex-row items-center justify-between">
+                    <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-1 mr-3">
+                      {f.field_name}
+                    </Text>
 
-            <Button
-              title={isEditing ? t('measurementForm.updateMeasurement') : t('measurementForm.saveMeasurement')}
-              onPress={handleSave}
-              loading={loading}
-              className="mt-4"
-            />
-          </>
+                    <View className="w-32">
+                      <InputField
+                        placeholder="0"
+                        keyboardType="decimal-pad"
+                        value={values[f.field_name] ?? ''}
+                        onChangeText={(text) => handleValueChange(f.field_name, text)}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            )}
+
+            <Button title="Save Measurements" loading={saving} onPress={handleSave} className="mt-4" />
+          </View>
         )}
       </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+    </KeyboardAvoidingView>
   );
 }

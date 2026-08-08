@@ -19,12 +19,13 @@ import {
 import { uploadImage } from '../../lib/storage';
 import { useShop } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { customersRepo, ordersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
+import { customersRepo, ordersRepo, billsRepo, paymentsRepo, customerMeasurementsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { suggestDeliveryDate } from '../../lib/orderScheduling';
 import { getMeasurementFieldEntries } from '../../lib/measurementFields';
 import type { AppScreenProps } from '../../navigation/types';
-import type { Measurement, OrderPriority } from '../../types';
+import type { OrderPriority } from '../../types';
+import type { Tables } from '../../lib/database.types';
 
 type Option = { label: string; value: string };
 
@@ -106,7 +107,6 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   // from there on so the remaining steps never have to be tapped through.
   const STEP_COUNT = 3;
   const [step, setStep] = useState(0);
-  const [measurement, setMeasurement] = useState<Measurement[]>([]);
   const [customersLoaded, setCustomersLoaded] = useState(false);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
 
@@ -217,39 +217,21 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     }, [loadCustomers])
   );
 
-  // Fetches the selected client's saved measurement (not just whether one
-  // exists), so step 2 can show the actual numbers inline instead of forcing
-  // a separate trip through Customer Detail to check them.
+  const [customerMeasurementProfile, setCustomerMeasurementProfile] = useState<Tables<'customer_measurements'> | null>(null);
+
   useEffect(() => {
     if (!customerId) {
-      setMeasurement([]);
+      setCustomerMeasurementProfile(null);
       return;
     }
     let active = true;
-    void supabase
-      .from('measurements')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('updated_at', { ascending: false })
-      .then(({ data }) => {
-        if (active) setMeasurement(data ?? []);
-      });
+    void customerMeasurementsRepo.getByCustomer(customerId).then((profile) => {
+      if (active) setCustomerMeasurementProfile(profile);
+    });
     return () => {
       active = false;
     };
   }, [customerId]);
-
-  /**
-   * Measurements matching the chosen garment type. A "Shirt + Pant" order
-   * needs both the shirt and the pant record shown, so this filters rather
-   * than picking a single newest row — previously only one ever appeared.
-   */
-  const relevantMeasurements = measurement.filter((m) => {
-    const g = (m.garment_type ?? '').toLowerCase().replace(/[\s+]/g, '');
-    if (garmentType === 'shirt') return g.includes('shirt');
-    if (garmentType === 'pant') return g.includes('pant');
-    return true;
-  });
 
   const goNext = () => {
     if (step === 0 && !customerId) {
@@ -712,49 +694,51 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
           {step === 1 ? (
             <>
               {customerId ? (
-                relevantMeasurements.length > 0 ? (
-                  relevantMeasurements.map((measurement) => (
-                  <View key={measurement.id} className="mb-5 overflow-hidden rounded-lg border border-primary-200 dark:border-primary-800">
+                customerMeasurementProfile ? (
+                  <View className="mb-5 overflow-hidden rounded-lg border border-primary-200 dark:border-primary-800">
                     <View className="flex-row items-center justify-between bg-primary-50 px-4 py-3 dark:bg-primary-950">
                       <View className="flex-row items-center">
                         <FontAwesome5 name="ruler-combined" size={13} color="#1D4ED8" />
                         <Text className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-50">
-                          {t('form.measurementsOnFile')}
+                          Customer Measurements On File
                         </Text>
                       </View>
                       <View className="rounded-full bg-primary-100 px-2.5 py-1 dark:bg-primary-900">
-                        <Text className="font-sans text-base font-medium text-primary-700 dark:text-primary-300">
-                          {measurement.garment_type}
+                        <Text className="font-sans text-xs font-semibold text-primary-700 dark:text-primary-300">
+                          Universal Profile
                         </Text>
                       </View>
                     </View>
                     <View className="bg-white p-4 dark:bg-gray-900">
                       <View className="mb-4 flex-row flex-wrap gap-2">
-                        {getMeasurementFieldEntries(measurement, t).map((f) => (
+                        {Object.entries(
+                          typeof customerMeasurementProfile.measurements === 'object' && customerMeasurementProfile.measurements
+                            ? (customerMeasurementProfile.measurements as Record<string, unknown>)
+                            : {}
+                        ).map(([fieldLabel, val]) => (
                           <View
-                            key={f.label}
+                            key={fieldLabel}
                             className="min-w-[80px] flex-1 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800"
                           >
-                            <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{f.label}</Text>
+                            <Text className="font-sans text-xs text-gray-500 dark:text-gray-400">{fieldLabel}</Text>
                             <Text className="mt-0.5 text-base font-bold text-gray-900 dark:text-gray-50">
-                              {f.value}"
+                              {String(val)}
                             </Text>
                           </View>
                         ))}
                       </View>
                       <Button
-                        title={t('form.viewEditMeasurements')}
+                        title="View / Edit Measurements"
                         variant="secondary"
                         onPress={() =>
                           navigation.navigate('CustomersTab' as any, {
                             screen: 'MeasurementForm',
-                            params: { customerId, measurementId: measurement.id },
+                            params: { customerId },
                           })
                         }
                       />
                     </View>
                   </View>
-                  ))
                 ) : (
                   <View className="mb-5 flex-row items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950">
                     <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
@@ -762,13 +746,13 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
                     </View>
                     <View className="flex-1">
                       <Text className="mb-0.5 text-base font-semibold text-gray-900 dark:text-gray-50">
-                        {t('form.noMeasurementsOnFile')}
+                        Customer measurements not added.
                       </Text>
-                      <Text className="font-sans mb-3 text-base text-gray-600 dark:text-gray-300">
-                        {t('form.noMeasurementsHint')}
+                      <Text className="font-sans mb-3 text-sm text-gray-600 dark:text-gray-300">
+                        Add measurements for this customer to reuse across all orders.
                       </Text>
                       <Button
-                        title={t('form.addMeasurementsNow')}
+                        title="Add Measurements"
                         variant="secondary"
                         fullWidth={false}
                         onPress={() =>
