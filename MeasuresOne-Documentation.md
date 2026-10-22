@@ -633,7 +633,7 @@ delivery date = today + 2 base days
 
 - **Env vars** (`.env.example`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_URL_SCHEME`.
 - **App identity**: name `MeasuresOne`, slug `measuresone`, scheme `measuresone://`, bundle/package id `com.measuresone.app` on both iOS and Android.
-- **EAS project ID**: `4623e4e2-cc7b-421b-8aff-d3021c25c452` (`eas.json` defines build profiles).
+- **EAS project ID**: `05f9df78-ee2e-44d3-a08e-a929cf01839f` (`eas.json` defines build profiles).
 - **Permissions requested**: camera & photo library (design photos), microphone & speech recognition (voice dictation/search/AI assistant), notifications.
 - **iOS `LSApplicationQueriesSchemes`**: whitelist of mail-client URL schemes (Gmail, Outlook, Yahoo Mail, ProtonMail, Spark, generic `message`) so the app can detect/open the user's mail app for email-related flows.
 - **Scripts**: `npm start` (Expo dev server), `npm run android` / `ios` (native builds via `expo run:*`), `npm run web`, `npm run typecheck` (`tsc --noEmit`).
