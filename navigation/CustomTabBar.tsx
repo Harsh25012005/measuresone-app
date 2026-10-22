@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, Path, RadialGradient, Stop, Ellipse } from 'react-native-svg';
@@ -244,13 +244,12 @@ function AnimatedTabIcon({
 
 export function CustomTabBar({ state, navigation, descriptors }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  // A nested screen (e.g. the AI assistant) can hide this bar entirely by
+  // A nested screen can hide this bar entirely by
   // calling navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } })
   // — the standard React Navigation escape hatch for custom tab bars.
   const focusedOptions = descriptors[state.routes[state.index].key]?.options;
-  if (focusedOptions?.tabBarStyle && (focusedOptions.tabBarStyle as { display?: string }).display === 'none') {
-    return null;
-  }
+  const hiddenByOptions =
+    !!focusedOptions?.tabBarStyle && (focusedOptions.tabBarStyle as { display?: string }).display === 'none';
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const { t } = useTranslation('common');
   const { scheme } = useTheme();
@@ -268,16 +267,42 @@ export function CustomTabBar({ state, navigation, descriptors }: BottomTabBarPro
   const totalBarHeight = barHeight + bottomPadding;
   const centerX = navWidth / 2;
 
+  const activeDeepest = getDeepestRouteName(state.routes[state.index] as never);
+  const hidden = hiddenByOptions || (!tourStep && TAB_BAR_HIDDEN_SCREENS.includes(activeDeepest));
+
   // Drives the FAB's rotate-to-X transition.
   const fabT = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (hidden) {
+      // The bar unmounts its views while hidden, which strands a running
+      // native-driver animation mid-way — snap instead, so coming back from a
+      // form never shows a stale X on the Add button.
+      fabT.stopAnimation();
+      fabT.setValue(menuOpen ? 1 : 0);
+      return;
+    }
     Animated.spring(fabT, {
       toValue: menuOpen ? 1 : 0,
       useNativeDriver: true,
       friction: 6,
       tension: 140,
     }).start();
-  }, [menuOpen, fabT]);
+  }, [menuOpen, hidden, fabT]);
+
+  // Never leave the menu open behind a form/detail screen.
+  useEffect(() => {
+    if (hidden) setIsAddMenuOpen(false);
+  }, [hidden]);
+
+  // Android back closes the open menu instead of leaving the screen.
+  useEffect(() => {
+    if (!isAddMenuOpen) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setIsAddMenuOpen(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [isAddMenuOpen]);
 
   const toggleAddMenu = () => {
     if (tourStep) return;
@@ -291,7 +316,6 @@ export function CustomTabBar({ state, navigation, descriptors }: BottomTabBarPro
   // `route.state` to undefined until the nested navigator renders once, which
   // would trigger an immediate close right after the FAB is tapped on a
   // fresh-mounted tab.
-  const activeDeepest = getDeepestRouteName(state.routes[state.index] as never);
   const activeRouteKey = `${state.index}:${activeDeepest}`;
   const prevRouteKey = useRef(activeRouteKey);
   useEffect(() => {
@@ -326,9 +350,7 @@ export function CustomTabBar({ state, navigation, descriptors }: BottomTabBarPro
   };
 
   // Tour stays visible regardless of screen (it drives its own navigation).
-  if (!tourStep && TAB_BAR_HIDDEN_SCREENS.includes(activeDeepest)) {
-    return null;
-  }
+  if (hidden) return null;
 
   return (
     <View pointerEvents="box-none" style={styles.wrapper}>

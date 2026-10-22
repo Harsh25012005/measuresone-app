@@ -14,13 +14,13 @@ type SharedOrderRoutes = {
   OrderDetail: { orderId: string };
   BillForm: { orderId?: string; customerId?: string } | undefined;
   BillDetail: { billId: string };
+  MeasurementForm: { customerId: string };
 };
 
 export type CustomersStackParamList = SharedOrderRoutes & {
   CustomerList: undefined;
   CustomerDetail: { customerId: string; initialTab?: 'info' | 'orders' | 'bills' };
   CustomerForm: { customerId?: string } | undefined;
-  MeasurementForm: { customerId: string };
 };
 
 export type OrdersStackParamList = SharedOrderRoutes & {
@@ -39,7 +39,6 @@ export type DashboardStackParamList = SharedOrderRoutes & {
   Calendar: undefined;
   Transactions: undefined;
   Search: undefined;
-  AIOrderAssistant: undefined;
 };
 
 export type SettingsStackParamList = {

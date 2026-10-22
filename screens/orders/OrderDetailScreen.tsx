@@ -369,32 +369,6 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
                 </View>
               ) : null}
             </View>
-
-            {/* Chasing money belongs next to the balance it refers to, not
-                in a separate messaging card further down the page. */}
-            {balanceDue > 0 ? (
-              <Pressable
-                disabled={!hasPhone}
-                onPress={() =>
-                  sendMessage(
-                    t('detail.whatsapp.reminderPaymentBody', {
-                      customerName,
-                      amount: formatCurrency(balanceDue),
-                      orderNumber: order.order_number,
-                      shopName: shop.shop_name,
-                    })
-                  )
-                }
-                className={`mt-4 flex-row items-center justify-center gap-2 rounded-md bg-[#25D366] py-3 active:opacity-80 ${
-                  hasPhone ? '' : 'opacity-40'
-                }`}
-              >
-                <FontAwesome5 name="whatsapp" size={16} color="#FFFFFF" />
-                <Text className="text-base font-semibold text-white">
-                  {t('detail.whatsapp.sendReminder')}
-                </Text>
-              </Pressable>
-            ) : null}
           </Card>
         ) : null}
 

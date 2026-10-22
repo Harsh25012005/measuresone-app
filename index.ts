@@ -1,4 +1,5 @@
 import { registerRootComponent } from 'expo';
+import './lib/alertPolyfill';
 
 import App from './App';
 

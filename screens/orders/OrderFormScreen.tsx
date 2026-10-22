@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { FontAwesome5 } from '@expo/vector-icons';
 import {
   Button,
+  CenterModal,
   DatePickerField,
   Dropdown,
   EmptyState,
@@ -97,6 +98,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   const [paymentMode, setPaymentMode] = useState<string>('Cash');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [upiConfirmVisible, setUpiConfirmVisible] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(isEditing);
 
   // Creating an order is chunked into a 4-step wizard so a busy counter
@@ -219,19 +221,22 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
 
   const [customerMeasurementProfile, setCustomerMeasurementProfile] = useState<Tables<'customer_measurements'> | null>(null);
 
-  useEffect(() => {
-    if (!customerId) {
-      setCustomerMeasurementProfile(null);
-      return;
-    }
-    let active = true;
-    void customerMeasurementsRepo.getByCustomer(customerId).then((profile) => {
-      if (active) setCustomerMeasurementProfile(profile);
-    });
-    return () => {
-      active = false;
-    };
-  }, [customerId]);
+  // Re-read on focus too, so edits made in MeasurementForm show up on return.
+  useFocusEffect(
+    useCallback(() => {
+      if (!customerId) {
+        setCustomerMeasurementProfile(null);
+        return;
+      }
+      let active = true;
+      void customerMeasurementsRepo.getByCustomer(customerId).then((profile) => {
+        if (active) setCustomerMeasurementProfile(profile);
+      });
+      return () => {
+        active = false;
+      };
+    }, [customerId])
+  );
 
   const goNext = () => {
     if (step === 0 && !customerId) {
@@ -317,11 +322,10 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     }
     setError('');
 
+    // In-app dialog rather than Alert.alert: the system alert is a no-op on
+    // web and was easy to miss, so the order silently never got created.
     if (paymentMode === 'UPI') {
-      Alert.alert(t('form.upiConfirmTitle'), t('form.upiConfirmMessage'), [
-        { text: t('form.upiConfirmNo'), style: 'cancel' },
-        { text: t('form.upiConfirmYes'), onPress: () => void submitOrder() },
-      ]);
+      setUpiConfirmVisible(true);
       return;
     }
 
@@ -731,10 +735,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
                         title="View / Edit Measurements"
                         variant="secondary"
                         onPress={() =>
-                          navigation.navigate('CustomersTab' as any, {
-                            screen: 'MeasurementForm',
-                            params: { customerId },
-                          })
+                          navigation.navigate('MeasurementForm', { customerId: customerId! })
                         }
                       />
                     </View>
@@ -756,10 +757,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
                         variant="secondary"
                         fullWidth={false}
                         onPress={() =>
-                          navigation.navigate('CustomersTab' as any, {
-                            screen: 'MeasurementForm',
-                            params: { customerId },
-                          })
+                          navigation.navigate('MeasurementForm', { customerId: customerId! })
                         }
                       />
                     </View>
@@ -938,6 +936,34 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <CenterModal
+        visible={upiConfirmVisible}
+        onClose={() => setUpiConfirmVisible(false)}
+        title={t('form.upiConfirmTitle')}
+      >
+        <Text className="font-sans mb-5 text-base text-gray-600 dark:text-gray-300">
+          {t('form.upiConfirmMessage')}
+        </Text>
+        <View className="flex-row gap-3">
+          <Button
+            title={t('form.upiConfirmNo')}
+            variant="secondary"
+            fullWidth={false}
+            className="flex-1"
+            onPress={() => setUpiConfirmVisible(false)}
+          />
+          <Button
+            title={t('form.upiConfirmYes')}
+            fullWidth={false}
+            className="flex-1"
+            onPress={() => {
+              setUpiConfirmVisible(false);
+              void submitOrder();
+            }}
+          />
+        </View>
+      </CenterModal>
 
       <QuickAddCustomerSheet
         visible={quickAddVisible}

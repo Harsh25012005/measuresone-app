@@ -181,6 +181,20 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
       });
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('errorLoad'), 'error');
+      // Fall back to an empty dashboard instead of an endless spinner.
+      setStats(
+        (prev) =>
+          prev ?? {
+            todaysOrders: [],
+            todaysDeliveries: [],
+            recentOrders: [],
+            topClients: [],
+            recentPayments: [],
+            totalPendingBalance: 0,
+            unpaidBillsCount: 0,
+            thisMonthRevenue: 0,
+          }
+      );
     }
   }, [showToast, t, shop.id]);
 
@@ -200,7 +214,6 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
   if (loading || !stats) return <LoadingSpinner fullScreen text={t('loading')} />;
 
   return (
-    <>
     <ScrollView
       className="flex-1 bg-white dark:bg-gray-950"
       contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 224 }}
@@ -446,20 +459,5 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         </View>
       </View>
     </ScrollView>
-
-    {/* AI voice assistant — floats above the tab bar (which is 78px tall
-        plus its own safe-area padding, see CustomTabBar.tsx), opens a fresh
-        Gujarati conversation for hands-free order creation. */}
-    <Pressable
-      onPress={() => {
-        haptics.tap();
-        navigation.navigate('AIOrderAssistant');
-      }}
-      className="absolute right-5 h-14 w-14 items-center justify-center rounded-full bg-primary-600 shadow-lg active:bg-primary-700"
-      style={{ bottom: insets.bottom + 78 + 16 }}
-    >
-      <FontAwesome5 name="robot" size={20} color="#FFFFFF" />
-    </Pressable>
-    </>
   );
 }

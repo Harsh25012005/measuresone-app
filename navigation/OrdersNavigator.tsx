@@ -4,6 +4,7 @@ import OrderFormScreen from '../screens/orders/OrderFormScreen';
 import OrderDetailScreen from '../screens/orders/OrderDetailScreen';
 import BillFormScreen from '../screens/billing/BillFormScreen';
 import BillDetailScreen from '../screens/billing/BillDetailScreen';
+import MeasurementFormScreen from '../screens/customers/MeasurementFormScreen';
 import type { OrdersStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<OrdersStackParamList>();
@@ -16,6 +17,7 @@ export function OrdersNavigator() {
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
       <Stack.Screen name="BillForm" component={BillFormScreen} />
       <Stack.Screen name="BillDetail" component={BillDetailScreen} />
+      <Stack.Screen name="MeasurementForm" component={MeasurementFormScreen} />
     </Stack.Navigator>
   );
 }

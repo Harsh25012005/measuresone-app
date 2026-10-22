@@ -3,6 +3,8 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-na
 import { useTranslation } from 'react-i18next';
 import { Button, DatePickerField, Dropdown, Header, InputField, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
+import { staffRepo } from '../../lib/data/repository';
+import { runSync } from '../../lib/data/sync';
 import { formatCurrency } from '../../lib/format';
 import { useShop } from '../../context/AuthContext';
 import type { SettingsScreenProps } from '../../navigation/types';
@@ -42,7 +44,9 @@ export default function StaffWorkEntryFormScreen({
 
   useEffect(() => {
     void (async () => {
-      const { data } = await supabase.from('staff').select('*').eq('id', staffId).single();
+      // Local mirror, not Supabase: staff edits (incl. per-piece rates) land
+      // here first and may not have synced to the server yet.
+      const data = await staffRepo.get(staffId);
       if (data) setStaff(data);
     })();
   }, [staffId]);
@@ -78,6 +82,8 @@ export default function StaffWorkEntryFormScreen({
     setError('');
     setLoading(true);
     try {
+      // Push any pending local staff changes first so the entry's staff_id exists server-side.
+      await runSync(shop.id).catch(() => undefined);
       const { error: saveError } = await supabase.from('staff_work_entries').insert({
         shop_id: shop.id,
         staff_id: staffId,
@@ -91,7 +97,8 @@ export default function StaffWorkEntryFormScreen({
       showToast(t('workEntry.saveSuccess'), 'success');
       navigation.goBack();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('workEntry.saveError'), 'error');
+      const message = (err as { message?: string } | null)?.message;
+      showToast(message || t('workEntry.saveError'), 'error');
     } finally {
       setLoading(false);
     }

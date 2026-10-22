@@ -103,55 +103,86 @@ async function pullEntity(shopId: string, entity: SyncedEntity) {
   );
 }
 
-async function pushPendingOps() {
-  const db = await getDb();
-  const ops = await db.getAllAsync<{ op_id: string; entity: string; row_id: string; op_type: string; payload: string }>(
-    'select * from pending_ops order by created_at asc'
-  );
+type PendingOp = { op_id: string; entity: string; row_id: string; op_type: string; payload: string };
 
-  for (const op of ops) {
-    const payload = JSON.parse(op.payload);
-    const table = op.entity as SyncedEntity;
-    try {
-      if (op.op_type === 'insert') {
-        const { error } = await supabase.from(table).insert(payload);
-        if (error) throw error;
-      } else if (op.op_type === 'delete') {
-        const { error } = await supabase.from(table).delete().eq('id', payload.id);
-        if (error) throw error;
-      } else {
-        const { id, ...rest } = payload;
-        const { error } = await supabase.from(table).update(rest).eq('id', id);
-        if (error) throw error;
-      }
-      await db.runAsync('delete from pending_ops where op_id = ?', [op.op_id]);
-    } catch (err) {
-      // Leave the op queued and stop pushing further ops for this run — later
-      // ops may depend on this one (e.g. an order_item referencing an order
-      // that hasn't landed yet), so preserving order matters more than
-      // draining the queue eagerly.
-      console.warn('[sync] push failed, will retry on next sync:', table, op.op_id, err);
-      break;
-    }
+/** Postgres error codes, as surfaced by PostgREST. */
+const FK_VIOLATION = '23503';
+const UNIQUE_VIOLATION = '23505';
+
+async function pushOp(op: PendingOp): Promise<void> {
+  const payload = JSON.parse(op.payload);
+  const table = op.entity as SyncedEntity;
+  if (op.op_type === 'insert') {
+    const { error } = await supabase.from(table).insert(payload);
+    // Already on the server (e.g. a previous push landed but the local
+    // bookkeeping didn't) — treat as done instead of blocking the queue.
+    if (error && error.code !== UNIQUE_VIOLATION) throw error;
+  } else if (op.op_type === 'delete') {
+    const { error } = await supabase.from(table).delete().eq('id', payload.id);
+    if (error) throw error;
+  } else {
+    const { id, ...rest } = payload;
+    const { error } = await supabase.from(table).update(rest).eq('id', id);
+    if (error) throw error;
   }
 }
 
-let syncing = false;
+async function pushPendingOps() {
+  const db = await getDb();
+  let ops = await db.getAllAsync<PendingOp>('select * from pending_ops order by created_at asc');
 
-export async function runSync(shopId: string): Promise<void> {
-  if (syncing) return;
-  const net = await NetInfo.fetch();
-  if (!net.isConnected) return;
+  // Push in queue order. An op that fails on a foreign key (e.g. an
+  // order_item queued ahead of its order) is deferred and retried after the
+  // rest, for as long as each pass still makes progress — otherwise one
+  // mis-ordered op would block every later change forever. Any other error
+  // stops the run so dependent ops keep their order; it retries next sync.
+  while (ops.length > 0) {
+    const deferred: PendingOp[] = [];
+    let progressed = false;
+    for (const op of ops) {
+      try {
+        await pushOp(op);
+        await db.runAsync('delete from pending_ops where op_id = ?', [op.op_id]);
+        progressed = true;
+      } catch (err) {
+        if ((err as { code?: string })?.code === FK_VIOLATION) {
+          deferred.push(op);
+          continue;
+        }
+        console.warn('[sync] push failed, will retry on next sync:', op.entity, op.op_id, err);
+        return;
+      }
+    }
+    if (!progressed) {
+      if (deferred.length > 0) {
+        console.warn('[sync] ops still blocked by missing references, will retry on next sync:', deferred.map((o) => `${o.entity}:${o.op_id}`));
+      }
+      return;
+    }
+    ops = deferred;
+  }
+}
 
-  syncing = true;
-  try {
+let inFlight: Promise<void> | null = null;
+
+/**
+ * Pushes queued local writes, then pulls server changes. Concurrent callers
+ * share the run already in progress, so `await runSync()` always means "a
+ * sync has finished" rather than returning early while one is mid-flight.
+ */
+export function runSync(shopId: string): Promise<void> {
+  if (inFlight) return inFlight;
+  inFlight = (async () => {
+    const net = await NetInfo.fetch();
+    if (!net.isConnected) return;
     await pushPendingOps();
     for (const entity of SYNCED_ENTITIES) {
       await pullEntity(shopId, entity);
     }
-  } finally {
-    syncing = false;
-  }
+  })().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }
 
 let unsubscribeNetInfo: (() => void) | null = null;
@@ -160,9 +191,9 @@ let unsubscribeNetInfo: (() => void) | null = null;
 export function startAutoSync(shopId: string) {
   stopAutoSync();
   unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-    if (state.isConnected) void runSync(shopId);
+    if (state.isConnected) runSync(shopId).catch((err) => console.warn('[sync] failed:', err));
   });
-  void runSync(shopId);
+  runSync(shopId).catch((err) => console.warn('[sync] failed:', err));
 }
 
 export function stopAutoSync() {
