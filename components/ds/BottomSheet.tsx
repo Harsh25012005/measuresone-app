@@ -65,11 +65,11 @@ export function DSBottomSheet({ visible, onClose, title, children, actionLabel, 
     if (visible) {
       closing.current = false;
       setMounted(true);
-      ty.value = sheetH.current || winH;
+      ty.value = (sheetH.current || winH) + 8;
       ty.value = withSpring(0, { damping: 22, stiffness: 220, mass: 0.9 });
       scrim.value = withTiming(1, { duration: 220 });
     } else if (mounted) {
-      ty.value = withTiming(sheetH.current || winH, { duration: 220 });
+      ty.value = withTiming((sheetH.current || winH) + 8, { duration: 220 });
       scrim.value = withTiming(0, { duration: 220 });
       const t = setTimeout(() => setMounted(false), 230);
       return () => clearTimeout(t);
@@ -126,7 +126,17 @@ export function DSBottomSheet({ visible, onClose, title, children, actionLabel, 
             <View style={styles.handle} />
           </View>
 
-          <View style={{ backgroundColor: colors.bgSurface, marginTop: -1, paddingTop: 1, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 }}>
+          <View
+            style={{
+              backgroundColor: colors.bgSurface,
+              marginTop: -1,
+              paddingTop: 1,
+              paddingHorizontal: 20,
+              paddingBottom: insets.bottom + 20,
+              borderBottomLeftRadius: radii.sheet,
+              borderBottomRightRadius: radii.sheet,
+            }}
+          >
             <View style={styles.header}>
               <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
                 {title}
@@ -157,7 +167,7 @@ export function DSBottomSheet({ visible, onClose, title, children, actionLabel, 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'flex-end' },
+  root: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 4, paddingBottom: 4 },
   sheet: { width: '100%', alignSelf: 'center', maxWidth: 560 },
   handle: {
     position: 'absolute',
