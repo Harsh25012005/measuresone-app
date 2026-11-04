@@ -64,10 +64,10 @@ export function DSButton({
       ? '#FFFFFF'
       : primary[600];
   const gradient: [string, string] | null =
-    variant === 'primary' ? ['#5283EF', primary[600]] : variant === 'black' ? ['#2E2E2E', '#000000'] : null;
+    variant === 'primary' ? ['#5283EF', primary[600]] : variant === 'black' ? (isDark ? ['#3B3B3B', '#1C1C1C'] : ['#2E2E2E', '#000000']) : null;
   const solidBg = variant === 'destructive' ? status.danger[600] : undefined;
   const borderColor =
-    variant === 'line' ? primary[600] : variant === 'black' && isDark ? '#2A2A2A' : undefined;
+    variant === 'line' ? primary[600] : variant === 'black' && isDark ? '#4A4A4A' : undefined;
   // Press tint: darken filled variants, soft wash on line/link.
   const washed = variant === 'line' || variant === 'link';
   const tint = washed ? colors.primaryTint : '#000000';

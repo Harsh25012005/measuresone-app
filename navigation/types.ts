@@ -6,7 +6,6 @@ export type AuthStackParamList = {
   Signup: undefined;
   ForgotPassword: undefined;
   ConfirmEmail: { email: string };
-  ComponentShowcase: undefined;
 };
 
 /** Screens shared across several stacks (orders/bills reachable from many tabs). */
@@ -54,7 +53,6 @@ export type SettingsStackParamList = {
   Security: undefined;
   /** The whole Billing stack, nested here since Billing is no longer a tab. */
   Billing: undefined;
-  CustomMeasurementFields: undefined;
   UniversalMeasurements: undefined;
   UniversalTemplateDetail: { templateId: string };
 };

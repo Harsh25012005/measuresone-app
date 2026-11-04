@@ -7,7 +7,6 @@ import StaffFormScreen from '../screens/staff/StaffFormScreen';
 import StaffDetailScreen from '../screens/staff/StaffDetailScreen';
 import StaffWorkEntryFormScreen from '../screens/staff/StaffWorkEntryFormScreen';
 import RevenueScreen from '../screens/revenue/RevenueScreen';
-import CustomMeasurementFieldsScreen from '../screens/settings/CustomMeasurementFieldsScreen';
 import UniversalMeasurementsScreen from '../screens/settings/UniversalMeasurementsScreen';
 import UniversalTemplateDetailScreen from '../screens/settings/UniversalTemplateDetailScreen';
 import { BillingNavigator } from './BillingNavigator';
@@ -31,7 +30,6 @@ export function SettingsNavigator() {
           re-registering each screen) keeps the Billing screens' existing
           BillingScreenProps typing working unchanged. */}
       <Stack.Screen name="Billing" component={BillingNavigator} />
-      <Stack.Screen name="CustomMeasurementFields" component={CustomMeasurementFieldsScreen} />
       <Stack.Screen name="UniversalMeasurements" component={UniversalMeasurementsScreen} />
       <Stack.Screen name="UniversalTemplateDetail" component={UniversalTemplateDetailScreen} />
     </Stack.Navigator>

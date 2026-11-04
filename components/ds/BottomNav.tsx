@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -135,7 +135,15 @@ export function DSBottomNav({
           !dark && styles.shadow,
         ]}
       >
-        <Glass tint={dark ? 'dark' : 'light'} wash={dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.45)'} />
+        {/* Android only blurs with an experimental method, so there the bar gets an almost solid wash to stay readable over scrolling content */}
+        <Glass
+          tint={dark ? 'dark' : 'light'}
+          wash={
+            Platform.OS === 'android'
+              ? dark ? 'rgba(18,18,18,0.94)' : 'rgba(255,255,255,0.94)'
+              : dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.45)'
+          }
+        />
         <View style={{ flex: 1, flexDirection: 'row' }} onLayout={(e: LayoutChangeEvent) => setInnerW(e.nativeEvent.layout.width)}>
           <Animated.View style={[styles.thumb, thumb]} />
           {items.map((it) => (

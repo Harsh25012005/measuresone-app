@@ -5,7 +5,6 @@ import SignupScreen from '../screens/auth/SignupScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import ConfirmEmailScreen from '../screens/auth/ConfirmEmailScreen';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
-import ComponentShowcaseScreen from '../screens/ComponentShowcaseScreen';
 import { LoadingSpinner } from '../components/ui';
 import { hasSeenOnboarding } from '../lib/onboarding';
 import type { AuthStackParamList } from './types';
@@ -29,7 +28,6 @@ export function AuthNavigator() {
       <Stack.Screen name="Signup" component={SignupScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ConfirmEmail" component={ConfirmEmailScreen} />
-      <Stack.Screen name="ComponentShowcase" component={ComponentShowcaseScreen} />
     </Stack.Navigator>
   );
 }
