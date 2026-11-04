@@ -10,7 +10,7 @@ import {
   universalFieldsRepo,
   customerMeasurementsRepo,
 } from '../../lib/data/repository';
-import type { AppScreenProps } from '../../navigation/types';
+import type { CustomersScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 
 type Template = Tables<'universal_measurement_templates'>;
@@ -19,7 +19,7 @@ type Field = Tables<'universal_measurement_fields'>;
 export default function MeasurementFormScreen({
   navigation,
   route,
-}: AppScreenProps<'MeasurementForm'>) {
+}: CustomersScreenProps<'MeasurementForm'>) {
   const { customerId } = route.params;
   const { t } = useTranslation('customers');
   const shop = useShop();
@@ -77,9 +77,8 @@ export default function MeasurementFormScreen({
   };
 
   const handleValueChange = (fieldName: string, text: string) => {
-    // Digits plus a single decimal point, at most 3 decimal places (e.g. 10.000).
-    const [whole, ...rest] = text.replace(/[^0-9.]/g, '').split('.');
-    const numericOnly = rest.length > 0 ? `${whole}.${rest.join('').slice(0, 3)}` : whole;
+    // Keep only numeric and decimal
+    const numericOnly = text.replace(/[^0-9.]/g, '');
     setValues((prev) => ({
       ...prev,
       [fieldName]: numericOnly,

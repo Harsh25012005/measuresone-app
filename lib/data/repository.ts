@@ -42,7 +42,7 @@ async function enqueueOp(entity: string, rowId: string, opType: 'insert' | 'upda
 
 /** Fire-and-forget: sync after a local write, without blocking the caller's UI update. */
 function kickSync(shopId: string) {
-  runSync(shopId).catch((err) => console.warn('[sync] background sync failed:', err));
+  void runSync(shopId);
 }
 
 // ---------------------------------------------------------------------------
@@ -333,9 +333,6 @@ export const ordersRepo = {
             row.created_at, row.updated_at,
           ]
         );
-        // Queue the order before its items: the server's order_items.order_id
-        // FK rejects an item pushed ahead of its order.
-        await enqueueOp('orders', row.id, 'insert', { ...row, design_photo_urls: row.design_photo_urls });
         for (const item of items) {
           const itemId = Crypto.randomUUID();
           const itemRow = {
@@ -358,6 +355,7 @@ export const ordersRepo = {
       })
     );
 
+    await enqueueOp('orders', row.id, 'insert', { ...row, design_photo_urls: row.design_photo_urls });
     kickSync(shopId);
     return row;
   },
