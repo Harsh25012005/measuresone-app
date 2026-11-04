@@ -9,14 +9,16 @@ import RevenueScreen from '../screens/revenue/RevenueScreen';
 import CustomMeasurementFieldsScreen from '../screens/settings/CustomMeasurementFieldsScreen';
 import UniversalMeasurementsScreen from '../screens/settings/UniversalMeasurementsScreen';
 import UniversalTemplateDetailScreen from '../screens/settings/UniversalTemplateDetailScreen';
-import { BillingNavigator } from './BillingNavigator';
+import CalendarScreen from '../screens/dashboard/CalendarScreen';
+import { useStackScreenOptions } from './screenOptions';
 import type { SettingsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
 export function SettingsNavigator() {
+  const screenOptions = useStackScreenOptions();
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="SettingsHome" component={SettingsScreen} />
       <Stack.Screen name="ShopEdit" component={ShopEditScreen} />
       <Stack.Screen name="Staff" component={StaffListScreen} />
@@ -24,14 +26,11 @@ export function SettingsNavigator() {
       <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
       <Stack.Screen name="StaffWorkEntryForm" component={StaffWorkEntryFormScreen} />
       <Stack.Screen name="Revenue" component={RevenueScreen} />
-      {/* Billing lost its own tab when the bar moved to 4 tabs + Add, so the
-          whole Billing stack is nested here instead. Nesting (rather than
-          re-registering each screen) keeps the Billing screens' existing
-          BillingScreenProps typing working unchanged. */}
-      <Stack.Screen name="Billing" component={BillingNavigator} />
       <Stack.Screen name="CustomMeasurementFields" component={CustomMeasurementFieldsScreen} />
       <Stack.Screen name="UniversalMeasurements" component={UniversalMeasurementsScreen} />
       <Stack.Screen name="UniversalTemplateDetail" component={UniversalTemplateDetailScreen} />
+      {/* Settings links to Calendar too; without this route the tap was a no-op. */}
+      <Stack.Screen name="Calendar" component={CalendarScreen as React.ComponentType<any>} />
     </Stack.Navigator>
   );
 }

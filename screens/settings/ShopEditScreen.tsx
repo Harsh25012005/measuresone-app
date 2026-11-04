@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Button, Header, ImagePickerField, InputField, useToast } from '../../components/ui';
+import { Button, Header, ImagePickerField, InputField, useToast } from '../../src/components/ui';
 import { useAuth, useShop } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { uploadImage } from '../../lib/storage';
@@ -24,6 +24,9 @@ export default function ShopEditScreen({ navigation }: SettingsScreenProps<'Shop
   const [logoUri, setLogoUri] = useState<string | null>(shop.logo_url ?? null);
   const [errors, setErrors] = useState<ShopEditErrors>({});
   const [loading, setLoading] = useState(false);
+  const ownerRef = useRef<TextInput>(null);
+  const addressRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
 
   const validate = () => {
     const next: ShopEditErrors = {};
@@ -74,50 +77,68 @@ export default function ShopEditScreen({ navigation }: SettingsScreenProps<'Shop
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-white dark:bg-gray-950">
+    <View className="flex-1 bg-bg">
       <Header title={t('shopEdit.title')} onBack={() => navigation.goBack()} />
-      <ScrollView
-        className="flex-1 bg-white dark:bg-gray-950"
-        contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 32 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <ImagePickerField label={t('shopEdit.shopLogo')} uri={logoUri} onChange={setLogoUri} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+          <ImagePickerField label={t('shopEdit.shopLogo')} uri={logoUri} onChange={setLogoUri} />
 
-        <InputField
-          label={t('shopEdit.shopName')}
-          value={shopName}
-          onChangeText={setShopName}
-          placeholder={t('shopEdit.shopNamePlaceholder')}
-          error={errors.shopName}
-          required
-        />
+          <InputField
+            label={t('shopEdit.shopName')}
+            value={shopName}
+            onChangeText={setShopName}
+            placeholder={t('shopEdit.shopNamePlaceholder')}
+            autoCapitalize="words"
+            returnKeyType="next"
+            onSubmitEditing={() => ownerRef.current?.focus()}
+            error={errors.shopName}
+            required
+          />
 
-        <InputField
-          label={t('shopEdit.ownerName')}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder={t('shopEdit.ownerNamePlaceholder')}
-          error={errors.ownerName}
-          required
-        />
+          <InputField
+            ref={ownerRef}
+            label={t('shopEdit.ownerName')}
+            value={ownerName}
+            onChangeText={setOwnerName}
+            placeholder={t('shopEdit.ownerNamePlaceholder')}
+            autoCapitalize="words"
+            returnKeyType="next"
+            onSubmitEditing={() => addressRef.current?.focus()}
+            error={errors.ownerName}
+            required
+          />
 
-        <InputField
-          label={t('shopEdit.address')}
-          value={address}
-          onChangeText={setAddress}
-          placeholder={t('shopEdit.addressPlaceholder')}
-        />
+          <InputField
+            ref={addressRef}
+            label={t('shopEdit.address')}
+            value={address}
+            onChangeText={setAddress}
+            placeholder={t('shopEdit.addressPlaceholder')}
+            autoComplete="street-address"
+            returnKeyType="next"
+            onSubmitEditing={() => phoneRef.current?.focus()}
+            optional
+          />
 
-        <InputField
-          label={t('shopEdit.phone')}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder={t('shopEdit.phonePlaceholder')}
-          keyboardType="phone-pad"
-        />
-
-        <Button title={t('shopEdit.save')} onPress={handleSave} loading={loading} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <InputField
+            ref={phoneRef}
+            label={t('shopEdit.phone')}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder={t('shopEdit.phonePlaceholder')}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            prefix="+91"
+            maxLength={10}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+            optional
+          />
+        </ScrollView>
+        <View style={{ paddingBottom: Math.max(insets.bottom, 12) }} className="border-t border-line bg-surface px-4 pt-3">
+          <Button title={t('shopEdit.save')} size="lg" onPress={handleSave} loading={loading} />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }

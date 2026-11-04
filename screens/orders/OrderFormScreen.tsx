@@ -1,38 +1,47 @@
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '@expo/vector-icons';
+
 import {
+  Badge,
   Button,
+  Card,
   CenterModal,
+  Chip,
   DatePickerField,
   Dropdown,
   EmptyState,
   Header,
+  Icon,
   ImagePickerField,
   InputField,
-  LoadingSpinner,
+  NumberStepper,
   QuickAddCustomerSheet,
-  RadioGroup,
+  SegmentedControl,
+  Section,
+  Skeleton,
+  Text,
+  Toggle,
   useToast,
-} from '../../components/ui';
+} from '../../src/components/ui';
 import { uploadImage } from '../../lib/storage';
 import { useShop } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { useTheme } from '../../context/ThemeContext';
+import { loadMeasurementView, loadMeasurementViewForCloth, type MeasurementView } from '../../lib/measurementLayout';
+import { measurementFieldLabel } from '../../lib/measurementNames';
+import { GARMENT_STORAGE_LABELS, GARMENT_TYPES, parseGarmentType, type GarmentType } from '../../lib/garments';
 import { customersRepo, ordersRepo, billsRepo, paymentsRepo, customerMeasurementsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { suggestDeliveryDate } from '../../lib/orderScheduling';
-import { getMeasurementFieldEntries } from '../../lib/measurementFields';
+import { deriveOrderDefaults } from '../../lib/orderDefaults';
 import type { AppScreenProps } from '../../navigation/types';
 import type { OrderPriority } from '../../types';
 import type { Tables } from '../../lib/database.types';
 
-type Option = { label: string; value: string };
+type Option = { label: string; value: string; phone?: string | null };
 
 const PAYMENT_MODES = ['Cash', 'UPI'] as const;
-const GARMENT_TYPES = ['shirt', 'pant', 'both'] as const;
-type GarmentType = (typeof GARMENT_TYPES)[number];
 
 /** Resizes a photo-URI array to `count` slots, keeping already-picked images in place. */
 function resizePhotoSlots(prev: (string | null)[], count: number): (string | null)[] {
@@ -62,10 +71,24 @@ async function nextOrderNumber(shopId: string): Promise<string> {
 export default function OrderFormScreen({ navigation, route }: AppScreenProps<'OrderForm'>) {
   const presetCustomerId = route.params?.customerId;
   const orderId = route.params?.orderId;
+  const prefill = route.params?.prefill;
+  const prefillPieces = (() => {
+    let shirt = 0;
+    let pant = 0;
+    for (const g of prefill?.garments ?? []) {
+      const n = Math.max(0, Math.floor(g.count || 0));
+      if (g.garment !== 'pant') shirt += n;
+      if (g.garment !== 'shirt') pant += n;
+    }
+    return { shirt, pant };
+  })();
+  const prefillType: GarmentType | '' =
+    prefillPieces.shirt && prefillPieces.pant ? 'both' : prefillPieces.pant ? 'pant' : prefillPieces.shirt ? 'shirt' : '';
   const isEditing = !!orderId;
   const shop = useShop();
   const showToast = useToast();
   const { t } = useTranslation('orders');
+  const { colors } = useTheme();
 
   const PAYMENT_MODE_LABELS: Record<(typeof PAYMENT_MODES)[number], string> = {
     Cash: t('form.paymentModeCash'),
@@ -82,15 +105,21 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   // Pre-filled for new orders so a routine order needs no typing: a tailor
   // takes mostly the same kind of work all day, and one piece is by far the
   // most common count. Both stay fully editable.
-  const [garmentType, setGarmentType] = useState<GarmentType | ''>(isEditing ? '' : 'shirt');
-  const [clothCount, setClothCount] = useState(isEditing ? '' : '1');
-  const [shirtCount, setShirtCount] = useState('');
-  const [pantCount, setPantCount] = useState('');
+  const [garmentType, setGarmentType] = useState<GarmentType | ''>(isEditing ? '' : prefillType || 'shirt');
+  const [clothCount, setClothCount] = useState(
+    isEditing ? '' : prefillType && prefillType !== 'both' ? String(prefillPieces.shirt || prefillPieces.pant) : '1'
+  );
+  const [shirtCount, setShirtCount] = useState(prefillType === 'both' ? String(prefillPieces.shirt) : '');
+  const [pantCount, setPantCount] = useState(prefillType === 'both' ? String(prefillPieces.pant) : '');
   const [notes, setNotes] = useState('');
   const [shirtPhotoUris, setShirtPhotoUris] = useState<(string | null)[]>([null]);
   const [pantPhotoUris, setPantPhotoUris] = useState<(string | null)[]>([null]);
-  const [deliveryDate, setDeliveryDate] = useState<Date | null>(null);
-  const [deliveryDateTouched, setDeliveryDateTouched] = useState(false);
+  const prefillDate = prefill?.deliveryDate && /^d{4}-d{2}-d{2}$/.test(prefill.deliveryDate)
+    ? new Date(`${prefill.deliveryDate}T00:00:00`)
+    : null;
+  const [deliveryDate, setDeliveryDate] = useState<Date | null>(prefillDate);
+  // A date given to TrueFit AI counts as the tailor's choice, so auto-suggest leaves it alone.
+  const [deliveryDateTouched, setDeliveryDateTouched] = useState(!!prefillDate);
   const [priority, setPriority] = useState<OrderPriority>('normal');
   const [billBookNumber, setBillBookNumber] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -101,26 +130,17 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   const [upiConfirmVisible, setUpiConfirmVisible] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(isEditing);
 
-  // Creating an order is chunked into a 4-step wizard so a busy counter
-  // doesn't have to scroll through everything (garment, photos, delivery,
-  // payment) at once — editing an existing order stays the original single
-  // scroll, since that's a more deliberate, lower-frequency action.
-  // Only step 1 has required input; a "Save Order Now" shortcut appears
-  // from there on so the remaining steps never have to be tapped through.
-  const STEP_COUNT = 3;
-  const [step, setStep] = useState(0);
   const [customersLoaded, setCustomersLoaded] = useState(false);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
 
   const shirtCountNum = Math.max(0, Math.floor(Number(shirtCount) || 0));
   const pantCountNum = Math.max(0, Math.floor(Number(pantCount) || 0));
-  // Editing an existing order only ever has one combined count on record
-  // (orders are saved as a single item), so the shirt/pant split only
-  // applies to the new-order wizard, where it's entered directly.
+  const plainCountNum = Math.max(0, Math.floor(Number(clothCount) || 0));
+  // Shirt + Pant orders carry separate shirt/pant quantities. Older orders
+  // saved only a combined total, so editing one keeps that total until the
+  // split is filled in.
   const clothCountNum =
-    !isEditing && garmentType === 'both'
-      ? shirtCountNum + pantCountNum
-      : Math.max(0, Math.floor(Number(clothCount) || 0));
+    garmentType === 'both' ? shirtCountNum + pantCountNum || plainCountNum : plainCountNum;
   const totalAmountNum = Math.max(0, Number(totalAmount) || 0);
   const selectedCustomerName = customers.find((c) => c.value === customerId)?.label ?? '';
 
@@ -130,20 +150,53 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     both: t('form.garmentTypes.both'),
   };
 
+  // Smart defaults come from the shop's own history (read-only): the last cloth,
+  // the last delivery interval and the last rate. They only pre-fill things the
+  // user has not touched, and the rate is shown as a suggestion, never filled in.
+  const [history, setHistory] = useState<Tables<'orders'>[]>([]);
+  const [garmentTouched, setGarmentTouched] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isEditing) return;
+      void ordersRepo.list(shop.id).then((rows) =>
+        setHistory([...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)))
+      );
+    }, [isEditing, shop.id])
+  );
+
+  const { clothType: lastClothType, lastDays, lastRate, recentCustomerIds } = deriveOrderDefaults(history, customerId || null);
+
+  // Pre-select the cloth last used (for this customer, else in the shop) until the user picks one.
+  useEffect(() => {
+    if (isEditing || garmentTouched || !lastClothType) return;
+    const parsed = parseGarmentType(lastClothType);
+    if (parsed) setGarmentType(parsed);
+  }, [isEditing, garmentTouched, lastClothType]);
+
   // Auto-suggests a delivery date from garment count. Only runs for new
   // orders and stops once the user has manually picked a date, so it never
   // fights their choice.
   useEffect(() => {
     if (isEditing || deliveryDateTouched || clothCountNum === 0) return;
+    if (lastDays != null) {
+      const d = new Date();
+      d.setDate(d.getDate() + lastDays);
+      setDeliveryDate(d);
+      return;
+    }
     void suggestDeliveryDate(shop.id, clothCountNum, null).then(setDeliveryDate);
-  }, [isEditing, deliveryDateTouched, clothCountNum, shop.id]);
+  }, [isEditing, deliveryDateTouched, clothCountNum, shop.id, lastDays]);
 
   // Keeps the number of photo slots in sync with the entered cloth count,
   // preserving already-picked images when the count grows or shrinks. In the
   // new-order wizard with both garments selected, shirt and pant each get
   // their own slot count from their own quantity field.
   useEffect(() => {
-    if (!isEditing && garmentType === 'both') {
+    // Older Shirt + Pant orders have no split yet: keep their combined slot
+    // count (and photos) until shirt/pant quantities are entered.
+    if (garmentType === 'both' && shirtCountNum + pantCountNum > 0) {
       setShirtPhotoUris((prev) => resizePhotoSlots(prev, Math.max(1, shirtCountNum)));
       setPantPhotoUris((prev) => resizePhotoSlots(prev, Math.max(1, pantCountNum)));
       return;
@@ -172,23 +225,37 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
 
           const firstItem = orderItems[0];
           const urls = data.design_photo_urls ?? [];
-          const half = Math.ceil(urls.length / 2);
-          const rawGarmentType = (firstItem?.garment_type ?? '').toLowerCase();
-          const loadedGarmentType: GarmentType | '' = GARMENT_TYPES.includes(rawGarmentType as GarmentType)
-            ? (rawGarmentType as GarmentType)
-            : '';
-          const loadedClothCount = firstItem ? firstItem.cloth_count : data.cloth_count ?? 1;
-          const slots = Math.max(1, loadedClothCount);
+          const shirtItem = orderItems.find((i) => parseGarmentType(i.garment_type) === 'shirt');
+          const pantItem = orderItems.find((i) => parseGarmentType(i.garment_type) === 'pant');
+          // Shirt + Pant is saved as one Shirt item and one Pant item; older
+          // orders used a single combined item (parsed as 'both' directly).
+          // The stored label may be in any app language, hence parseGarmentType.
+          const loadedGarmentType: GarmentType | '' =
+            shirtItem && pantItem ? 'both' : parseGarmentType(firstItem?.garment_type);
+          const loadedClothCount = orderItems.length
+            ? orderItems.reduce((sum, i) => sum + (Number(i.cloth_count) || 0), 0)
+            : data.cloth_count ?? 1;
           setCustomerId(data.customer_id ?? '');
           setGarmentType(loadedGarmentType);
           setClothCount(String(loadedClothCount));
           setNotes(firstItem?.notes ?? '');
-          setShirtPhotoUris(
-            loadedGarmentType === 'pant' ? Array(slots).fill(null) : resizePhotoSlots(urls.slice(0, half), slots)
-          );
-          setPantPhotoUris(
-            loadedGarmentType === 'shirt' ? Array(slots).fill(null) : resizePhotoSlots(urls.slice(half), slots)
-          );
+          if (shirtItem && pantItem) {
+            // Photos are stored shirt slots first, then pant slots.
+            const shirtSlots = Math.max(1, shirtItem.cloth_count);
+            setShirtCount(String(shirtItem.cloth_count));
+            setPantCount(String(pantItem.cloth_count));
+            setShirtPhotoUris(resizePhotoSlots(urls.slice(0, shirtSlots), shirtSlots));
+            setPantPhotoUris(resizePhotoSlots(urls.slice(shirtSlots), Math.max(1, pantItem.cloth_count)));
+          } else {
+            const slots = Math.max(1, loadedClothCount);
+            const half = Math.ceil(urls.length / 2);
+            setShirtPhotoUris(
+              loadedGarmentType === 'pant' ? Array(slots).fill(null) : resizePhotoSlots(urls.slice(0, half), slots)
+            );
+            setPantPhotoUris(
+              loadedGarmentType === 'shirt' ? Array(slots).fill(null) : resizePhotoSlots(urls.slice(half), slots)
+            );
+          }
           setDeliveryDate(data.delivery_date ? new Date(data.delivery_date) : null);
           setDeliveryDateTouched(true);
           setPriority((data.priority as OrderPriority) ?? 'normal');
@@ -209,7 +276,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
 
   const loadCustomers = useCallback(async () => {
     const customerRows = await customersRepo.list(shop.id);
-    setCustomers(customerRows.map((c) => ({ label: c.name, value: c.id })));
+    setCustomers(customerRows.map((c) => ({ label: c.name, value: c.id, phone: c.phone })));
     setCustomersLoaded(true);
   }, [shop.id]);
 
@@ -220,33 +287,28 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   );
 
   const [customerMeasurementProfile, setCustomerMeasurementProfile] = useState<Tables<'customer_measurements'> | null>(null);
+  const [measurementView, setMeasurementView] = useState<MeasurementView[]>([]);
 
   // Re-read on focus too, so edits made in MeasurementForm show up on return.
   useFocusEffect(
     useCallback(() => {
       if (!customerId) {
         setCustomerMeasurementProfile(null);
+        setMeasurementView([]);
         return;
       }
       let active = true;
-      void customerMeasurementsRepo.getByCustomer(customerId).then((profile) => {
-        if (active) setCustomerMeasurementProfile(profile);
+      void customerMeasurementsRepo.getByCustomer(customerId).then(async (profile) => {
+        const view = await loadMeasurementViewForCloth(shop.id, profile, garmentType || null);
+        if (!active) return;
+        setCustomerMeasurementProfile(profile);
+        setMeasurementView(view);
       });
       return () => {
         active = false;
       };
-    }, [customerId])
+    }, [customerId, shop.id])
   );
-
-  const goNext = () => {
-    if (step === 0 && !customerId) {
-      setError(t('form.customerRequired'));
-      return;
-    }
-    setError('');
-    setStep((s) => Math.min(s + 1, STEP_COUNT - 1));
-  };
-  const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   /** Uploads any freshly-picked local photo URIs, leaving already-remote ones (edit mode) untouched. */
   const resolveDesignPhotoUrls = async (fileNamePrefix: string): Promise<string[]> => {
@@ -277,14 +339,30 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     return urls;
   };
 
-  const buildItem = () => [
-    {
-      garment_type: garmentType ? GARMENT_TYPE_LABELS[garmentType] : t('form.defaultGarmentType'),
-      cloth_count: clothCountNum || 1,
-      unit_price: totalAmountNum,
-      notes: notes.trim() || null,
-    },
-  ];
+  /**
+   * Shirt + Pant becomes one Shirt item and one Pant item so the order keeps
+   * the split (2 shirts + 2 pants rather than just 4 pieces). The order total
+   * sits on the first item, as it always has for single-item orders.
+   */
+  const buildItem = () => {
+    const note = notes.trim() || null;
+    if (garmentType === 'both' && shirtCountNum + pantCountNum > 0) {
+      return [
+        { garment_type: GARMENT_STORAGE_LABELS.shirt, cloth_count: shirtCountNum },
+        { garment_type: GARMENT_STORAGE_LABELS.pant, cloth_count: pantCountNum },
+      ]
+        .filter((i) => i.cloth_count > 0)
+        .map((i, index) => ({ ...i, unit_price: index === 0 ? totalAmountNum : 0, notes: note }));
+    }
+    return [
+      {
+        garment_type: garmentType ? GARMENT_STORAGE_LABELS[garmentType] : t('form.defaultGarmentType'),
+        cloth_count: clothCountNum || 1,
+        unit_price: totalAmountNum,
+        notes: note,
+      },
+    ];
+  };
 
   const handleUpdate = async () => {
     if (!customerId || !orderId) {
@@ -324,7 +402,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
 
     // In-app dialog rather than Alert.alert: the system alert is a no-op on
     // web and was easy to miss, so the order silently never got created.
-    if (paymentMode === 'UPI') {
+    if (paymentMode === 'UPI' && Number(paidAmount) > 0) {
       setUpiConfirmVisible(true);
       return;
     }
@@ -428,552 +506,406 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     }
   };
 
-  if (loadingOrder) return <LoadingSpinner fullScreen text={t('form.loading')} />;
-
-  // Editing keeps the original single-scroll layout — it's a deliberate,
-  // lower-frequency action where the current fields are already fine.
-  // Photo/payment sections still branch on isEditing exactly as before.
-  if (isEditing) {
+  if (loadingOrder) {
     return (
-      <>
+      <View className="flex-1 bg-bg">
         <Header title={t('form.editTitle')} onBack={() => navigation.goBack()} />
-        <KeyboardAvoidingView
-          className="flex-1"
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <ScrollView
-            className="flex-1 bg-white dark:bg-gray-950"
-            contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Dropdown
-              label={t('form.customer')}
-              value={customerId}
-              onChange={setCustomerId}
-              options={customers}
-              placeholder={t('form.selectCustomer')}
-              error={error}
-              required
-              searchable
-              searchPlaceholder={t('form.searchClientPlaceholder')}
-              onAddNew={() => setQuickAddVisible(true)}
-              addNewLabel={t('form.addClient')}
-            />
-
-            <Dropdown
-              label={t('form.garmentType')}
-              value={garmentType}
-              onChange={(v) => setGarmentType(v as GarmentType)}
-              options={GARMENT_TYPES.map((g) => ({ label: GARMENT_TYPE_LABELS[g], value: g }))}
-              placeholder={t('form.garmentTypePlaceholder')}
-              required
-            />
-
-            <InputField
-              label={t('form.clothCount')}
-              value={clothCount}
-              onChangeText={setClothCount}
-              placeholder={t('form.clothCountPlaceholder')}
-              keyboardType="number-pad"
-            />
-
-            <InputField
-              label={t('form.itemNotes')}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder={t('form.itemNotesPlaceholder')}
-            />
-
-            {garmentType === 'shirt' || garmentType === 'both' ? (
-              <View className="mb-4 w-full">
-                <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">
-                  {t('form.shirtPhotosCount', { count: shirtPhotoUris.length })}
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View className="flex-row gap-3">
-                    {shirtPhotoUris.map((uri, index) => (
-                      <ImagePickerField
-                        key={index}
-                        label={t('form.piece', { number: index + 1 })}
-                        uri={uri}
-                        onChange={(newUri) =>
-                          setShirtPhotoUris((prev) => {
-                            const next = [...prev];
-                            next[index] = newUri;
-                            return next;
-                          })
-                        }
-                        aspect={[3, 4]}
-                        source="camera"
-                        size={photoSlotSize}
-                        onPermissionDenied={() => showToast(t('form.cameraPermissionDenied'), 'error')}
-                      />
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {garmentType === 'pant' || garmentType === 'both' ? (
-              <View className="mb-4 w-full">
-                <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">
-                  {t('form.pantPhotosCount', { count: pantPhotoUris.length })}
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View className="flex-row gap-3">
-                    {pantPhotoUris.map((uri, index) => (
-                      <ImagePickerField
-                        key={index}
-                        label={t('form.piece', { number: index + 1 })}
-                        uri={uri}
-                        onChange={(newUri) =>
-                          setPantPhotoUris((prev) => {
-                            const next = [...prev];
-                            next[index] = newUri;
-                            return next;
-                          })
-                        }
-                        aspect={[3, 4]}
-                        source="camera"
-                        size={photoSlotSize}
-                        onPermissionDenied={() => showToast(t('form.cameraPermissionDenied'), 'error')}
-                      />
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            ) : null}
-
-            <DatePickerField
-              label={t('form.deliveryDate')}
-              value={deliveryDate}
-              onChange={(d) => {
-                setDeliveryDate(d);
-                setDeliveryDateTouched(true);
-              }}
-              minimumDate={new Date()}
-            />
-
-            <View className="mb-4">
-              <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">{t('form.priority')}</Text>
-              <RadioGroup<OrderPriority>
-                variant="cards"
-                value={priority}
-                onChange={setPriority}
-                direction="row"
-                options={[
-                  { label: t('form.priorityNormal'), value: 'normal' },
-                  { label: t('form.priorityUrgent'), value: 'urgent' },
-                ]}
-              />
-            </View>
-
-            <InputField
-              label={t('form.billBookNumber')}
-              value={billBookNumber}
-              onChangeText={setBillBookNumber}
-              placeholder={t('form.billBookPlaceholder')}
-            />
-
-            <Text className="font-sans mb-4 text-base text-gray-500 dark:text-gray-400">{t('form.billingNotice')}</Text>
-
-            <Button title={t('form.updateOrder')} size="lg" onPress={handleSave} loading={loading} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-
-        <QuickAddCustomerSheet
-          visible={quickAddVisible}
-          onClose={() => setQuickAddVisible(false)}
-          onCreated={(customer) => {
-            setQuickAddVisible(false);
-            setCustomers((prev) => [...prev, { label: customer.name, value: customer.id }].sort((a, b) => a.label.localeCompare(b.label)));
-            setCustomerId(customer.id);
-          }}
-        />
-      </>
+        <View className="gap-4 p-4">
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </View>
+      </View>
     );
   }
 
-  // New order: 4-step wizard. Chunks "who/what, photos+measurements,
-  // delivery, payment" into separate screens with a visible step count,
-  // instead of one long scroll — steps 2-4 are all skippable.
-  const STEP_TITLE_KEYS = ['whoWhat', 'photos', 'deliveryPayment'] as const;
+  const toCount = (text: string): number | null => (text === '' ? null : Number(text) || 0);
+  const fromCount = (n: number | null) => (n == null ? '' : String(n));
+
+  const garmentOptions = GARMENT_TYPES.map((g) => ({ label: GARMENT_TYPE_LABELS[g], value: g }));
+
+  // Recent clients first (tagged), then the rest alphabetically.
+  const customerOptions = [
+    ...recentCustomerIds.map((id) => customers.find((c) => c.value === id)).filter((c): c is Option => !!c).map((c) => ({ ...c, subtext: t('form.recent') })),
+    ...customers.filter((c) => !recentCustomerIds.includes(c.value)),
+  ];
+
+  const customerField = (
+    <Dropdown
+      label={t('form.customer')}
+      value={customerId}
+      onChange={setCustomerId}
+      options={customerOptions}
+      placeholder={t('form.selectCustomer')}
+      error={error}
+      required
+      searchable
+      searchPlaceholder={t('form.searchClientPlaceholder')}
+      onAddNew={() => setQuickAddVisible(true)}
+      addNewLabel={t('form.addClient')}
+    />
+  );
+
+  const garmentFields = (
+    <>
+      <Text variant="label" className="mb-1.5">
+        {t('form.garmentType')}
+        <Text variant="label" tone="danger"> *</Text>
+      </Text>
+      <SegmentedControl
+        options={garmentOptions}
+        value={(garmentType || '') as GarmentType}
+        onChange={(v) => {
+          setGarmentTouched(true);
+          setGarmentType(v as GarmentType);
+        }}
+        className="mb-4"
+      />
+
+      {garmentType === 'both' ? (
+        <View className="flex-row gap-3">
+          <NumberStepper
+            className="flex-1"
+            label={t('form.shirtQuantity')}
+            value={toCount(shirtCount)}
+            onChange={(n) => setShirtCount(fromCount(n))}
+            min={0}
+            placeholder={t('form.clothCountPlaceholder')}
+          />
+          <NumberStepper
+            className="flex-1"
+            label={t('form.pantQuantity')}
+            value={toCount(pantCount)}
+            onChange={(n) => setPantCount(fromCount(n))}
+            min={0}
+            placeholder={t('form.clothCountPlaceholder')}
+          />
+        </View>
+      ) : (
+        <NumberStepper
+          label={t('form.clothCount')}
+          value={toCount(clothCount)}
+          onChange={(n) => setClothCount(fromCount(n))}
+          min={0}
+          placeholder={t('form.clothCountPlaceholder')}
+        />
+      )}
+    </>
+  );
+
+  const notesField = (
+    <InputField label={t('form.itemNotes')} value={notes} onChangeText={setNotes} placeholder={t('form.itemNotesPlaceholder')} optional />
+  );
+
+  const photoColumn = (kind: 'shirt' | 'pant') => {
+    const uris = kind === 'shirt' ? shirtPhotoUris : pantPhotoUris;
+    const setUris = kind === 'shirt' ? setShirtPhotoUris : setPantPhotoUris;
+    return (
+      <View className={garmentType === 'both' && !isEditing ? 'mb-4 flex-1' : 'mb-4 w-full'}>
+        <Text variant="label" className="mb-1.5">
+          {t(kind === 'shirt' ? 'form.shirtPhotosCount' : 'form.pantPhotosCount', { count: uris.length })}
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View className="flex-row gap-3">
+            {uris.map((uri, index) => (
+              <ImagePickerField
+                key={index}
+                label={t('form.piece', { number: index + 1 })}
+                uri={uri}
+                onChange={(newUri) =>
+                  setUris((prev) => {
+                    const next = [...prev];
+                    next[index] = newUri;
+                    return next;
+                  })
+                }
+                aspect={[3, 4]}
+                source="camera"
+                size={photoSlotSize}
+                onPermissionDenied={() => showToast(t('form.cameraPermissionDenied'), 'error')}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const photoFields = (
+    <View className={garmentType === 'both' && !isEditing ? 'flex-row gap-3' : ''}>
+      {garmentType === 'shirt' || garmentType === 'both' ? photoColumn('shirt') : null}
+      {garmentType === 'pant' || garmentType === 'both' ? photoColumn('pant') : null}
+    </View>
+  );
+
+  const deliveryFields = (
+    <>
+      <DatePickerField
+        label={t('form.deliveryDate')}
+        value={deliveryDate}
+        onChange={(d) => {
+          setDeliveryDate(d);
+          setDeliveryDateTouched(true);
+        }}
+        minimumDate={new Date()}
+        quickChips={[
+          ...(lastDays != null && ![3, 7, 10].includes(lastDays) ? [{ label: t('form.sameAsLast', { count: lastDays }), daysFromNow: lastDays }] : []),
+          ...[3, 7, 10].map((days) => ({ label: t(lastDays === days ? 'form.sameAsLast' : 'form.inDays', { count: days }), daysFromNow: days })),
+        ]}
+      />
+      {!isEditing && !deliveryDateTouched && clothCountNum > 0 ? (
+        <Text variant="caption" tone="muted" weight="regular" className="-mt-2 mb-4">
+          {t('form.deliverySuggested')}
+        </Text>
+      ) : null}
+
+      <Toggle
+        label={isEditing ? t('form.priority') + ': ' + t('form.priorityUrgent') : t('form.urgentQuestion')}
+        value={priority === 'urgent'}
+        onChange={(on) => setPriority(on ? 'urgent' : 'normal')}
+        className="mb-2"
+      />
+
+      <InputField
+        label={t('form.billBookNumber')}
+        value={billBookNumber}
+        onChangeText={setBillBookNumber}
+        placeholder={t('form.billBookPlaceholder')}
+        optional
+      />
+    </>
+  );
+
+  const quickAddSheet = (
+    <QuickAddCustomerSheet
+      visible={quickAddVisible}
+      onClose={() => setQuickAddVisible(false)}
+      onCreated={(customer) => {
+        setQuickAddVisible(false);
+        setCustomers((prev) =>
+          [...prev, { label: customer.name, value: customer.id, phone: customer.phone }].sort((a, b) => a.label.localeCompare(b.label)),
+        );
+        setCustomerId(customer.id);
+      }}
+    />
+  );
+
+  const hasPaid = paidAmount.trim() !== '' && Number(paidAmount) > 0;
+
+  const garmentSection = (
+    <>
+      {customerField}
+      {garmentFields}
+    </>
+  );
+
+  const rateSuggestion =
+    !isEditing && lastRate != null && clothCountNum > 0 && totalAmountNum === 0 ? (
+      <View className="-mt-2 mb-4 flex-row items-center">
+        <Text variant="caption" tone="muted" weight="regular" className="mr-2 flex-1">
+          {t('form.lastRateHint', { rate: formatCurrency(lastRate) })}
+        </Text>
+        <Chip
+          label={t('form.useLastRate', { total: formatCurrency(lastRate * clothCountNum) })}
+          onPress={() => setTotalAmount(String(Math.round(lastRate * clothCountNum)))}
+        />
+      </View>
+    ) : null;
+
+  const moneySection = (
+    <>
+      <InputField
+        label={t('form.totalAmount')}
+        value={totalAmount}
+        onChangeText={setTotalAmount}
+        placeholder={t('form.totalAmountPlaceholder')}
+        keyboardType="number-pad"
+        prefix="₹"
+        returnKeyType="next"
+      />
+      {rateSuggestion}
+      <InputField
+        label={t('form.paidAmount')}
+        value={paidAmount}
+        onChangeText={setPaidAmount}
+        placeholder={t('form.paidAmountPlaceholder')}
+        keyboardType="number-pad"
+        prefix="₹"
+        returnKeyType="done"
+      />
+      {hasPaid ? (
+        <>
+          <Text variant="label" className="mb-1.5">
+            {t('form.paymentMode')}
+          </Text>
+          <SegmentedControl
+            options={PAYMENT_MODES.map((m) => ({ label: PAYMENT_MODE_LABELS[m], value: m }))}
+            value={paymentMode as (typeof PAYMENT_MODES)[number]}
+            onChange={setPaymentMode}
+            className="mb-2"
+          />
+        </>
+      ) : null}
+    </>
+  );
+
+  const measurementCard =
+    customerId && customerMeasurementProfile ? (
+      <Section
+        title={t('form.measurementCard.onFile')}
+        action={<Badge tone="primary" label={t('form.measurementCard.universalProfile')} icon="ruler" size="sm" />}
+        className="mb-4"
+      >
+        {measurementView.map((group) => (
+          <View key={group.title ?? 'all'} className="mb-3">
+            {group.title ? (
+              <Text variant="caption" tone="muted" className="mb-1.5">
+                {group.title}
+              </Text>
+            ) : null}
+            <View className="flex-row flex-wrap gap-2">
+              {group.entries.map(([fieldLabel, val]) => (
+                <View key={fieldLabel} className="min-w-[88px] flex-1 rounded-md bg-surface-2 px-3 py-2">
+                  <Text variant="caption" tone="muted" weight="regular">
+                    {measurementFieldLabel(fieldLabel)}
+                  </Text>
+                  <Text variant="bodyLg" tabular>
+                    {val}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+        <Button
+          title={t('form.measurementCard.viewEdit')}
+          variant="secondary"
+          onPress={() => navigation.navigate('MeasurementForm', { customerId: customerId!, clothType: garmentType || undefined })}
+        />
+      </Section>
+    ) : customerId ? (
+      <Card variant="subtle" className="mb-4">
+        <Text variant="bodyLg">{t('form.measurementCard.notAddedTitle')}</Text>
+        <Text variant="label" tone="muted" weight="regular" className="mb-3">
+          {t('form.measurementCard.notAddedDesc')}
+        </Text>
+        <Button
+          title={t('form.measurementCard.add')}
+          variant="secondary"
+          fullWidth={false}
+          icon={<Icon name="ruler" size={18} color={colors.textPrimary} />}
+          onPress={() => navigation.navigate('MeasurementForm', { customerId: customerId!, clothType: garmentType || undefined })}
+        />
+      </Card>
+    ) : null;
+
+  const moreDetails = (
+    <>
+      {measurementCard}
+      {notesField}
+      {photoFields}
+      <InputField
+        label={t('form.billBookNumber')}
+        value={billBookNumber}
+        onChangeText={setBillBookNumber}
+        placeholder={t('form.billBookPlaceholder')}
+        optional
+      />
+    </>
+  );
+
+  // One screen for new and edited orders: customer + garment, delivery, money, then
+  // everything optional (photos, notes, measurements, book no.) behind "More details".
+  const expanded = isEditing || showMore;
 
   return (
-    <>
-      <Header title={t('form.title')} onBack={() => navigation.goBack()} />
-      <View className="border-b border-gray-100 bg-white px-5 pb-3 dark:border-gray-800 dark:bg-gray-950">
-        <Text className="mb-2 text-base font-semibold text-primary-600 dark:text-primary-400">
-          {t('form.stepOf', { current: step + 1, total: STEP_COUNT })} · {t(`form.stepTitles.${STEP_TITLE_KEYS[step]}`)}
-        </Text>
-        <View className="flex-row gap-1.5">
-          {Array.from({ length: STEP_COUNT }).map((_, i) => (
-            <View
-              key={i}
-              className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+    <View className="flex-1 bg-bg">
+      <Header title={isEditing ? t('form.editTitle') : t('form.title')} onBack={() => navigation.goBack()} />
+
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+          {!isEditing && customersLoaded && customers.length === 0 ? (
+            <EmptyState
+              icon="userPlus"
+              title={t('form.noClientsTitle')}
+              description={t('form.noClientsDescription')}
+              actionLabel={t('form.addClient')}
+              onAction={() => setQuickAddVisible(true)}
             />
-          ))}
-        </View>
-      </View>
-
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView
-          className="flex-1 bg-white dark:bg-gray-950"
-          contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {step === 0 ? (
-            customersLoaded && customers.length === 0 ? (
-              <EmptyState
-                icon="user-plus"
-                title={t('form.noClientsTitle')}
-                description={t('form.noClientsDescription')}
-                actionLabel={t('form.addClient')}
-                onAction={() => setQuickAddVisible(true)}
-              />
-            ) : (
-              <>
-                <Dropdown
-                  label={t('form.customer')}
-                  value={customerId}
-                  onChange={setCustomerId}
-                  options={customers}
-                  placeholder={t('form.selectCustomer')}
-                  error={error}
-                  required
-                  searchable
-                  searchPlaceholder={t('form.searchClientPlaceholder')}
-                  onAddNew={() => setQuickAddVisible(true)}
-                  addNewLabel={t('form.addClient')}
-                />
-
-                <Dropdown
-                  label={t('form.garmentType')}
-                  value={garmentType}
-                  onChange={(v) => setGarmentType(v as GarmentType)}
-                  options={GARMENT_TYPES.map((g) => ({ label: GARMENT_TYPE_LABELS[g], value: g }))}
-                  placeholder={t('form.garmentTypePlaceholder')}
-                  required
-                />
-
-                {garmentType === 'both' ? (
-                  <View className="flex-row gap-3">
-                    <View className="flex-1">
-                      <InputField
-                        label={t('form.shirtQuantity')}
-                        value={shirtCount}
-                        onChangeText={setShirtCount}
-                        placeholder={t('form.clothCountPlaceholder')}
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <InputField
-                        label={t('form.pantQuantity')}
-                        value={pantCount}
-                        onChangeText={setPantCount}
-                        placeholder={t('form.clothCountPlaceholder')}
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                  </View>
-                ) : (
-                  <InputField
-                    label={t('form.clothCount')}
-                    value={clothCount}
-                    onChangeText={setClothCount}
-                    placeholder={t('form.clothCountPlaceholder')}
-                    keyboardType="number-pad"
-                  />
-                )}
-              </>
-            )
-          ) : null}
-
-          {step === 1 ? (
+          ) : (
             <>
-              {customerId ? (
-                customerMeasurementProfile ? (
-                  <View className="mb-5 overflow-hidden rounded-lg border border-primary-200 dark:border-primary-800">
-                    <View className="flex-row items-center justify-between bg-primary-50 px-4 py-3 dark:bg-primary-950">
-                      <View className="flex-row items-center">
-                        <FontAwesome5 name="ruler-combined" size={13} color="#1D4ED8" />
-                        <Text className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-50">
-                          Customer Measurements On File
-                        </Text>
-                      </View>
-                      <View className="rounded-full bg-primary-100 px-2.5 py-1 dark:bg-primary-900">
-                        <Text className="font-sans text-xs font-semibold text-primary-700 dark:text-primary-300">
-                          Universal Profile
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="bg-white p-4 dark:bg-gray-900">
-                      <View className="mb-4 flex-row flex-wrap gap-2">
-                        {Object.entries(
-                          typeof customerMeasurementProfile.measurements === 'object' && customerMeasurementProfile.measurements
-                            ? (customerMeasurementProfile.measurements as Record<string, unknown>)
-                            : {}
-                        ).map(([fieldLabel, val]) => (
-                          <View
-                            key={fieldLabel}
-                            className="min-w-[80px] flex-1 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800"
-                          >
-                            <Text className="font-sans text-xs text-gray-500 dark:text-gray-400">{fieldLabel}</Text>
-                            <Text className="mt-0.5 text-base font-bold text-gray-900 dark:text-gray-50">
-                              {String(val)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                      <Button
-                        title="View / Edit Measurements"
-                        variant="secondary"
-                        onPress={() =>
-                          navigation.navigate('MeasurementForm', { customerId: customerId! })
-                        }
-                      />
-                    </View>
-                  </View>
-                ) : (
-                  <View className="mb-5 flex-row items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950">
-                    <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
-                      <FontAwesome5 name="ruler-combined" size={13} color="#B45309" />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="mb-0.5 text-base font-semibold text-gray-900 dark:text-gray-50">
-                        Customer measurements not added.
-                      </Text>
-                      <Text className="font-sans mb-3 text-sm text-gray-600 dark:text-gray-300">
-                        Add measurements for this customer to reuse across all orders.
-                      </Text>
-                      <Button
-                        title="Add Measurements"
-                        variant="secondary"
-                        fullWidth={false}
-                        onPress={() =>
-                          navigation.navigate('MeasurementForm', { customerId: customerId! })
-                        }
-                      />
-                    </View>
-                  </View>
-                )
-              ) : null}
+              {garmentSection}
+              {deliveryFields}
+              {!isEditing ? moneySection : null}
 
-              <InputField
-                label={t('form.itemNotes')}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder={t('form.itemNotesPlaceholder')}
-              />
-
-              {/* Shirt and pant photo columns sit side by side when the
-                  order has both, so neither is hidden below the fold. */}
-              <View className={garmentType === 'both' ? 'flex-row gap-3' : ''}>
-              {garmentType === 'shirt' || garmentType === 'both' ? (
-                <View className={garmentType === 'both' ? 'mb-4 flex-1' : 'mb-4 w-full'}>
-                  <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">
-                    {t('form.shirtPhotosCount', { count: shirtPhotoUris.length })}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View className="flex-row gap-3">
-                      {shirtPhotoUris.map((uri, index) => (
-                        <ImagePickerField
-                          key={index}
-                          label={t('form.piece', { number: index + 1 })}
-                          uri={uri}
-                          onChange={(newUri) =>
-                            setShirtPhotoUris((prev) => {
-                              const next = [...prev];
-                              next[index] = newUri;
-                              return next;
-                            })
-                          }
-                          aspect={[3, 4]}
-                          source="camera"
-                          size={photoSlotSize}
-                          onPermissionDenied={() => showToast(t('form.cameraPermissionDenied'), 'error')}
-                        />
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              ) : null}
-
-              {garmentType === 'pant' || garmentType === 'both' ? (
-                <View className={garmentType === 'both' ? 'mb-4 flex-1' : 'mb-4 w-full'}>
-                  <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">
-                    {t('form.pantPhotosCount', { count: pantPhotoUris.length })}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View className="flex-row gap-3">
-                      {pantPhotoUris.map((uri, index) => (
-                        <ImagePickerField
-                          key={index}
-                          label={t('form.piece', { number: index + 1 })}
-                          uri={uri}
-                          onChange={(newUri) =>
-                            setPantPhotoUris((prev) => {
-                              const next = [...prev];
-                              next[index] = newUri;
-                              return next;
-                            })
-                          }
-                          aspect={[3, 4]}
-                          source="camera"
-                          size={photoSlotSize}
-                          onPermissionDenied={() => showToast(t('form.cameraPermissionDenied'), 'error')}
-                        />
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              ) : null}
-              </View>
-            </>
-          ) : null}
-
-          {step === 2 ? (
-            <>
-              <DatePickerField
-                label={t('form.deliveryDate')}
-                value={deliveryDate}
-                onChange={(d) => {
-                  setDeliveryDate(d);
-                  setDeliveryDateTouched(true);
-                }}
-                minimumDate={new Date()}
-              />
-              {!deliveryDateTouched && clothCountNum > 0 ? (
-                <Text className="font-sans -mt-3 mb-4 text-base text-gray-400 dark:text-gray-500">
-                  {t('form.deliverySuggested')}
+              {isEditing ? (
+                <Text variant="label" tone="muted" weight="regular" className="mb-4">
+                  {t('form.billingNotice')}
                 </Text>
               ) : null}
 
-              <View className="mb-4">
-                <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">
-                  {t('form.urgentQuestion')}
-                </Text>
-                <RadioGroup<OrderPriority>
-                  variant="cards"
-                  value={priority}
-                  onChange={setPriority}
-                  direction="row"
-                  options={[
-                    { label: t('form.priorityNormal'), value: 'normal' },
-                    { label: t('form.priorityUrgent'), value: 'urgent' },
-                  ]}
+              {expanded ? (
+                moreDetails
+              ) : (
+                <Button
+                  title={t('form.moreDetails')}
+                  variant="ghost"
+                  fullWidth={false}
+                  className="self-start"
+                  icon={<Icon name="chevD" size={18} color={colors.primary} />}
+                  onPress={() => setShowMore(true)}
                 />
-              </View>
-
-              <InputField
-                label={t('form.billBookNumber')}
-                value={billBookNumber}
-                onChangeText={setBillBookNumber}
-                placeholder={t('form.billBookPlaceholder')}
-              />
-
-              {/* Payment merged into the delivery step — neither had enough
-                  on it to justify its own screen, and both are optional. */}
-              <View className="mb-4 mt-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-                <Text className="mb-1.5 text-base font-medium text-gray-700 dark:text-gray-300">{t('form.paymentMode')}</Text>
-                <RadioGroup<string>
-                  variant="cards"
-                  value={paymentMode}
-                  onChange={setPaymentMode}
-                  direction="row"
-                  options={PAYMENT_MODES.map((m) => ({ label: PAYMENT_MODE_LABELS[m], value: m }))}
-                />
-              </View>
-
-              <InputField
-                label={t('form.totalAmount')}
-                value={totalAmount}
-                onChangeText={setTotalAmount}
-                placeholder={t('form.totalAmountPlaceholder')}
-                keyboardType="number-pad"
-              />
-
-              <InputField
-                label={t('form.paidAmount')}
-                value={paidAmount}
-                onChangeText={setPaidAmount}
-                placeholder={t('form.paidAmountPlaceholder')}
-                keyboardType="number-pad"
-              />
+              )}
             </>
-          ) : null}
-
-          <View className="mt-2 flex-row gap-3">
-            {step > 0 ? (
-              <Button
-                title={t('form.back')}
-                variant="outline"
-                size="md"
-                fullWidth={false}
-                onPress={goBack}
-                className="flex-1"
-              />
-            ) : null}
-            {step < STEP_COUNT - 1 ? (
-              <Button title={t('form.next')} size="md" fullWidth={false} onPress={goNext} className="flex-1" />
-            ) : (
-              <Button
-                title={t('form.createOrderFinal')}
-                size="md"
-                fullWidth={false}
-                onPress={handleSave}
-                loading={loading}
-                className="flex-1"
-              />
-            )}
-          </View>
-
+          )}
         </ScrollView>
+
+        <View className="border-t border-line bg-surface px-4 py-3">
+          {!isEditing && totalAmountNum > 0 ? (
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text variant="label" tone="muted" weight="regular">
+                {t('form.totalAmount')}
+              </Text>
+              <Text variant="bodyLg" tabular>
+                {formatCurrency(totalAmountNum)}
+                {hasPaid ? ` · ${t('form.balanceShort', { amount: formatCurrency(Math.max(totalAmountNum - Number(paidAmount), 0)) })}` : ''}
+              </Text>
+            </View>
+          ) : null}
+          <Button
+            title={isEditing ? t('form.updateOrder') : t('form.createOrderFinal')}
+            size="lg"
+            onPress={handleSave}
+            loading={loading}
+          />
+        </View>
       </KeyboardAvoidingView>
 
       <CenterModal
         visible={upiConfirmVisible}
         onClose={() => setUpiConfirmVisible(false)}
         title={t('form.upiConfirmTitle')}
+        footer={
+          <View className="flex-row gap-3">
+            <Button title={t('form.upiConfirmNo')} variant="secondary" fullWidth={false} className="flex-1" onPress={() => setUpiConfirmVisible(false)} />
+            <Button
+              title={t('form.upiConfirmYes')}
+              fullWidth={false}
+              className="flex-1"
+              onPress={() => {
+                setUpiConfirmVisible(false);
+                void submitOrder();
+              }}
+            />
+          </View>
+        }
       >
-        <Text className="font-sans mb-5 text-base text-gray-600 dark:text-gray-300">
+        <Text variant="body" tone="muted">
           {t('form.upiConfirmMessage')}
         </Text>
-        <View className="flex-row gap-3">
-          <Button
-            title={t('form.upiConfirmNo')}
-            variant="secondary"
-            fullWidth={false}
-            className="flex-1"
-            onPress={() => setUpiConfirmVisible(false)}
-          />
-          <Button
-            title={t('form.upiConfirmYes')}
-            fullWidth={false}
-            className="flex-1"
-            onPress={() => {
-              setUpiConfirmVisible(false);
-              void submitOrder();
-            }}
-          />
-        </View>
       </CenterModal>
 
-      <QuickAddCustomerSheet
-        visible={quickAddVisible}
-        onClose={() => setQuickAddVisible(false)}
-        onCreated={(customer) => {
-          setQuickAddVisible(false);
-          setCustomers((prev) => [...prev, { label: customer.name, value: customer.id }].sort((a, b) => a.label.localeCompare(b.label)));
-          setCustomerId(customer.id);
-        }}
-      />
-    </>
+      {quickAddSheet}
+    </View>
   );
 }

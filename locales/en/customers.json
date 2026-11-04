@@ -14,7 +14,22 @@
     "hasBalanceFilter": "Has balance due",
     "filterModalTitle": "Filter Clients",
     "reset": "Reset",
-    "allCustomers": "All Clients"
+    "allCustomers": "All Clients",
+    "hasDues": "Has dues",
+    "searchPlaceholderDetailed": "Name, phone or book no.",
+    "customersCount_one": "{{count}} customer",
+    "customersCount_other": "{{count}} customers",
+    "dueText": "due",
+    "takeMeasurement": "Take measurement",
+    "ordersTab": "Orders",
+    "measurementsTab": "Measurements",
+    "activeOrders": "active",
+    "totalOrders": "orders",
+    "dictationFailed": "Could not hear that",
+    "micPermissionDenied": "Microphone permission needed",
+    "listening": "Listening…",
+    "listeningHint": "Say customer name, tap to stop",
+    "book": "Book {{number}}"
   },
   "detail": {
     "loading": "Loading client...",
@@ -68,7 +83,22 @@
       "shoulder": "Shoulder",
       "length": "Length",
       "sleeve": "Sleeve"
-    }
+    },
+    "hasDues": "Has dues",
+    "searchPlaceholderDetailed": "Name, phone or book no.",
+    "customersCount_one": "{{count}} customer",
+    "customersCount_other": "{{count}} customers",
+    "dueText": "due",
+    "takeMeasurement": "Take measurement",
+    "ordersTab": "Orders",
+    "measurementsTab": "Measurements",
+    "activeOrders": "active",
+    "totalOrders": "orders",
+    "bookLabel": "Book {{number}}",
+    "measurementHistory": "Measurement History",
+    "filterByCloth": "Cloth Type",
+    "allCloths": "All Clothes",
+    "editClothMeasurement": "Update {{cloth}} Measurement"
   },
   "quickAdd": {
     "title": "Add Client",
@@ -100,7 +130,8 @@
     "addMeasurementsPromptTitle": "Add measurements now?",
     "addMeasurementsPromptMessage": "You can take this client's measurements now, or add them later from the client's profile.",
     "addMeasurementsPromptYes": "Add Measurements",
-    "addMeasurementsPromptNo": "Not Now"
+    "addMeasurementsPromptNo": "Not Now",
+    "defaultGarmentType": "Garment"
   },
   "measurementForm": {
     "title": "New Measurement",
@@ -200,5 +231,20 @@
         "placeholder": "e.g. 11"
       }
     }
+  },
+  "measurementProfile": {
+    "title": "Customer Measurements",
+    "whichTemplate": "Which template?",
+    "valuesHeader": "Measurement Values",
+    "noFields": "No fields defined for this template. Add fields in Settings → Universal Measurements.",
+    "save": "Save Measurements",
+    "loadFailed": "Failed to load measurements",
+    "templateLoadFailed": "Could not load fields for template",
+    "selectTemplate": "Please select a measurement template",
+    "saved": "Measurement profile saved",
+    "saveFailed": "Could not save measurements",
+    "increase": "Add half inch",
+    "decrease": "Subtract half inch",
+    "last": "Last: {{value}}"
   }
 }

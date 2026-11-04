@@ -92,5 +92,61 @@
         "description": "दर्जी या हेल्पर जोड़ें, उनका वेतन प्रकार सेट करें, और उन्हें ऑर्डर सौंपें ताकि आप ट्रैक कर सकें कि कौन क्या कर रहा है।"
       }
     }
+  },
+  "shopManagement": "दुकान प्रबंधन",
+  "menuDesc": {
+    "universalMeasurements": "कपड़े, मानक फ़ील्ड और नाप",
+    "staff": "कौन क्या बना रहा है और पीस रेट देखें",
+    "calendar": "दिन के हिसाब से डिलीवरी और ट्रायल",
+    "billing": "बिल, नकद/UPI भुगतान और बकाया",
+    "revenue": "मासिक वसूली, कमाई और ऑर्डर की संख्या"
+  },
+  "productTour": {
+    "replay": "प्रोडक्ट टूर फिर से देखें"
+  },
+  "universalMeasurements": {
+    "menuTitle": "यूनिवर्सल नाप",
+    "title": "यूनिवर्सल नाप",
+    "loading": "टेम्पलेट लोड हो रहे हैं...",
+    "loadError": "नाप के टेम्पलेट लोड नहीं हो सके",
+    "templatesSubtitle": "नाप के टेम्पलेट एक बार बनाएँ और सभी ग्राहकों के लिए दोबारा इस्तेमाल करें।",
+    "addTemplate": "नया टेम्पलेट जोड़ें",
+    "createModalTitle": "नया टेम्पलेट बनाएँ",
+    "templateNameLabel": "टेम्पलेट का नाम",
+    "templateNamePlaceholder": "जैसे ब्लेज़र, कुर्ता, शेरवानी",
+    "cancel": "रद्द करें",
+    "create": "बनाएँ",
+    "autoSuggest": "फ़ील्ड अपने-आप सुझाएँ",
+    "addField": "फ़ील्ड जोड़ें",
+    "fieldNamePlaceholder": "जैसे आर्म होल, जेब",
+    "deleteTemplate": "टेम्पलेट हटाएँ",
+    "deleteTemplateConfirm": "क्या आप सच में यह टेम्पलेट हटाना चाहते हैं?",
+    "saveSuccess": "टेम्पलेट सहेज लिया गया",
+    "deleteSuccess": "टेम्पलेट हटा दिया गया",
+    "fieldsHeader": "टेम्पलेट के फ़ील्ड",
+    "noFieldsTitle": "टेम्पलेट में कोई फ़ील्ड नहीं",
+    "noFieldsDesc": "'फ़ील्ड अपने-आप सुझाएँ' पर टैप करें या नीचे खुद फ़ील्ड जोड़ें।",
+    "fieldCount_one": "{{count}} नाप फ़ील्ड",
+    "fieldCount_other": "{{count}} नाप फ़ील्ड",
+    "examples": "उदाहरण: ब्लेज़र, कुर्ता, सफ़ारी सूट, जैकेट, शेरवानी, लहंगा आदि।",
+    "createFailed": "टेम्पलेट नहीं बन सका",
+    "detailTitle": "नाप का टेम्पलेट",
+    "templateNotFound": "टेम्पलेट नहीं मिला",
+    "autoSuggestShort": "अपने-आप सुझाएँ",
+    "suggested": "फ़ील्ड अपने-आप सुझाए गए",
+    "suggestFailed": "फ़ील्ड सुझाए नहीं जा सके",
+    "addFieldHeader": "नाप फ़ील्ड जोड़ें",
+    "addFieldInputPlaceholder": "जैसे लंबाई, छाती, कमर, कॉलर...",
+    "fieldExists": "यह फ़ील्ड टेम्पलेट में पहले से है",
+    "fieldAdded": "फ़ील्ड जोड़ा गया",
+    "addFieldFailed": "फ़ील्ड नहीं जोड़ा जा सका",
+    "fieldRemoved": "फ़ील्ड हटाया गया",
+    "removeFieldFailed": "फ़ील्ड हटाया नहीं जा सका",
+    "fieldsCount": "फ़ील्ड ({{count}})",
+    "noFieldsYet": "अभी कोई नाप फ़ील्ड नहीं जोड़ा गया। ऊपर फ़ील्ड का नाम लिखें या \"अपने-आप सुझाएँ\" पर टैप करें।",
+    "deleteClothTypeTitle": "कपड़े का प्रकार हटाएँ?",
+    "deleteClothTypeMessage": "क्या आप सच में {{name}} हटाना चाहते हैं? यह वापस नहीं होगा।",
+    "clothTypeDeleted": "कपड़े का प्रकार हटा दिया गया",
+    "deleteFailed": "टेम्पलेट हटाया नहीं जा सका"
   }
 }

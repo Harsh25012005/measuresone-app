@@ -92,5 +92,61 @@
         "description": "દરજી અથવા હેલ્પર ઉમેરો, તેમનો વેતન પ્રકાર સેટ કરો, અને તેમને ઓર્ડર સોંપો જેથી તમે ટ્રેક કરી શકો કે કોણ શું કરી રહ્યું છે."
       }
     }
+  },
+  "shopManagement": "દુકાન સંચાલન",
+  "menuDesc": {
+    "universalMeasurements": "કપડાં, સામાન્ય ફીલ્ડ અને માપ",
+    "staff": "કોણ શું બનાવે છે અને પીસ રેટ જુઓ",
+    "calendar": "દિવસ પ્રમાણે ડિલિવરી અને ટ્રાયલ",
+    "billing": "બિલ, રોકડ/UPI ચુકવણી અને બાકી રકમ",
+    "revenue": "માસિક વસૂલાત, આવક અને ઓર્ડરની સંખ્યા"
+  },
+  "productTour": {
+    "replay": "પ્રોડક્ટ ટૂર ફરી જુઓ"
+  },
+  "universalMeasurements": {
+    "menuTitle": "યુનિવર્સલ માપ",
+    "title": "યુનિવર્સલ માપ",
+    "loading": "નમૂના લોડ થઈ રહ્યા છે...",
+    "loadError": "માપના નમૂના લોડ ન થઈ શક્યા",
+    "templatesSubtitle": "માપના નમૂના એક વાર બનાવો અને બધા ગ્રાહકો માટે ફરી વાપરો.",
+    "addTemplate": "નવો નમૂનો ઉમેરો",
+    "createModalTitle": "નવો નમૂનો બનાવો",
+    "templateNameLabel": "નમૂનાનું નામ",
+    "templateNamePlaceholder": "દા.ત. બ્લેઝર, કુર્તો, શેરવાની",
+    "cancel": "રદ કરો",
+    "create": "બનાવો",
+    "autoSuggest": "ફીલ્ડ આપમેળે સૂચવો",
+    "addField": "ફીલ્ડ ઉમેરો",
+    "fieldNamePlaceholder": "દા.ત. આર્મ હોલ, ખિસ્સું",
+    "deleteTemplate": "નમૂનો કાઢી નાખો",
+    "deleteTemplateConfirm": "શું તમે ખરેખર આ નમૂનો કાઢી નાખવા માંગો છો?",
+    "saveSuccess": "નમૂનો સાચવાઈ ગયો",
+    "deleteSuccess": "નમૂનો કાઢી નાખ્યો",
+    "fieldsHeader": "નમૂનાનાં ફીલ્ડ",
+    "noFieldsTitle": "નમૂનામાં કોઈ ફીલ્ડ નથી",
+    "noFieldsDesc": "'ફીલ્ડ આપમેળે સૂચવો' ટૅપ કરો અથવા નીચે જાતે ફીલ્ડ ઉમેરો.",
+    "fieldCount_one": "{{count}} માપ ફીલ્ડ",
+    "fieldCount_other": "{{count}} માપ ફીલ્ડ",
+    "examples": "ઉદાહરણ: બ્લેઝર, કુર્તો, સફારી સૂટ, જેકેટ, શેરવાની, લહેંગા વગેરે.",
+    "createFailed": "નમૂનો બનાવી શકાયો નહીં",
+    "detailTitle": "માપનો નમૂનો",
+    "templateNotFound": "નમૂનો મળ્યો નહીં",
+    "autoSuggestShort": "આપમેળે સૂચવો",
+    "suggested": "ફીલ્ડ આપમેળે સૂચવાયાં",
+    "suggestFailed": "ફીલ્ડ સૂચવી શકાયાં નહીં",
+    "addFieldHeader": "માપ ફીલ્ડ ઉમેરો",
+    "addFieldInputPlaceholder": "દા.ત. લંબાઈ, છાતી, કમર, કોલર...",
+    "fieldExists": "આ ફીલ્ડ નમૂનામાં પહેલેથી છે",
+    "fieldAdded": "ફીલ્ડ ઉમેરાયું",
+    "addFieldFailed": "ફીલ્ડ ઉમેરી શકાયું નહીં",
+    "fieldRemoved": "ફીલ્ડ કાઢી નાખ્યું",
+    "removeFieldFailed": "ફીલ્ડ કાઢી શકાયું નહીં",
+    "fieldsCount": "ફીલ્ડ ({{count}})",
+    "noFieldsYet": "હજી કોઈ માપ ફીલ્ડ ઉમેર્યું નથી. ઉપર ફીલ્ડનું નામ લખો અથવા \"આપમેળે સૂચવો\" ટૅપ કરો.",
+    "deleteClothTypeTitle": "કપડાનો પ્રકાર કાઢી નાખવો છે?",
+    "deleteClothTypeMessage": "શું તમે ખરેખર {{name}} કાઢી નાખવા માંગો છો? આ પાછું નહીં થાય.",
+    "clothTypeDeleted": "કપડાનો પ્રકાર કાઢી નાખ્યો",
+    "deleteFailed": "નમૂનો કાઢી શકાયો નહીં"
   }
 }

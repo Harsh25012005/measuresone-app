@@ -1,6 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../supabase';
 import { getDb, runExclusive, SYNCED_ENTITIES, type SyncedEntity } from './db';
+import { setSyncRunState } from './syncStatus';
 
 /**
  * Column list per entity, used both to build the Supabase `select()` and to
@@ -175,9 +176,16 @@ export function runSync(shopId: string): Promise<void> {
   inFlight = (async () => {
     const net = await NetInfo.fetch();
     if (!net.isConnected) return;
-    await pushPendingOps();
-    for (const entity of SYNCED_ENTITIES) {
-      await pullEntity(shopId, entity);
+    setSyncRunState('syncing');
+    try {
+      await pushPendingOps();
+      for (const entity of SYNCED_ENTITIES) {
+        await pullEntity(shopId, entity);
+      }
+      setSyncRunState('idle');
+    } catch (err) {
+      setSyncRunState('error');
+      throw err;
     }
   })().finally(() => {
     inFlight = null;

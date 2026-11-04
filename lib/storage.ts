@@ -1,7 +1,7 @@
 import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 
-export type BucketName = 'shop-logos' | 'design-photos';
+export type BucketName = 'shop-logos' | 'design-photos' | 'bills';
 
 const MIME_BY_EXT: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -41,6 +41,34 @@ export async function uploadImage({
 
   const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
     contentType: MIME_BY_EXT[ext],
+    upsert: true,
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Uploads a local PDF (e.g. from expo-print) to `<shop_id>/<name>.pdf` and
+ * returns its public URL — the link that gets sent to the customer.
+ */
+export async function uploadPdf({
+  bucket,
+  shopId,
+  localUri,
+  fileName,
+}: {
+  bucket: BucketName;
+  shopId: string;
+  localUri: string;
+  fileName: string;
+}): Promise<string> {
+  const path = `${shopId}/${fileName}.pdf`;
+  const bytes = await new File(localUri).arrayBuffer();
+
+  const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
+    contentType: 'application/pdf',
     upsert: true,
   });
   if (error) throw error;

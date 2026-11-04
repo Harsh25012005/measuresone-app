@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { EmptyState, Header, Icon, ListRow, SkeletonList, Text, useToast } from '../../src/components/ui';
+import { usePalette } from '../../src/theme/usePalette';
 import { customersRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDateTime } from '../../lib/format';
 import { useShop } from '../../context/AuthContext';
@@ -16,6 +17,8 @@ export default function TransactionsScreen({ navigation }: DashboardScreenProps<
   const { t } = useTranslation('dashboard');
   const shop = useShop();
   const showToast = useToast();
+  const insets = useSafeAreaInsets();
+  const palette = usePalette();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -47,53 +50,52 @@ export default function TransactionsScreen({ navigation }: DashboardScreenProps<
     }, [load])
   );
 
-  const filtered = transactions.filter((tx) =>
-    tx.customerName.toLowerCase().includes(search.toLowerCase())
+  const filtered = transactions.filter((tx) => tx.customerName.toLowerCase().includes(search.toLowerCase()));
+
+  const header = (
+    <Header
+      title={t('transactions.title')}
+      onBack={() => navigation.goBack()}
+      searchProps={{
+        value: search,
+        onChangeText: setSearch,
+        placeholder: t('transactions.searchPlaceholder'),
+      }}
+    />
   );
 
-  if (loading) return <LoadingSpinner fullScreen text={t('transactions.loading')} />;
+  if (loading && transactions.length === 0) {
+    return (
+      <View className="flex-1 bg-bg">
+        {header}
+        <SkeletonList count={7} />
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header
-        title={t('transactions.title')}
-        onBack={() => navigation.goBack()}
-        searchProps={{
-          value: search,
-          onChangeText: setSearch,
-          placeholder: t('transactions.searchPlaceholder'),
-        }}
-      />
+    <View className="flex-1 bg-bg">
+      {header}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={
-          filtered.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 10 }
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="exchange-alt"
-            title={t('transactions.emptyTitle')}
-            description={t('transactions.emptyDescription')}
-          />
-        }
+        contentContainerStyle={filtered.length === 0 ? { flexGrow: 1 } : { paddingBottom: insets.bottom + 80 }}
+        ListEmptyComponent={<EmptyState icon="receipt" title={t('transactions.emptyTitle')} description={t('transactions.emptyDescription')} />}
         renderItem={({ item }) => (
-          <Card>
-            <View className="flex-row items-center">
-              <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
-                <FontAwesome5 name="rupee-sign" size={16} color="#1D4ED8" />
+          <ListRow
+            title={item.customerName}
+            subtitle={`${formatDateTime(item.payment_date)}${item.payment_mode ? ` · ${item.payment_mode}` : ''}`}
+            leading={
+              <View className="h-10 w-10 items-center justify-center rounded bg-success-50">
+                <Icon name="rupee" size={20} color={palette.success} />
               </View>
-              <View className="ml-3 flex-1">
-                <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{item.customerName}</Text>
-                <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">
-                  {formatDateTime(item.payment_date)}
-                  {item.payment_mode ? ` · ${item.payment_mode}` : ''}
-                </Text>
-              </View>
-              <Text className="text-base font-bold text-success">{formatCurrency(item.amount_paid)}</Text>
-            </View>
-          </Card>
+            }
+            trailing={
+              <Text variant="bodyLg" tone="success" tabular>
+                +{formatCurrency(item.amount_paid)}
+              </Text>
+            }
+          />
         )}
       />
     </View>

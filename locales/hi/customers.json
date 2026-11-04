@@ -14,7 +14,22 @@
     "hasBalanceFilter": "बकाया राशि वाले",
     "filterModalTitle": "ग्राहक फ़िल्टर करें",
     "reset": "रीसेट",
-    "allCustomers": "सभी ग्राहक"
+    "allCustomers": "सभी ग्राहक",
+    "hasDues": "बकाया",
+    "searchPlaceholderDetailed": "नाम, फ़ोन या बुक नं.",
+    "customersCount_one": "{{count}} ग्राहक",
+    "customersCount_other": "{{count}} ग्राहक",
+    "dueText": "बाकी",
+    "takeMeasurement": "नाप लें",
+    "ordersTab": "ऑर्डर",
+    "measurementsTab": "नाप",
+    "activeOrders": "चालू",
+    "totalOrders": "ऑर्डर",
+    "dictationFailed": "सुनाई नहीं दिया",
+    "micPermissionDenied": "माइक्रोफ़ोन की अनुमति चाहिए",
+    "listening": "सुन रहे हैं…",
+    "listeningHint": "ग्राहक का नाम बोलें, रोकने के लिए टैप करें",
+    "book": "बुक {{number}}"
   },
   "detail": {
     "loading": "ग्राहक लोड हो रहा है...",
@@ -69,7 +84,22 @@
       "shoulder": "कंधा",
       "length": "लंबाई",
       "sleeve": "आस्तीन"
-    }
+    },
+    "hasDues": "बकाया",
+    "searchPlaceholderDetailed": "नाम, फ़ोन या बुक नं.",
+    "customersCount_one": "{{count}} ग्राहक",
+    "customersCount_other": "{{count}} ग्राहक",
+    "dueText": "बाकी",
+    "takeMeasurement": "नाप लें",
+    "ordersTab": "ऑर्डर",
+    "measurementsTab": "नाप",
+    "activeOrders": "चालू",
+    "totalOrders": "ऑर्डर",
+    "bookLabel": "बुक {{number}}",
+    "measurementHistory": "नाप इतिहास",
+    "filterByCloth": "कपड़े का प्रकार",
+    "allCloths": "सभी कपड़े",
+    "editClothMeasurement": "{{cloth}} नाप अपडेट करें"
   },
   "quickAdd": {
     "title": "ग्राहक जोड़ें",
@@ -101,7 +131,8 @@
     "addMeasurementsPromptTitle": "अभी माप जोड़ें?",
     "addMeasurementsPromptMessage": "आप अभी इस ग्राहक का माप ले सकते हैं, या बाद में ग्राहक की प्रोफ़ाइल से जोड़ सकते हैं।",
     "addMeasurementsPromptYes": "माप जोड़ें",
-    "addMeasurementsPromptNo": "अभी नहीं"
+    "addMeasurementsPromptNo": "अभी नहीं",
+    "defaultGarmentType": "कपड़ा"
   },
   "measurementForm": {
     "title": "नया माप",
@@ -201,5 +232,20 @@
         "placeholder": "जैसे 11"
       }
     }
+  },
+  "measurementProfile": {
+    "title": "ग्राहक के नाप",
+    "whichTemplate": "कौन सा टेम्पलेट?",
+    "valuesHeader": "नाप के मान",
+    "noFields": "इस टेम्पलेट में कोई फ़ील्ड नहीं है। सेटिंग्स → यूनिवर्सल नाप में फ़ील्ड जोड़ें।",
+    "save": "नाप सहेजें",
+    "loadFailed": "नाप लोड नहीं हो सके",
+    "templateLoadFailed": "टेम्पलेट के फ़ील्ड लोड नहीं हो सके",
+    "selectTemplate": "कृपया नाप का टेम्पलेट चुनें",
+    "saved": "नाप सहेज लिए गए",
+    "saveFailed": "नाप सहेजे नहीं जा सके",
+    "increase": "आधा इंच बढ़ाएँ",
+    "decrease": "आधा इंच घटाएँ",
+    "last": "पिछला: {{value}}"
   }
 }

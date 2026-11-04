@@ -1,3 +1,49 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* "Indigo Ink" semantic colour tokens (see DESIGN.md and src/theme/tokens.ts)
+   as RGB triplets so Tailwind opacity modifiers (bg-primary/10) keep working. */
+@layer base {
+  :root {
+    --color-primary: 51 64 184;
+    --color-primary-dark: 40 51 154;
+    --color-primary-tint: 232 234 251;
+    --color-on-primary: 255 255 255;
+    --color-bg: 247 248 251;
+    --color-surface: 255 255 255;
+    --color-surface-2: 239 241 246;
+    --color-ink: 18 20 28;
+    --color-muted: 86 93 112;
+    --color-faint: 110 117 137;
+    --color-line: 221 225 234;
+    --color-line-2: 233 236 242;
+    --color-danger: 188 47 47;
+    --color-danger-tint: 251 233 231;
+    --color-success: 18 114 74;
+    --color-success-tint: 228 243 236;
+    --color-accent: 138 83 0;
+    --color-accent-tint: 251 240 220;
+  }
+
+  .dark:root {
+    --color-primary: 142 155 255;
+    --color-primary-dark: 170 180 255;
+    --color-primary-tint: 28 33 66;
+    --color-on-primary: 13 16 51;
+    --color-bg: 13 15 21;
+    --color-surface: 21 24 33;
+    --color-surface-2: 28 32 43;
+    --color-ink: 236 238 244;
+    --color-muted: 163 170 189;
+    --color-faint: 128 137 160;
+    --color-line: 42 47 61;
+    --color-line-2: 32 36 47;
+    --color-danger: 255 138 128;
+    --color-danger-tint: 46 24 22;
+    --color-success: 76 195 138;
+    --color-success-tint: 18 38 29;
+    --color-accent: 232 169 58;
+    --color-accent-tint: 43 33 17;
+  }
+}

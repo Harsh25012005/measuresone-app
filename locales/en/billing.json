@@ -27,7 +27,19 @@
     "errorLoad": "Could not load bills",
     "lastBill": "Last bill {{date}}",
     "billCount": "{{count}} bills",
-    "outstanding": "{{amount}} due"
+    "outstanding": "{{amount}} due",
+    "dictationFailed": "Voice search failed",
+    "micPermissionRequired": "Microphone permission needed",
+    "totalDues": "Total Dues",
+    "clientsCount_one": "{{count}} client",
+    "clientsCount_other": "{{count}} clients",
+    "totalBills_one": "{{count}} total bill",
+    "totalBills_other": "{{count}} total bills",
+    "billsSuffix": " · {{count}} bills",
+    "due": "Due",
+    "settled": "Settled",
+    "reminderMessage": "Namaste {{name}}, a gentle reminder from {{shopName}}: {{amount}} is pending for your orders. Thank you!",
+    "sendReminder": "Send reminder"
   },
   "detail": {
     "loading": "Loading bill...",
@@ -74,7 +86,8 @@
       "UPI": "UPI",
       "Card": "Card",
       "Bank Transfer": "Bank Transfer"
-    }
+    },
+    "whatsappMessage": "Namaste {{name}}, your bill from {{shopName}} is {{amount}}."
   },
   "form": {
     "title": "New Bill",
@@ -110,5 +123,30 @@
     "createBill": "Create Bill",
     "successCreated": "Bill created",
     "errorCreate": "Could not create bill"
+  },
+  "pdf": {
+    "title": "Bill / Receipt",
+    "customer": "Customer",
+    "orderNumber": "Order No.",
+    "date": "Date",
+    "deliveryDate": "Delivery Date",
+    "items": "Items",
+    "quantity": "Qty",
+    "thankYou": "Thank you for your business!",
+    "notFound": "Bill not found",
+    "sendBill": "Send Bill on WhatsApp",
+    "failed": "Could not send the bill",
+    "item": "Item",
+    "totalPieces": "Total pieces",
+    "billTo": "Billed to",
+    "orderDetails": "Order details",
+    "photos": "Cloth photos",
+    "photo": "Photo {{number}}",
+    "paidInFull": "Paid in full",
+    "contact": "For any queries, call {{phone}}"
+  },
+  "search": {
+    "listening": "Listening…",
+    "listeningHint": "Say customer name, tap to stop"
   }
 }

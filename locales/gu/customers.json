@@ -14,7 +14,22 @@
     "hasBalanceFilter": "બાકી રકમ ધરાવે છે",
     "filterModalTitle": "ગ્રાહકો ફિલ્ટર કરો",
     "reset": "રીસેટ",
-    "allCustomers": "બધા ગ્રાહકો"
+    "allCustomers": "બધા ગ્રાહકો",
+    "hasDues": "બાકી પૈસા",
+    "searchPlaceholderDetailed": "નામ, ફોન કે બુક નં.",
+    "customersCount_one": "{{count}} ગ્રાહક",
+    "customersCount_other": "{{count}} ગ્રાહક",
+    "dueText": "બાકી",
+    "takeMeasurement": "માપ લો",
+    "ordersTab": "ઓર્ડર",
+    "measurementsTab": "માપ",
+    "activeOrders": "ચાલુ",
+    "totalOrders": "ઓર્ડર",
+    "dictationFailed": "સંભળાયું નહીં",
+    "micPermissionDenied": "માઇક્રોફોનની પરવાનગી જોઈએ",
+    "listening": "સાંભળી રહ્યા છીએ…",
+    "listeningHint": "ગ્રાહકનું નામ બોલો, રોકવા ટૅપ કરો",
+    "book": "બુક {{number}}"
   },
   "detail": {
     "loading": "ગ્રાહક લોડ થઈ રહ્યો છે...",
@@ -69,7 +84,22 @@
       "shoulder": "ખભા",
       "length": "લંબાઈ",
       "sleeve": "બાંય"
-    }
+    },
+    "hasDues": "બાકી પૈસા",
+    "searchPlaceholderDetailed": "નામ, ફોન કે બુક નં.",
+    "customersCount_one": "{{count}} ગ્રાહક",
+    "customersCount_other": "{{count}} ગ્રાહક",
+    "dueText": "બાકી",
+    "takeMeasurement": "માપ લો",
+    "ordersTab": "ઓર્ડર",
+    "measurementsTab": "માપ",
+    "activeOrders": "ચાલુ",
+    "totalOrders": "ઓર્ડર",
+    "bookLabel": "બુક {{number}}",
+    "measurementHistory": "માપ ઇતિહાસ",
+    "filterByCloth": "કપડાંનો પ્રકાર",
+    "allCloths": "બધાં કપડાં",
+    "editClothMeasurement": "{{cloth}} માપ અપડેટ કરો"
   },
   "quickAdd": {
     "title": "ગ્રાહક ઉમેરો",
@@ -101,7 +131,8 @@
     "addMeasurementsPromptTitle": "હમણાં માપ ઉમેરવું છે?",
     "addMeasurementsPromptMessage": "તમે અત્યારે આ ગ્રાહકનું માપ લઈ શકો છો, અથવા પછીથી ગ્રાહકની પ્રોફાઇલમાંથી ઉમેરી શકો છો.",
     "addMeasurementsPromptYes": "માપ ઉમેરો",
-    "addMeasurementsPromptNo": "હમણાં નહીં"
+    "addMeasurementsPromptNo": "હમણાં નહીં",
+    "defaultGarmentType": "કપડું"
   },
   "measurementForm": {
     "title": "નવું માપ",
@@ -201,5 +232,20 @@
         "placeholder": "દા.ત. 11"
       }
     }
+  },
+  "measurementProfile": {
+    "title": "ગ્રાહકનાં માપ",
+    "whichTemplate": "કયો નમૂનો?",
+    "valuesHeader": "માપની કિંમતો",
+    "noFields": "આ નમૂનામાં કોઈ ફીલ્ડ નથી. સેટિંગ્સ → યુનિવર્સલ માપમાં ફીલ્ડ ઉમેરો.",
+    "save": "માપ સાચવો",
+    "loadFailed": "માપ લોડ ન થઈ શક્યાં",
+    "templateLoadFailed": "નમૂનાનાં ફીલ્ડ લોડ ન થઈ શક્યાં",
+    "selectTemplate": "કૃપા કરીને માપનો નમૂનો પસંદ કરો",
+    "saved": "માપ સાચવાઈ ગયાં",
+    "saveFailed": "માપ સાચવી શકાયાં નહીં",
+    "increase": "અડધો ઇંચ વધારો",
+    "decrease": "અડધો ઇંચ ઘટાડો",
+    "last": "છેલ્લું: {{value}}"
   }
 }

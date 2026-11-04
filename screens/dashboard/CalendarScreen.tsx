@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Calendar, type DateData } from 'react-native-calendars';
-import { Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { Card, EmptyState, Header, Skeleton, Text, useToast } from '../../src/components/ui';
+import { usePalette } from '../../src/theme/usePalette';
+import { fonts, radius } from '../../src/theme/tokens';
 import { ordersRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -25,6 +27,7 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
   const showToast = useToast();
   const { t } = useTranslation('dashboard');
   const { colors, scheme } = useTheme();
+  const palette = usePalette();
 
   const calendarTheme = useMemo(
     () => ({
@@ -37,12 +40,19 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
       textDisabledColor: colors.textFaint,
       arrowColor: colors.primary,
       selectedDayBackgroundColor: colors.primary,
-      selectedDayTextColor: '#FFFFFF',
+      selectedDayTextColor: colors.onPrimary,
       indicatorColor: colors.primary,
-      textDayFontFamily: undefined,
-      textMonthFontFamily: undefined,
-      textDayHeaderFontFamily: undefined,
+      textDayFontFamily: fonts.regular,
+      textMonthFontFamily: fonts.bold,
+      textDayHeaderFontFamily: fonts.semibold,
+      // The selected day is a 4px square, not the default circle.
+      'stylesheet.day.basic': {
+        base: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg },
+        selected: { backgroundColor: colors.primary, borderRadius: radius.lg },
+        today: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.primary },
+      },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [colors, scheme]
   );
 
@@ -89,8 +99,8 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
 
   const markedDates = useMemo(() => {
     const dotColors: Record<AgendaItem['kind'], string> = {
-      delivery: '#1D4ED8',
-      trial: '#D97706',
+      delivery: colors.primary,
+      trial: palette.warning,
     };
     const marks: Record<string, any> = {};
     for (const [date, items] of Object.entries(byDate)) {
@@ -98,16 +108,26 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
         dots: Array.from(new Set(items.map((i) => i.kind))).map((kind) => ({ color: dotColors[kind] })),
       };
     }
-    marks[selectedDate] = { ...(marks[selectedDate] ?? {}), selected: true, selectedColor: '#1D4ED8' };
+    marks[selectedDate] = { ...(marks[selectedDate] ?? {}), selected: true, selectedColor: colors.primary, selectedTextColor: colors.onPrimary };
     return marks;
-  }, [byDate, selectedDate]);
+  }, [byDate, selectedDate, colors, palette]);
 
   const dayItems = byDate[selectedDate] ?? [];
 
-  if (loading) return <LoadingSpinner fullScreen text={t('calendar.loading')} />;
+  if (loading && Object.keys(byDate).length === 0) {
+    return (
+      <View className="flex-1 bg-bg">
+        <Header title={t('calendar.title')} onBack={() => navigation.goBack()} />
+        <View className="gap-3 p-4">
+          <Skeleton height={280} />
+          <Skeleton height={56} />
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
+    <View className="flex-1 bg-bg">
       <Header title={t('calendar.title')} onBack={() => navigation.goBack()} />
       <Calendar
         key={scheme}
@@ -120,13 +140,16 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
       <FlatList
         data={dayItems}
         keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={dayItems.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 8 }}
-        ListEmptyComponent={<EmptyState icon="calendar-alt" title={t('calendar.emptyTitle')} description={t('calendar.emptyDescription')} />}
+        contentContainerStyle={dayItems.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { padding: 16, paddingBottom: 140, gap: 8 }}
+        ListEmptyComponent={<EmptyState icon="calendar" title={t('calendar.emptyTitle')} description={t('calendar.emptyDescription')} />}
         renderItem={({ item }) => (
           <Card>
-            <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{item.title}</Text>
-            {item.subtitle ? <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">{item.subtitle}</Text> : null}
+            <Text variant="bodyLg">{item.title}</Text>
+            {item.subtitle ? (
+              <Text variant="body" tone="muted" className="mt-1">
+                {item.subtitle}
+              </Text>
+            ) : null}
           </Card>
         )}
       />

@@ -3,15 +3,21 @@
     "dashboard": "Home",
     "customers": "Clients",
     "orders": "Orders",
-    "settings": "Business",
-    "add": "Add"
+    "settings": "More",
+    "add": "Add",
+    "lateCount": "{{count}} late"
   },
   "quickAdd": {
     "newClient": "New Client",
-    "addBill": "Add Bill",
     "addOrder": "Add Order",
+    "addMeasurement": "New Measurement",
     "addStaff": "Add Staff",
-    "accessibilityLabel": "Quick actions"
+    "accessibilityLabel": "Quick actions",
+    "orderSub": "Clothes, dates and advance",
+    "clientSub": "Name, phone and book no.",
+    "measurementSub": "Shirt, pant or any cloth",
+    "billSub": "Generate or record bill",
+    "staffSub": "Work entries & wages"
   },
   "actions": {
     "save": "Save",
@@ -25,7 +31,9 @@
     "view": "View",
     "close": "Close",
     "retry": "Retry",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "undo": "Undo",
+    "call": "Call"
   },
   "labels": {
     "name": "Name",
@@ -69,7 +77,11 @@
     "dictationFailed": "Could not hear that, please try again",
     "microphonePermissionDenied": "Microphone permission is needed to dictate",
     "listening": "Listening…",
-    "listeningHint": "Speak now, or tap anywhere to stop"
+    "listeningHint": "Speak now, or tap anywhere to stop",
+    "optional": "optional",
+    "microphonePermissionRequired": "Microphone permission required",
+    "dictationStartFailed": "Could not start voice search",
+    "speakToSearch": "Say the name to search"
   },
   "empty": {
     "title": "Nothing here yet"
@@ -89,14 +101,103 @@
     "12": "Dec"
   },
   "whatsapp": {
-    "orderReady": "Hi {{customerName}}, your order #{{orderNumber}} at {{shopName}} is ready for pickup!",
-    "bill": "Hi {{customerName}}, here's your bill summary from {{shopName}}:\nTotal: ₹{{total}}\nPaid: ₹{{paid}}\nPending: ₹{{pending}}",
-    "paymentDue": "Hi {{customerName}}, a friendly reminder that ₹{{pending}} is pending at {{shopName}}. Please clear it at your convenience. Thank you!",
+    "orderReady": "Namaste {{customerName}}, your order #{{orderNumber}} at {{shopName}} is ready for pickup!",
+    "bill": "Namaste {{customerName}}, here's your bill summary from {{shopName}}:\nTotal: ₹{{total}}\nPaid: ₹{{paid}}\nPending: ₹{{pending}}",
+    "paymentDue": "Namaste {{customerName}}, a gentle reminder from {{shopName}}: ₹{{pending}} is pending. Thank you!",
     "errorNoPhone": "Customer has no phone number on file",
-    "errorNotAvailable": "WhatsApp is not available on this device"
+    "errorNotAvailable": "WhatsApp is not available on this device",
+    "billPdfOrder": " for order #{{orderNumber}}",
+    "billPdf": "Namaste {{customerName}}, here is your bill from {{shopName}}{{orderPart}}.\nTotal: {{total}}\nPaid: {{paid}}\nBalance: {{pending}}\n\nView / download bill (PDF): {{link}}",
+    "failed": "Could not open WhatsApp"
   },
   "filters": {
     "clear": "Clear",
     "applied": "Filter applied: {{what}}"
+  },
+  "call": {
+    "label": "Call {{phone}}",
+    "failed": "Could not open the phone dialer"
+  },
+  "a11y": {
+    "notifications": "Notifications",
+    "addCustomer": "Add customer",
+    "newOrder": "New order",
+    "editOrder": "Edit order",
+    "deleteOrder": "Delete order",
+    "editClient": "Edit client",
+    "addClothType": "Add cloth type",
+    "deleteClothType": "Delete cloth type",
+    "removeField": "Remove field",
+    "clear": "Clear",
+    "increase": "Increase",
+    "decrease": "Decrease",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "voiceSearch": "Search by voice",
+    "filter": "Filter",
+    "loading": "Loading",
+    "removePhoto": "Remove photo",
+    "moreActions": "More actions"
+  },
+  "measureFields": {
+    "chest": "Chest",
+    "shoulder": "Shoulder",
+    "sleeve": "Sleeve",
+    "length": "Length",
+    "collar": "Collar",
+    "cuff": "Cuff",
+    "biceps": "Biceps",
+    "stomach": "Stomach",
+    "waist": "Waist",
+    "hip": "Hip",
+    "seat": "Seat",
+    "thigh": "Thigh",
+    "knee": "Knee",
+    "bottom": "Bottom",
+    "crotch": "Crotch",
+    "shirtlength": "Shirt Length",
+    "pantlength": "Pant Length",
+    "frontlength": "Front Length",
+    "backlength": "Back Length",
+    "armhole": "Arm Hole",
+    "pocket": "Pocket",
+    "belt": "Belt",
+    "flare": "Flare",
+    "blousechest": "Blouse Chest",
+    "blouselength": "Blouse Length",
+    "jacketlength": "Jacket Length",
+    "pantwaist": "Pant Waist"
+  },
+  "garmentNames": {
+    "shirt": "Shirt",
+    "pant": "Pant",
+    "shirtpant": "Shirt + Pant",
+    "kurta": "Kurta",
+    "blazer": "Blazer",
+    "coat": "Coat",
+    "safari": "Safari",
+    "safarisuit": "Safari Suit",
+    "jacket": "Jacket",
+    "lehenga": "Lehenga",
+    "sherwani": "Sherwani",
+    "suit": "Suit",
+    "vest": "Vest",
+    "pyjama": "Pyjama",
+    "salwar": "Salwar",
+    "other": "Other"
+  },
+  "sync": {
+    "synced": "Synced",
+    "syncing": "Syncing",
+    "offline": "Offline",
+    "error": "Sync failed",
+    "pending": "{{count}} pending"
+  },
+  "stepper": {
+    "last": "Last: {{value}}"
+  },
+  "errors": {
+    "loadTitle": "Could not load",
+    "loadDescription": "Check your connection and try again. Your saved data is safe."
   }
 }

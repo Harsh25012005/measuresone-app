@@ -8,29 +8,33 @@ export type AuthStackParamList = {
   ComponentShowcase: undefined;
 };
 
-/** Screens shared across several stacks (orders/bills reachable from many tabs). */
+export type OrderListFilter = 'Active' | 'Due today' | 'Overdue' | 'Unpaid' | 'Received' | 'Ready' | 'Delivered' | 'All';
+
+/** Screens shared across several stacks (orders reachable from many tabs). */
 type SharedOrderRoutes = {
-  OrderForm: { customerId?: string; orderId?: string } | undefined;
+  OrderForm:
+    | {
+        customerId?: string;
+        orderId?: string;
+        /** Pre-filled garments / delivery date, e.g. from a TrueFit AI card. */
+        prefill?: { garments?: { garment: 'shirt' | 'pant' | 'both'; count: number }[]; deliveryDate?: string };
+      }
+    | undefined;
   OrderDetail: { orderId: string };
-  BillForm: { orderId?: string; customerId?: string } | undefined;
-  BillDetail: { billId: string };
-  MeasurementForm: { customerId: string };
+  MeasurementForm: { customerId: string; templateId?: string; clothType?: string };
+  /** Global search (customer, phone, order no., book no.), reachable from every tab. */
+  Search: undefined;
 };
 
 export type CustomersStackParamList = SharedOrderRoutes & {
   CustomerList: undefined;
-  CustomerDetail: { customerId: string; initialTab?: 'info' | 'orders' | 'bills' };
-  CustomerForm: { customerId?: string } | undefined;
+  CustomerDetail: { customerId: string; initialTab?: 'info' | 'orders' | 'measurements' };
+  CustomerForm: { customerId?: string; prefill?: { name?: string; phone?: string; bookNumber?: string } } | undefined;
 };
 
 export type OrdersStackParamList = SharedOrderRoutes & {
-  OrderList: undefined;
-};
-
-export type BillingStackParamList = {
-  BillingList: undefined;
-  BillForm: { orderId?: string; customerId?: string } | undefined;
-  BillDetail: { billId: string };
+  /** `filter` opens the list on one of its filter chips (Home links, TrueFit AI). */
+  OrderList: { filter?: OrderListFilter } | undefined;
 };
 
 export type DashboardStackParamList = SharedOrderRoutes & {
@@ -38,7 +42,6 @@ export type DashboardStackParamList = SharedOrderRoutes & {
   Notifications: undefined;
   Calendar: undefined;
   Transactions: undefined;
-  Search: undefined;
 };
 
 export type SettingsStackParamList = {
@@ -47,13 +50,12 @@ export type SettingsStackParamList = {
   Staff: undefined;
   StaffForm: { staffId?: string } | undefined;
   StaffDetail: { staffId: string };
-  StaffWorkEntryForm: { staffId: string };
+  StaffWorkEntryForm: { staffId: string; prefill?: { workType?: 'pant' | 'shirt' | 'pant_shirt'; quantity?: number } };
   Revenue: undefined;
-  /** The whole Billing stack, nested here since Billing is no longer a tab. */
-  Billing: undefined;
   CustomMeasurementFields: undefined;
   UniversalMeasurements: undefined;
   UniversalTemplateDetail: { templateId: string };
+  Calendar: undefined;
 };
 
 /**
@@ -76,12 +78,11 @@ export type RootStackParamList = {
 
 /**
  * Union of every in-app route. Screens that are registered in more than one
- * stack (OrderForm, OrderDetail, BillForm) type against this so they can be
+ * stack (OrderForm, OrderDetail) type against this so they can be
  * reused without re-declaring props per stack.
  */
 export type AppParamList = CustomersStackParamList &
   OrdersStackParamList &
-  BillingStackParamList &
   DashboardStackParamList &
   SettingsStackParamList;
 
@@ -97,10 +98,6 @@ export type CustomersScreenProps<T extends keyof CustomersStackParamList> = Nati
 >;
 export type OrdersScreenProps<T extends keyof OrdersStackParamList> = NativeStackScreenProps<
   OrdersStackParamList,
-  T
->;
-export type BillingScreenProps<T extends keyof BillingStackParamList> = NativeStackScreenProps<
-  BillingStackParamList,
   T
 >;
 export type DashboardScreenProps<T extends keyof DashboardStackParamList> = NativeStackScreenProps<

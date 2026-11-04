@@ -82,11 +82,11 @@
   },
   "search": {
     "title": "खोजें",
-    "placeholder": "ग्राहक के नाम या फोन से खोजें",
-    "emptyPromptTitle": "एक ग्राहक खोजें",
-    "emptyPromptDescription": "नाम या फोन नंबर टाइप करें, या आवाज़ से खोजने के लिए माइक पर टैप करें।",
-    "noResultsTitle": "कोई ग्राहक नहीं मिला",
-    "noResultsDescription": "जारी रखने के लिए उन्हें नए ग्राहक के रूप में जोड़ें।",
+    "placeholder": "नाम, फ़ोन, ऑर्डर # या बुक नंबर",
+    "emptyPromptTitle": "कुछ भी खोजें",
+    "emptyPromptDescription": "नाम, फ़ोन, ऑर्डर नंबर या बुक नंबर लिखें, या माइक दबाएँ।",
+    "noResultsTitle": "कुछ नहीं मिला",
+    "noResultsDescription": "कोई और शब्द आज़माएँ, या नए ग्राहक के रूप में जोड़ें।",
     "addClient": "ग्राहक जोड़ें",
     "noPhone": "फोन नहीं",
     "createOrder": "ऑर्डर बनाएं",
@@ -94,7 +94,14 @@
     "dictationFailed": "सुनाई नहीं दिया — फिर से कोशिश करें",
     "microphonePermissionDenied": "आवाज़ से खोजने के लिए माइक्रोफ़ोन अनुमति ज़रूरी है",
     "listening": "सुन रहे हैं…",
-    "listeningHint": "ग्राहक का नाम बोलें, या रोकने के लिए कहीं भी टैप करें"
+    "listeningHint": "ग्राहक का नाम बोलें, या रोकने के लिए कहीं भी टैप करें",
+    "micPermissionRequired": "माइक्रोफ़ोन की अनुमति ज़रूरी है",
+    "takeMeasurements": "नाप लें",
+    "viewDetails": "विवरण देखें",
+    "recent": "हाल के ग्राहक",
+    "orders": "ऑर्डर",
+    "clients": "ग्राहक",
+    "book": "बुक {{number}}"
   },
   "notifications": {
     "title": "सूचनाएं",
@@ -111,5 +118,37 @@
       "order_ready": "ऑर्डर तैयार है",
       "payment_due": "भुगतान बकाया है"
     }
-  }
+  },
+  "goodMorning": "सुप्रभात",
+  "goodAfternoon": "नमस्ते",
+  "goodEvening": "शुभ संध्या",
+  "today": "आज",
+  "collected": "मिले",
+  "newOrders": "नए ऑर्डर",
+  "delivered": "दे दिए",
+  "measure": "नाप",
+  "todaysWork": "आज का काम",
+  "allCaughtUp": "सब पूरा हुआ",
+  "noDeliveriesToday": "कोई डिलीवरी या देर वाला ऑर्डर नहीं।",
+  "ready": "तैयार",
+  "deliver": "डिलीवर करें",
+  "dueTodayLabel": "आज देने हैं",
+  "dueTomorrowLabel": "कल देने हैं",
+  "dayLate_one": "{{count}} दिन की देरी",
+  "dayLate_other": "{{count}} दिन की देरी",
+  "dueOnLabel": "{{date}} देने हैं",
+  "comingUpThisWeek": "इस हफ़्ते आने वाले",
+  "readyToGive": "देने के लिए तैयार",
+  "whatsappReminders": "WhatsApp रिमाइंडर",
+  "toCollect": "लेना बाकी",
+  "orderMarkedReady": "ऑर्डर #{{number}} तैयार हुआ",
+  "orderMarkedDelivered": "ऑर्डर #{{number}} डिलीवर हुआ",
+  "cards": {
+    "late": "देर से",
+    "dueToday": "आज देना है",
+    "readyToGive": "देने के लिए तैयार",
+    "toCollect": "वसूल करना है"
+  },
+  "doNow": "अभी करें",
+  "searchEntry": "ग्राहक, फ़ोन, ऑर्डर या बुक नंबर खोजें"
 }

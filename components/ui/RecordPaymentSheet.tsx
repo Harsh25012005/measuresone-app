@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from './Button';
-import { InputField } from './InputField';
-import { BottomSheet } from './Modal';
-import { useToast } from './Toast';
+import { Button } from '../../src/components/ui/Button';
+import { InputField } from '../../src/components/ui/InputField';
+import { BottomSheet } from '../../src/components/ui/Modal';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import { Text } from '../../src/components/ui/Text';
+import { useToast } from '../../src/components/ui/Toast';
 import { paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { haptics } from '../../lib/haptics';
@@ -21,6 +23,7 @@ export type PayableBill = {
 
 export type RecordPaymentSheetProps = {
   bill: PayableBill | null;
+  visible?: boolean;
   onClose: () => void;
   /** Fired after a payment is saved, so the caller can refresh its data. */
   onSaved: () => void;
@@ -34,7 +37,7 @@ export type RecordPaymentSheetProps = {
  * The amount pre-fills to the full outstanding balance because most payments
  * settle a bill completely, so the common case needs no typing at all.
  */
-export function RecordPaymentSheet({ bill, onClose, onSaved }: RecordPaymentSheetProps) {
+export function RecordPaymentSheet({ bill, visible, onClose, onSaved }: RecordPaymentSheetProps) {
   const { t } = useTranslation('billing');
   const shop = useShop();
   const showToast = useToast();
@@ -93,15 +96,22 @@ export function RecordPaymentSheet({ bill, onClose, onSaved }: RecordPaymentShee
     void submit(value);
   };
 
+  const isVisible = visible !== undefined ? (visible && !!bill) : !!bill;
+
   return (
     <BottomSheet
-      visible={!!bill}
+      visible={isVisible}
       onClose={onClose}
       title={bill ? t('collect.title', { name: bill.customerName }) : undefined}
+      footer={<Button title={t('detail.savePayment')} size="lg" onPress={handleSave} loading={saving} />}
     >
-      <View className="mb-4 flex-row items-center justify-between rounded-md bg-gray-50 px-4 py-3 dark:bg-gray-800">
-        <Text className="text-base text-gray-600 dark:text-gray-300">{t('detail.balanceDue')}</Text>
-        <Text className="text-xl font-bold text-danger">{formatCurrency(bill?.pending ?? 0)}</Text>
+      <View className="mb-4 flex-row items-center justify-between rounded border border-line bg-surface-2 p-4">
+        <Text variant="label" tone="muted">
+          {t('detail.balanceDue')}
+        </Text>
+        <Text variant="headline" tone="danger" tabular>
+          {formatCurrency(bill?.pending ?? 0)}
+        </Text>
       </View>
 
       <InputField
@@ -109,34 +119,19 @@ export function RecordPaymentSheet({ bill, onClose, onSaved }: RecordPaymentShee
         value={amount}
         onChangeText={setAmount}
         keyboardType="number-pad"
+        prefix="₹"
+        selectTextOnFocus
+        returnKeyType="done"
+        onSubmitEditing={handleSave}
         placeholder={t('detail.pendingPlaceholder', { amount: formatCurrency(bill?.pending ?? 0) })}
       />
 
-      <View className="mb-4 flex-row gap-3">
-        {PAYMENT_MODES.map((m) => (
-          <Pressable
-            key={m}
-            onPress={() => setMode(m)}
-            className={`min-h-[52px] flex-1 items-center justify-center rounded-md border-2 px-4 ${
-              mode === m
-                ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
-                : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
-            }`}
-          >
-            <Text
-              className={
-                mode === m
-                  ? 'text-base font-semibold text-primary-700 dark:text-primary-300'
-                  : 'text-base font-medium text-gray-600 dark:text-gray-300'
-              }
-            >
-              {t(`detail.paymentModes.${m}`)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Button title={t('detail.savePayment')} size="lg" onPress={handleSave} loading={saving} />
+      <SegmentedControl
+        value={mode as (typeof PAYMENT_MODES)[number]}
+        onChange={setMode}
+        options={PAYMENT_MODES.map((m) => ({ label: t(`detail.paymentModes.${m}`), value: m }))}
+        className="mb-2"
+      />
     </BottomSheet>
   );
 }

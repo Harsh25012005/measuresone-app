@@ -1,9 +1,21 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, RefreshControl, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Badge, Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import {
+  Avatar,
+  Badge,
+  BottomSheet,
+  Button,
+  Chip,
+  EmptyState,
+  Header,
+  IconButton,
+  ListRow,
+  SkeletonList,
+  useToast,
+} from '../../src/components/ui';
+import { useTheme } from '../../context/ThemeContext';
 import { staffRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import type { SettingsScreenProps } from '../../navigation/types';
@@ -12,8 +24,8 @@ import type { Staff, WageType } from '../../types';
 export default function StaffListScreen({ navigation }: SettingsScreenProps<'Staff'>) {
   const { t } = useTranslation('staff');
   const showToast = useToast();
+  const { colors } = useTheme();
   const shop = useShop();
-  const insets = useSafeAreaInsets();
   const WAGE_LABELS: Record<WageType, string> = {
     daily: t('wageUnit.daily'),
     monthly: t('wageUnit.monthly'),
@@ -60,121 +72,85 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
 
   const hasActiveFilters = Boolean(wageTypeFilter);
 
-  if (loading) return <LoadingSpinner fullScreen text={t('list.loading')} />;
+  const header = (
+    <Header
+      title={t('list.title')}
+      onBack={() => navigation.goBack()}
+      right={
+        <IconButton
+          icon="plus"
+          variant="tonal"
+          accessibilityLabel={t('list.addStaff')}
+          onPress={() => navigation.navigate('StaffForm', {})}
+        />
+      }
+      searchProps={{
+        value: search,
+        onChangeText: setSearch,
+        placeholder: t('list.searchPlaceholder'),
+        onFilterPress: () => setShowFilterModal(true),
+        hasActiveFilter: hasActiveFilters,
+      }}
+    />
+  );
+
+  if (loading && staff.length === 0) {
+    return (
+      <View className="flex-1 bg-bg">
+        {header}
+        <SkeletonList count={5} />
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header
-        title={t('list.title')}
-        onBack={() => navigation.goBack()}
-        searchProps={{
-          value: search,
-          onChangeText: setSearch,
-          placeholder: t('list.searchPlaceholder'),
-          onFilterPress: () => setShowFilterModal(true),
-          hasActiveFilter: hasActiveFilters,
-        }}
-      />
+    <View className="flex-1 bg-bg">
+      {header}
 
-      {/* Filter Modal */}
-      <Modal
+      <BottomSheet
         visible={showFilterModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowFilterModal(false)}
+        onClose={() => setShowFilterModal(false)}
+        title={t('list.filterModalTitle')}
+        footer={
+          <View className="flex-row gap-2">
+            {hasActiveFilters ? (
+              <Button title={t('list.reset')} variant="secondary" className="flex-1" onPress={() => setWageTypeFilter(null)} />
+            ) : null}
+            <Button title={t('list.applyFilters')} className="flex-[1.5]" onPress={() => setShowFilterModal(false)} />
+          </View>
+        }
       >
-        <Pressable
-          className="flex-1 justify-end bg-black/40"
-          onPress={() => setShowFilterModal(false)}
-        >
-          <Pressable
-            className="rounded-t-2xl bg-white p-5 gap-4 dark:bg-gray-900"
-            style={{ paddingBottom: insets.bottom + 20 }}
-            onPress={() => {}}
-          >
-            <View className="flex-row items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-              <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{t('list.filterModalTitle')}</Text>
-              {hasActiveFilters ? (
-                <Pressable
-                  onPress={() => {
-                    setWageTypeFilter(null);
-                  }}
-                >
-                  <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('list.reset')}</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {/* Wage Type Section */}
-            <View>
-              <Text className="mb-2 text-base font-semibold text-gray-600 dark:text-gray-400">
-                {t('list.wageTypeSection')}
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {wageTypeOptions.map((wt) => {
-                  const active = wageTypeFilter === wt;
-                  return (
-                    <Pressable
-                      key={wt}
-                      onPress={() => setWageTypeFilter(active ? null : wt)}
-                      className={`rounded-full border px-3.5 py-2 ${
-                        active ? 'border-primary-600 bg-primary-600' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
-                      }`}
-                    >
-                      <Text className={`text-base font-semibold ${active ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                        {WAGE_LABELS[wt]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => setShowFilterModal(false)}
-              className="items-center rounded-md bg-primary-600 py-3 active:bg-primary-700"
-            >
-              <Text className="text-base font-semibold text-white">{t('list.applyFilters')}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <View className="flex-row flex-wrap gap-2">
+          {wageTypeOptions.map((wt) => (
+            <Chip key={wt} label={WAGE_LABELS[wt]} selected={wageTypeFilter === wt} onPress={() => setWageTypeFilter(wageTypeFilter === wt ? null : wt)} />
+          ))}
+        </View>
+      </BottomSheet>
 
       <FlatList
         data={filteredStaff}
         keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={filteredStaff.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 10 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
-        }
+        contentContainerStyle={filteredStaff.length === 0 ? { flexGrow: 1 } : { paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={
           <EmptyState
-            icon="user-friends"
+            icon="users"
             title={hasActiveFilters ? t('list.emptySearchTitle') : t('list.emptyTitle')}
-            description={
-              hasActiveFilters
-                ? t('list.emptySearchDescription')
-                : t('list.emptyDescription')
-            }
+            description={hasActiveFilters ? t('list.emptySearchDescription') : t('list.emptyDescription')}
             actionLabel={hasActiveFilters ? undefined : t('list.addStaff')}
             onAction={hasActiveFilters ? undefined : () => navigation.navigate('StaffForm', {})}
           />
         }
         renderItem={({ item }) => (
-          <Card onPress={() => navigation.navigate('StaffDetail', { staffId: item.id })}>
-            <View className="flex-row items-center">
-              <Avatar name={item.name} size="md" />
-              <View className="ml-3 flex-1">
-                <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{item.name}</Text>
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{item.phone ?? t('list.noPhone')}</Text>
-              </View>
-              <Badge label={WAGE_LABELS[item.wage_type]} />
-            </View>
-          </Card>
+          <ListRow
+            title={item.name}
+            subtitle={item.phone ?? t('list.noPhone')}
+            leading={<Avatar name={item.name} size="md" />}
+            trailing={<Badge label={WAGE_LABELS[item.wage_type]} />}
+            onPress={() => navigation.navigate('StaffDetail', { staffId: item.id })}
+          />
         )}
       />
-
     </View>
   );
 }

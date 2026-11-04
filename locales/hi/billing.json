@@ -20,7 +20,19 @@
     "errorLoad": "बिल लोड नहीं हो सके",
     "lastBill": "आखिरी बिल {{date}}",
     "billCount": "{{count}} बिल",
-    "outstanding": "{{amount}} बाकी"
+    "outstanding": "{{amount}} बाकी",
+    "dictationFailed": "वॉइस सर्च विफल रहा",
+    "micPermissionRequired": "माइक्रोफ़ोन की अनुमति चाहिए",
+    "totalDues": "कुल बकाया",
+    "clientsCount_one": "{{count}} ग्राहक",
+    "clientsCount_other": "{{count}} ग्राहक",
+    "totalBills_one": "कुल {{count}} बिल",
+    "totalBills_other": "कुल {{count}} बिल",
+    "billsSuffix": " · {{count}} बिल",
+    "due": "बकाया",
+    "settled": "चुकता",
+    "reminderMessage": "नमस्ते {{name}}, {{shopName}} की ओर से विनम्र याद: आपके ऑर्डर के लिए {{amount}} बाकी है। धन्यवाद!",
+    "sendReminder": "रिमाइंडर भेजें"
   },
   "detail": {
     "loading": "बिल लोड हो रहा है...",
@@ -67,7 +79,8 @@
       "UPI": "UPI",
       "Card": "कार्ड",
       "Bank Transfer": "बैंक ट्रांसफर"
-    }
+    },
+    "whatsappMessage": "नमस्ते {{name}}, {{shopName}} से आपका बिल {{amount}} है।"
   },
   "form": {
     "title": "नया बिल",
@@ -111,5 +124,30 @@
     "emptyTitle": "सब चुकता है",
     "emptyDescription": "जब किसी ग्राहक का पैसा बाकी होगा, वह यहाँ वसूली के लिए दिखेगा।",
     "totalOwed": "{{count}} ग्राहकों से {{amount}} बाकी"
+  },
+  "pdf": {
+    "title": "बिल / रसीद",
+    "customer": "ग्राहक",
+    "orderNumber": "ऑर्डर नंबर",
+    "date": "तारीख",
+    "deliveryDate": "डिलीवरी तारीख",
+    "items": "आइटम",
+    "quantity": "मात्रा",
+    "thankYou": "आपके व्यवसाय के लिए धन्यवाद!",
+    "notFound": "बिल नहीं मिला",
+    "sendBill": "WhatsApp पर बिल भेजें",
+    "failed": "बिल नहीं भेजा जा सका",
+    "item": "आइटम",
+    "totalPieces": "कुल टुकड़े",
+    "billTo": "ग्राहक विवरण",
+    "orderDetails": "ऑर्डर विवरण",
+    "photos": "कपड़े की फ़ोटो",
+    "photo": "फ़ोटो {{number}}",
+    "paidInFull": "पूरा भुगतान हो गया",
+    "contact": "किसी भी सवाल के लिए {{phone}} पर कॉल करें"
+  },
+  "search": {
+    "listening": "सुन रहे हैं…",
+    "listeningHint": "ग्राहक का नाम बोलें, रोकने के लिए टैप करें"
   }
 }

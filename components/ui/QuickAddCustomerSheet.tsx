@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from './Button';
-import { InputField } from './InputField';
-import { BottomSheet } from './Modal';
-import { useToast } from './Toast';
+import { Button } from '../../src/components/ui/Button';
+import { InputField } from '../../src/components/ui/InputField';
+import { BottomSheet } from '../../src/components/ui/Modal';
+import { useToast } from '../../src/components/ui/Toast';
 import { customersRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import type { Tables } from '../../lib/database.types';
@@ -32,6 +33,8 @@ export function QuickAddCustomerSheet({ visible, onClose, onCreated }: QuickAddC
   const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [loading, setLoading] = useState(false);
+  const nameRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
 
   const reset = () => {
     setBookNumber('');
@@ -98,7 +101,12 @@ export function QuickAddCustomerSheet({ visible, onClose, onCreated }: QuickAddC
   };
 
   return (
-    <BottomSheet visible={visible} onClose={handleClose} title={t('quickAdd.title')}>
+    <BottomSheet
+      visible={visible}
+      onClose={handleClose}
+      title={t('quickAdd.title')}
+      footer={<Button title={t('quickAdd.save')} size="lg" onPress={handleSave} loading={loading} />}
+    >
       {/* Same field order as the full client form: client number, name,
           phone — matching how a shop owner reads their paper order book. */}
       <InputField
@@ -109,18 +117,25 @@ export function QuickAddCustomerSheet({ visible, onClose, onCreated }: QuickAddC
           setBookNumberError('');
         }}
         placeholder={t('form.bookNumberPlaceholder')}
+        returnKeyType="next"
+        onSubmitEditing={() => nameRef.current?.focus()}
         error={bookNumberError}
         required
       />
       <InputField
+        ref={nameRef}
         label={t('form.nameLabel')}
         value={name}
         onChangeText={setName}
         placeholder={t('form.namePlaceholder')}
+        autoCapitalize="words"
+        returnKeyType="next"
+        onSubmitEditing={() => phoneRef.current?.focus()}
         error={nameError}
         required
       />
       <InputField
+        ref={phoneRef}
         label={t('form.phoneLabel')}
         value={phone}
         onChangeText={(v) => {
@@ -129,10 +144,13 @@ export function QuickAddCustomerSheet({ visible, onClose, onCreated }: QuickAddC
         }}
         placeholder={t('form.phonePlaceholder')}
         keyboardType="phone-pad"
+        prefix="+91"
+        maxLength={10}
+        returnKeyType="done"
+        onSubmitEditing={handleSave}
         error={phoneError}
         required
       />
-      <Button title={t('quickAdd.save')} size="lg" onPress={handleSave} loading={loading} />
     </BottomSheet>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useColorScheme as useNativewindColorScheme } from 'nativewind';
 import { THEME_COLORS, setThemeMode, type ResolvedScheme, type ThemeMode } from '../lib/theme';
 

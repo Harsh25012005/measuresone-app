@@ -97,6 +97,8 @@
       "pant": "Pant",
       "shirt": "Shirt",
       "pant_shirt": "Pant + Shirt"
-    }
+    },
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

@@ -1,17 +1,15 @@
-import { useState } from 'react';
-import { Text, View, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { useRef, useState } from 'react';
+import { TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, GoogleIcon, InputField, useToast } from '../../components/ui';
+import { Button, GoogleIcon, InputField, Text, useToast } from '../../src/components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { AuthDivider, AuthLayout } from './AuthLayout';
 import type { AuthScreenProps } from '../../navigation/types';
 
 type SignupErrors = { email?: string; password?: string };
 
 export default function SignupScreen({ navigation }: AuthScreenProps<'Signup'>) {
   const { signUpWithEmail, signInWithGoogle } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('auth');
 
@@ -20,12 +18,13 @@ export default function SignupScreen({ navigation }: AuthScreenProps<'Signup'>) 
   const [errors, setErrors] = useState<SignupErrors>({});
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const validate = () => {
     const next: SignupErrors = {};
-    if (!email.trim()) next.email = t('signup.errorEmailRequired');
-    if (!password) next.password = t('signup.errorPasswordRequired');
-    else if (password.length < 6) next.password = t('signup.errorPasswordLength');
+    if (!email.trim()) next.email = t('signup.errorEmailRequired', { defaultValue: 'Email is required' });
+    if (!password) next.password = t('signup.errorPasswordRequired', { defaultValue: 'Password is required' });
+    else if (password.length < 6) next.password = t('signup.errorPasswordLength', { defaultValue: 'Password must be at least 6 characters' });
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -36,13 +35,14 @@ export default function SignupScreen({ navigation }: AuthScreenProps<'Signup'>) 
     try {
       const { alreadyRegistered } = await signUpWithEmail(email.trim(), password);
       if (alreadyRegistered) {
-        setErrors({ email: t('signup.errorAlreadyRegistered') });
-        showToast(t('signup.errorAlreadyRegistered'), 'error');
+        const text = t('signup.errorAlreadyRegistered', { defaultValue: 'This email is already registered' });
+        setErrors({ email: text });
+        showToast(text, 'error');
         return;
       }
       navigation.navigate('ConfirmEmail', { email: email.trim() });
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('signup.errorSignUp'), 'error');
+      showToast(err instanceof Error ? err.message : t('signup.errorSignUp', { defaultValue: 'Sign up failed' }), 'error');
     } finally {
       setLoading(false);
     }
@@ -53,73 +53,70 @@ export default function SignupScreen({ navigation }: AuthScreenProps<'Signup'>) 
     try {
       await signInWithGoogle();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('signup.errorGoogle'), 'error');
+      showToast(err instanceof Error ? err.message : t('signup.errorGoogle', { defaultValue: 'Google sign-up failed' }), 'error');
     } finally {
       setGoogleLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white dark:bg-gray-950"
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 16 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="flex-1 justify-center px-6 py-10">
-          <View className="mb-6 h-14 w-14 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950">
-            <FontAwesome5 name="tshirt" size={22} color="#1D4ED8" />
-          </View>
-          <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('signup.title')}</Text>
-          <Text className="font-sans mb-8 text-base text-gray-500 dark:text-gray-400">{t('signup.subtitle')}</Text>
-
-          <InputField
-            label={t('signup.email')}
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t('signup.emailPlaceholder')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            error={errors.email}
-          />
-
-          <InputField
-            label={t('signup.password')}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            error={errors.password}
-            helperText={errors.password ? undefined : t('signup.passwordHint')}
-          />
-
-          <Button title={t('signup.signUp')} size="lg" onPress={handleSignup} loading={loading} />
-
-          <View className="my-6 flex-row items-center">
-            <View className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-            <Text className="font-sans mx-3 text-base text-gray-400 dark:text-gray-500">{t('signup.or')}</Text>
-            <View className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-          </View>
-
+    <AuthLayout
+      showLanguage
+      title={t('signup.title', { defaultValue: 'Create Account' })}
+      subtitle={t('signup.subtitle', { defaultValue: 'Set up your shop in a few steps' })}
+      footer={
+        <>
+          <Text variant="body" tone="muted">
+            {t('signup.haveAccount')}{' '}
+          </Text>
           <Button
-            title={t('signup.continueWithGoogle')}
-            variant="google"
-            size="lg"
-            onPress={handleGoogle}
-            loading={googleLoading}
-            icon={<GoogleIcon size={20} />}
+            title={t('signup.signIn', { defaultValue: 'Sign in' })}
+            variant="ghost"
+            size="sm"
+            fullWidth={false}
+            onPress={() => navigation.navigate('Login')}
           />
+        </>
+      }
+    >
+      <InputField
+        label={t('signup.email', { defaultValue: 'Email address' })}
+        value={email}
+        onChangeText={setEmail}
+        placeholder="tailor@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        error={errors.email}
+      />
 
-          <View className="mt-8 flex-row items-center justify-center gap-1">
-            <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('signup.haveAccount')}</Text>
-            <Pressable onPress={() => navigation.navigate('Login')} hitSlop={10} className="min-h-[44px] justify-center">
-              <Text className="text-base font-semibold text-primary-600">{t('signup.signIn')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <InputField
+        ref={passwordRef}
+        label={t('signup.password', { defaultValue: 'Password (min. 6 characters)' })}
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        returnKeyType="go"
+        onSubmitEditing={handleSignup}
+        error={errors.password}
+      />
+
+      <Button title={t('signup.signUp', { defaultValue: 'Create account' })} onPress={handleSignup} loading={loading} />
+
+      <AuthDivider label={t('signup.or', { defaultValue: 'or' })} />
+
+      <Button
+        title={t('signup.continueWithGoogle', { defaultValue: 'Continue with Google' })}
+        variant="google"
+        onPress={handleGoogle}
+        loading={googleLoading}
+        icon={<GoogleIcon size={18} />}
+      />
+    </AuthLayout>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Button, DatePickerField, Dropdown, Header, InputField, useToast } from '../../components/ui';
+import { Button, Card, DatePickerField, Header, NumberStepper, SegmentedControl, Text, useToast } from '../../src/components/ui';
 import { supabase } from '../../lib/supabase';
 import { staffRepo } from '../../lib/data/repository';
 import { runSync } from '../../lib/data/sync';
@@ -25,7 +26,8 @@ export default function StaffWorkEntryFormScreen({
   route,
 }: SettingsScreenProps<'StaffWorkEntryForm'>) {
   const { t } = useTranslation('staff');
-  const { staffId } = route.params;
+  const insets = useSafeAreaInsets();
+  const { staffId, prefill } = route.params;
   const shop = useShop();
   const showToast = useToast();
 
@@ -37,8 +39,8 @@ export default function StaffWorkEntryFormScreen({
 
   const [staff, setStaff] = useState<Staff | null>(null);
   const [workDate, setWorkDate] = useState<Date>(new Date());
-  const [workType, setWorkType] = useState<WorkType>('pant');
-  const [quantity, setQuantity] = useState('1');
+  const [workType, setWorkType] = useState<WorkType>(prefill?.workType ?? 'pant');
+  const [quantity, setQuantity] = useState(String(prefill?.quantity && prefill.quantity > 0 ? prefill.quantity : 1));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -105,57 +107,67 @@ export default function StaffWorkEntryFormScreen({
   };
 
   return (
-    <>
+    <View className="flex-1 bg-bg">
       <Header title={t('workEntry.title')} onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView
-          className="flex-1 bg-white dark:bg-gray-950"
-          contentContainerStyle={{ padding: 20, paddingBottom: 110 }}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
           <DatePickerField
             label={t('workEntry.dateLabel')}
             value={workDate}
             onChange={setWorkDate}
             placeholder={t('workEntry.datePlaceholder')}
-          />
-          <Dropdown<WorkType>
-            label={t('workEntry.typeLabel')}
-            value={workType}
-            onChange={setWorkType}
-            options={WORK_TYPES}
-            placeholder={t('workEntry.typePlaceholder')}
-          />
-          <InputField
-            label={t('workEntry.quantityLabel')}
-            value={quantity}
-            onChangeText={setQuantity}
-            placeholder={t('workEntry.quantityPlaceholder')}
-            keyboardType="number-pad"
-            error={error}
+            quickChips={[{ label: t('workEntry.today'), daysFromNow: 0 }, { label: t('workEntry.yesterday'), daysFromNow: -1 }]}
           />
 
-          <View className="mb-4 gap-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+          <Text variant="label" className="mb-1.5">
+            {t('workEntry.typeLabel')}
+          </Text>
+          <SegmentedControl options={WORK_TYPES} value={workType} onChange={setWorkType} className="mb-4" />
+
+          <NumberStepper
+            label={t('workEntry.quantityLabel')}
+            value={Number.isFinite(parsedQty) ? parsedQty : null}
+            onChange={(n) => {
+              setQuantity(n == null ? '' : String(n));
+              setError('');
+            }}
+            min={1}
+            placeholder={t('workEntry.quantityPlaceholder')}
+          />
+          {error ? (
+            <Text variant="caption" tone="danger" className="-mt-2 mb-4" accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          ) : null}
+
+          <Card variant="subtle" className="gap-2">
             <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('workEntry.rateApplied')}</Text>
-              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(rate)}</Text>
+              <Text variant="label" tone="muted" weight="regular">
+                {t('workEntry.rateApplied')}
+              </Text>
+              <Text variant="bodyLg" tabular>
+                {formatCurrency(rate)}
+              </Text>
             </View>
             <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('workEntry.totalPay')}</Text>
-              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(rate * previewQty)}</Text>
+              <Text variant="label" tone="muted" weight="regular">
+                {t('workEntry.totalPay')}
+              </Text>
+              <Text variant="bodyLg" tabular>
+                {formatCurrency(rate * previewQty)}
+              </Text>
             </View>
             {rate === 0 ? (
-              <Text className="font-sans text-base text-amber-600 dark:text-amber-400">{t('workEntry.noRateWarning')}</Text>
+              <Text variant="label" tone="warning">
+                {t('workEntry.noRateWarning')}
+              </Text>
             ) : null}
-          </View>
-
-          <Button title={t('workEntry.save')} onPress={handleSave} loading={loading} disabled={rate === 0} />
+          </Card>
         </ScrollView>
+        <View style={{ paddingBottom: Math.max(insets.bottom, 12) }} className="border-t border-line bg-surface px-4 pt-3">
+          <Button title={t('workEntry.save')} size="lg" onPress={handleSave} loading={loading} disabled={rate === 0} />
+        </View>
       </KeyboardAvoidingView>
-    </>
+    </View>
   );
 }

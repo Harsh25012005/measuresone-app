@@ -1,5 +1,7 @@
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Text } from '../src/components/ui/Text';
+import { usePalette } from '../src/theme/usePalette';
 import { MENU_LAYOUT } from './QuickAddMenu';
 import { TOUR_STEPS, type TourStep } from '../context/ProductTourContext';
 
@@ -32,6 +34,7 @@ export function ProductTourSpotlight({
 }: ProductTourSpotlightProps) {
   const { t } = useTranslation('settings');
   const { height: screenH } = useWindowDimensions();
+  const palette = usePalette();
 
   const index = TOUR_STEPS.indexOf(step);
   const isLast = index === TOUR_STEPS.length - 1;
@@ -50,24 +53,34 @@ export function ProductTourSpotlight({
         pointerEvents="box-none"
         style={{ position: 'absolute', left: H_MARGIN, right: H_MARGIN, bottom: tooltipBottom }}
       >
-        <View className="rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-lg">
+        {/* Inverted card (ink on light theme, light on dark) so it stands out from the scrim. */}
+        <View accessibilityLiveRegion="polite" className="rounded border border-line bg-ink p-4">
           <View className="mb-3 flex-row items-center justify-between">
-            <View className="flex-row gap-1.5">
+            <View className="flex-row gap-1.5" accessible accessibilityLabel={`${index + 1} / ${TOUR_STEPS.length}`}>
               {TOUR_STEPS.map((s, i) => (
                 <View
                   key={s}
-                  className="h-1 rounded-full"
-                  style={{ width: 20, backgroundColor: i <= index ? '#2563EB' : 'rgba(255,255,255,0.18)' }}
+                  className="h-1 rounded-sm"
+                  style={{ width: 20, backgroundColor: i <= index ? palette.primary : palette.border }}
                 />
               ))}
             </View>
-            <Pressable onPress={onSkip} hitSlop={8}>
-              <Text className="text-base font-medium text-gray-400">{t('appGuide.skip')}</Text>
+            <Pressable
+              onPress={onSkip}
+              accessibilityRole="button"
+              accessibilityLabel={t('appGuide.skip')}
+              className="min-h-touch justify-center px-2"
+            >
+              <Text variant="label" tone="inverse" weight="regular">
+                {t('appGuide.skip')}
+              </Text>
             </Pressable>
           </View>
 
-          <Text className="mb-1 text-base font-bold text-white">{t(`appGuide.steps.${step}.title`)}</Text>
-          <Text className="mb-4 text-base leading-5 text-gray-300">
+          <Text variant="bodyLg" tone="inverse" className="mb-1">
+            {t(`appGuide.steps.${step}.title`)}
+          </Text>
+          <Text variant="body" tone="inverse" className="mb-4">
             {t(`appGuide.steps.${step}.description`)}
           </Text>
 
@@ -75,19 +88,29 @@ export function ProductTourSpotlight({
             {index > 0 ? (
               <Pressable
                 onPress={onBack}
-                className="rounded-full border border-white/15 px-4 py-2.5 active:bg-white/5"
+                accessibilityRole="button"
+                className="min-h-touch items-center justify-center rounded border border-faint px-4 active:opacity-70"
               >
-                <Text className="text-base font-semibold text-gray-200">{t('appGuide.back')}</Text>
+                <Text variant="label" tone="inverse">
+                  {t('appGuide.back')}
+                </Text>
               </Pressable>
             ) : null}
             <Pressable
               onPress={onTryItNow}
-              className="flex-1 rounded-full border border-white/15 px-4 py-2.5 active:bg-white/5"
+              accessibilityRole="button"
+              className="min-h-touch flex-1 items-center justify-center rounded border border-faint px-4 active:opacity-70"
             >
-              <Text className="text-center text-base font-semibold text-gray-200">{t('appGuide.tryItNow')}</Text>
+              <Text variant="label" tone="inverse" className="text-center">
+                {t('appGuide.tryItNow')}
+              </Text>
             </Pressable>
-            <Pressable onPress={onNext} className="flex-1 rounded-full bg-primary-500 px-4 py-2.5 active:bg-primary-600">
-              <Text className="text-center text-base font-semibold text-white">
+            <Pressable
+              onPress={onNext}
+              accessibilityRole="button"
+              className="min-h-touch flex-1 items-center justify-center rounded bg-primary px-4 active:bg-primary-dark"
+            >
+              <Text variant="label" tone="onPrimary" className="text-center">
                 {isLast ? t('appGuide.getStarted') : t('appGuide.next')}
               </Text>
             </Pressable>

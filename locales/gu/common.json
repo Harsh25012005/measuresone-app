@@ -3,15 +3,21 @@
     "dashboard": "હોમ",
     "customers": "ગ્રાહકો",
     "orders": "ઓર્ડર",
-    "settings": "બિઝનેસ",
-    "add": "ઉમેરો"
+    "settings": "વધુ",
+    "add": "ઉમેરો",
+    "lateCount": "{{count}} મોડા"
   },
   "quickAdd": {
     "newClient": "નવો ગ્રાહક",
-    "addBill": "બિલ ઉમેરો",
     "addOrder": "ઓર્ડર ઉમેરો",
+    "addMeasurement": "માપ ઉમેરો",
     "addStaff": "સ્ટાફ ઉમેરો",
-    "accessibilityLabel": "ઝડપી ક્રિયાઓ"
+    "accessibilityLabel": "ઝડપી ક્રિયાઓ",
+    "orderSub": "કપડાં, તારીખો અને એડવાન્સ",
+    "clientSub": "નામ, ફોન અને બુક નં.",
+    "measurementSub": "શર્ટ, પેન્ટ અથવા કોઈપણ કપડું",
+    "billSub": "બિલ બનાવો અથવા નોંધો",
+    "staffSub": "કામની નોંધ અને પગાર"
   },
   "actions": {
     "save": "સેવ કરો",
@@ -25,7 +31,9 @@
     "view": "જુઓ",
     "close": "બંધ કરો",
     "retry": "ફરી પ્રયત્ન કરો",
-    "confirm": "કન્ફર્મ કરો"
+    "confirm": "કન્ફર્મ કરો",
+    "undo": "પાછું કરો",
+    "call": "કૉલ"
   },
   "labels": {
     "name": "નામ",
@@ -69,7 +77,11 @@
     "dictationFailed": "સંભળાયું નહીં, ફરી પ્રયત્ન કરો",
     "microphonePermissionDenied": "બોલીને લખવા માટે માઇક્રોફોન પરવાનગી જરૂરી છે",
     "listening": "સાંભળી રહ્યા છીએ…",
-    "listeningHint": "હમણાં બોલો, અથવા રોકવા માટે ગમે ત્યાં ટૅપ કરો"
+    "listeningHint": "હમણાં બોલો, અથવા રોકવા માટે ગમે ત્યાં ટૅપ કરો",
+    "optional": "વૈકલ્પિક",
+    "microphonePermissionRequired": "માઇક્રોફોનની પરવાનગી જરૂરી છે",
+    "dictationStartFailed": "વૉઇસ સર્ચ શરૂ ન થઈ શક્યું",
+    "speakToSearch": "શોધવા માટે નામ બોલો"
   },
   "empty": {
     "title": "અહીં હજી કંઈ નથી"
@@ -93,10 +105,99 @@
     "bill": "નમસ્તે {{customerName}}, {{shopName}} તરફથી તમારા બિલની વિગત:\nકુલ: ₹{{total}}\nચૂકવાયું: ₹{{paid}}\nબાકી: ₹{{pending}}",
     "paymentDue": "નમસ્તે {{customerName}}, {{shopName}} માં તમારા ₹{{pending}} બાકી છે. અનુકૂળતાએ ચૂકવી દેશો. આભાર!",
     "errorNoPhone": "ગ્રાહકનો ફોન નંબર નોંધાયેલ નથી",
-    "errorNotAvailable": "આ ફોનમાં વોટ્સએપ ઉપલબ્ધ નથી"
+    "errorNotAvailable": "આ ફોનમાં વોટ્સએપ ઉપલબ્ધ નથી",
+    "billPdfOrder": " ઓર્ડર #{{orderNumber}} માટે",
+    "billPdf": "નમસ્તે {{customerName}}, {{shopName}} તરફથી આપનું બિલ{{orderPart}}.\nકુલ: {{total}}\nચૂકવેલ: {{paid}}\nબાકી: {{pending}}\n\nબિલ જુઓ / ડાઉનલોડ કરો (PDF): {{link}}",
+    "failed": "WhatsApp ખોલી શકાયું નહીં"
   },
   "filters": {
     "clear": "દૂર કરો",
     "applied": "ફિલ્ટર લાગુ છે: {{what}}"
+  },
+  "call": {
+    "label": "{{phone}} પર કૉલ કરો",
+    "failed": "ફોન ડાયલર ખોલી શકાયું નથી"
+  },
+  "a11y": {
+    "notifications": "સૂચનાઓ",
+    "addCustomer": "ગ્રાહક ઉમેરો",
+    "newOrder": "નવો ઓર્ડર",
+    "editOrder": "ઓર્ડર બદલો",
+    "deleteOrder": "ઓર્ડર કાઢી નાખો",
+    "editClient": "ગ્રાહક બદલો",
+    "addClothType": "કપડાનો પ્રકાર ઉમેરો",
+    "deleteClothType": "કપડાનો પ્રકાર કાઢી નાખો",
+    "removeField": "ફીલ્ડ કાઢો",
+    "clear": "સાફ કરો",
+    "increase": "વધારો",
+    "decrease": "ઘટાડો",
+    "showPassword": "પાસવર્ડ બતાવો",
+    "hidePassword": "પાસવર્ડ છુપાવો",
+    "voiceSearch": "અવાજથી શોધો",
+    "filter": "ફિલ્ટર",
+    "loading": "લોડ થઈ રહ્યું છે",
+    "removePhoto": "ફોટો કાઢી નાખો",
+    "moreActions": "વધુ ક્રિયાઓ"
+  },
+  "measureFields": {
+    "chest": "છાતી",
+    "shoulder": "ખભો",
+    "sleeve": "બાંય",
+    "length": "લંબાઈ",
+    "collar": "કોલર",
+    "cuff": "કફ",
+    "biceps": "બાવડું",
+    "stomach": "પેટ",
+    "waist": "કમર",
+    "hip": "હિપ",
+    "seat": "સીટ",
+    "thigh": "જાંઘ",
+    "knee": "ઘૂંટણ",
+    "bottom": "મોરી",
+    "crotch": "ક્રોચ",
+    "shirtlength": "શર્ટ લંબાઈ",
+    "pantlength": "પેન્ટ લંબાઈ",
+    "frontlength": "આગળની લંબાઈ",
+    "backlength": "પાછળની લંબાઈ",
+    "armhole": "આર્મ હોલ",
+    "pocket": "ખિસ્સું",
+    "belt": "બેલ્ટ",
+    "flare": "ઘેર",
+    "blousechest": "બ્લાઉઝ છાતી",
+    "blouselength": "બ્લાઉઝ લંબાઈ",
+    "jacketlength": "જેકેટ લંબાઈ",
+    "pantwaist": "પેન્ટ કમર"
+  },
+  "garmentNames": {
+    "shirt": "શર્ટ",
+    "pant": "પેન્ટ",
+    "shirtpant": "શર્ટ + પેન્ટ",
+    "kurta": "કુર્તો",
+    "blazer": "બ્લેઝર",
+    "coat": "કોટ",
+    "safari": "સફારી",
+    "safarisuit": "સફારી સૂટ",
+    "jacket": "જેકેટ",
+    "lehenga": "લહેંગા",
+    "sherwani": "શેરવાની",
+    "suit": "સૂટ",
+    "vest": "વેસ્ટ",
+    "pyjama": "પાયજામો",
+    "salwar": "સલવાર",
+    "other": "અન્ય"
+  },
+  "sync": {
+    "synced": "સિંક થયું",
+    "syncing": "સિંક થઈ રહ્યું છે",
+    "offline": "ઑફલાઇન",
+    "error": "સિંક નિષ્ફળ",
+    "pending": "{{count}} બાકી"
+  },
+  "stepper": {
+    "last": "છેલ્લું: {{value}}"
+  },
+  "errors": {
+    "loadTitle": "લોડ થઈ શક્યું નથી",
+    "loadDescription": "તમારું કનેક્શન તપાસો અને ફરી પ્રયત્ન કરો. તમારો સેવ કરેલો ડેટા સુરક્ષિત છે."
   }
 }

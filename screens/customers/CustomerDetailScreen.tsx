@@ -1,20 +1,53 @@
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View, Pressable } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { Avatar, Badge, Card, EmptyState, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { customersRepo, ordersRepo, billsRepo, customerMeasurementsRepo, universalTemplatesRepo } from '../../lib/data/repository';
+import {
+  Avatar,
+  Badge,
+  Button,
+  CallButton,
+  Card,
+  Chip,
+  EmptyState,
+  Header,
+  Icon,
+  IconButton,
+  ListRow,
+  Section,
+  SegmentedControl,
+  Skeleton,
+  Text,
+  useToast,
+  WhatsAppButton,
+} from '../../src/components/ui';
+import { usePalette } from '../../src/theme/usePalette';
+import {
+  billsRepo,
+  customerMeasurementsRepo,
+  customersRepo,
+  ordersRepo,
+  universalTemplatesRepo,
+} from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
-import { sendWhatsAppMessage, buildPaymentDueMessage } from '../../lib/whatsapp';
+import {
+  extractClothTypes,
+  extractMeasurementHistory,
+  loadMeasurementView,
+  loadMeasurementViewForCloth,
+  type ClothTypeRecord,
+  type MeasurementHistoryItem,
+  type MeasurementView,
+} from '../../lib/measurementLayout';
+import { garmentNameLabel, measurementFieldLabel } from '../../lib/measurementNames';
+import { haptics } from '../../lib/haptics';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import type { CustomersScreenProps } from '../../navigation/types';
-import type { Bill, Customer, Order } from '../../types';
+import type { Customer, Order } from '../../types';
 import type { Tables } from '../../lib/database.types';
 
-const TABS = ['info', 'orders', 'bills'] as const;
-type TabKey = (typeof TABS)[number];
+type TabKey = 'measurements' | 'orders';
 
 export default function CustomerDetailScreen({
   navigation,
@@ -24,44 +57,29 @@ export default function CustomerDetailScreen({
   const { customerId } = route.params;
   const shop = useShop();
   const showToast = useToast();
+  const { colors } = useTheme();
+  const palette = usePalette();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [customerMeasurementProfile, setCustomerMeasurementProfile] = useState<Tables<'customer_measurements'> | null>(null);
-  const [profileTemplateName, setProfileTemplateName] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Tables<'customer_measurements'> | null>(null);
+  const [templateName, setTemplateName] = useState<string | null>(null);
+  const [measurementView, setMeasurementView] = useState<MeasurementView[]>([]);
+  const [clothTypes, setClothTypes] = useState<ClothTypeRecord[]>([]);
+  const [selectedCloth, setSelectedCloth] = useState<string>('all');
+  const [history, setHistory] = useState<MeasurementHistoryItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [bills, setBills] = useState<(Bill & { paid: number })[]>([]);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  // Billing list deep-links straight into the Bills tab for a client.
-  const [tab, setTab] = useState<TabKey>(route.params?.initialTab ?? 'info');
-  const [search, setSearch] = useState('');
-
-  const q = search.trim().toLowerCase();
-  const filteredOrders = q
-    ? orders.filter(
-        (o) =>
-          o.order_number.toLowerCase().includes(q) ||
-          (o.cloth_type ?? '').toLowerCase().includes(q)
-      )
-    : orders;
-  const filteredBills = q
-    ? bills.filter(
-        (b) =>
-          String(b.total_amount ?? '').includes(q) ||
-          (b.payment_status ?? '').toLowerCase().includes(q) ||
-          formatDate(b.created_at).toLowerCase().includes(q)
-      )
-    : bills;
+  const [tab, setTab] = useState<TabKey>('measurements');
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      const [customerData, allOrders, balanceByCustomer, allBills, profile] = await Promise.all([
+      const [customerData, allOrders, balanceByCustomer, profileData, allTemplates] = await Promise.all([
         customersRepo.get(customerId),
         ordersRepo.list(shop.id),
         billsRepo.pendingBalanceByCustomer(shop.id),
-        billsRepo.listWithPayments(shop.id),
         customerMeasurementsRepo.getByCustomer(customerId),
+        universalTemplatesRepo.list(shop.id),
       ]);
 
       if (!customerData) {
@@ -77,18 +95,27 @@ export default function CustomerDetailScreen({
           .sort((a, b) => (a.order_date < b.order_date ? 1 : -1))
       );
       setBalance(balanceByCustomer[customerId] ?? 0);
-      setBills(
-        allBills
-          .filter((b) => b.customer_id === customerId)
-          .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      setProfile(profileData);
+
+      const extracted = extractClothTypes(profileData, allTemplates);
+      setClothTypes(extracted);
+
+      const hist = extractMeasurementHistory(profileData, allTemplates);
+      setHistory(hist);
+
+      setMeasurementView(
+        await loadMeasurementViewForCloth(
+          shop.id,
+          profileData,
+          selectedCloth === 'all' ? null : selectedCloth
+        )
       );
 
-      setCustomerMeasurementProfile(profile);
-      if (profile?.template_id) {
-        const tmpl = await universalTemplatesRepo.get(profile.template_id);
-        setProfileTemplateName(tmpl?.template_name ?? null);
+      if (profileData?.template_id) {
+        const tmpl = allTemplates.find((t) => t.id === profileData.template_id);
+        setTemplateName(tmpl?.template_name ?? null);
       } else {
-        setProfileTemplateName(null);
+        setTemplateName(null);
       }
     } catch {
       showToast(t('detail.loadError'), 'error');
@@ -96,7 +123,14 @@ export default function CustomerDetailScreen({
     } finally {
       setLoading(false);
     }
-  }, [customerId, navigation, shop.id, showToast, t]);
+  }, [customerId, navigation, selectedCloth, shop.id, showToast, t]);
+
+  const handleSelectCloth = async (cloth: string) => {
+    setSelectedCloth(cloth);
+    setMeasurementView(
+      await loadMeasurementViewForCloth(shop.id, profile, cloth === 'all' ? null : cloth)
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -128,287 +162,312 @@ export default function CustomerDetailScreen({
     );
   };
 
-  const handleDeleteMeasurement = (measurementId: string, garmentType: string) => {
-    Alert.alert(
-      t('detail.deleteMeasurementConfirmTitle'),
-      t('detail.deleteMeasurementConfirmMessage', { garmentType }),
-      [
-        { text: t('detail.cancel'), style: 'cancel' },
-        {
-          text: t('detail.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase.from('measurements').delete().eq('id', measurementId);
-              if (error) throw error;
-              showToast(t('detail.deleteMeasurementSuccess'), 'success');
-              void load();
-            } catch {
-              showToast(t('detail.deleteMeasurementFailed'), 'error');
-            }
-          },
-        },
-      ]
+  if (loading || !customer) {
+    return (
+      <View className="flex-1 bg-bg">
+        <Header title={t('detail.loading')} />
+        <View className="gap-4 p-4">
+          <Skeleton height={200} />
+          <Skeleton height={48} />
+          <Skeleton height={160} />
+        </View>
+      </View>
+    );
+  }
+
+  const activeOrdersCount = orders.filter((o) => o.status !== 'delivered').length;
+  const bookText = customer.book_number ? t('detail.bookLabel', { number: customer.book_number }) : '';
+  // Active work first; delivered orders follow under their own divider.
+  const activeOrders = orders.filter((o) => o.status !== 'delivered');
+  const deliveredOrders = orders.filter((o) => o.status === 'delivered');
+  const measurementCount = measurementView.reduce((sum, g) => sum + g.entries.length, 0);
+
+  const renderOrderRow = (o: (typeof orders)[number], last: boolean) => {
+    const bal = Math.max(Number(o.total_amount ?? 0) - Number(o.paid_amount ?? 0), 0);
+    return (
+      <ListRow
+        key={o.id}
+        title={`#${o.order_number} · ${o.cloth_type || t('form.defaultGarmentType')}`}
+        subtitle={formatDate(o.order_date)}
+        meta={<Badge size="sm" type="order_status" value={o.status} />}
+        trailing={
+          bal > 0 ? (
+            <>
+              <Text variant="bodyLg" tone="danger" tabular>
+                {formatCurrency(bal)}
+              </Text>
+              <Text variant="caption" tone="muted" weight="regular">
+                {t('detail.dueText')}
+              </Text>
+            </>
+          ) : (
+            <Text variant="label" tone="success">
+              {t('orders:list.paidText', { defaultValue: 'Paid' })}
+            </Text>
+          )
+        }
+        onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })}
+        divider={!last}
+      />
     );
   };
 
-  const handleRemind = async () => {
-    if (!customer) return;
-    try {
-      await sendWhatsAppMessage(
-        customer.phone,
-        buildPaymentDueMessage({
-          shopName: shop.shop_name,
-          customerName: customer.name,
-          pending: balance,
-        })
-      );
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : t('detail.whatsappError'), 'error');
-    }
-  };
-
-  if (loading || !customer) return <LoadingSpinner fullScreen text={t('detail.loading')} />;
-
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
+    <View className="flex-1 bg-bg">
       <Header
         title={customer.name}
         onBack={() => navigation.goBack()}
         right={
-          <View className="flex-row items-center">
-            <Pressable
-              onPress={() => navigation.navigate('CustomerForm', { customerId })}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="pen" size={15} color="#1D4ED8" />
-            </Pressable>
-            <Pressable
-              onPress={handleDeleteCustomer}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
-            </Pressable>
-          </View>
+          <IconButton
+            icon="edit"
+            variant="ghost"
+            accessibilityLabel={t('common:a11y.editClient')}
+            onPress={() => navigation.navigate('CustomerForm', { customerId })}
+          />
         }
       />
-      {/* Client card sits above the tabs — who this person is stays visible
-          no matter which tab is open, rather than being tab-one content. */}
-      <View className="bg-gray-50 px-4 pt-6 dark:bg-gray-950">
+
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 16 }}>
         <Card>
           <View className="flex-row items-center">
             <Avatar name={customer.name} size="lg" />
-            <View className="ml-4 flex-1">
-              <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{customer.name}</Text>
-              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{customer.phone ?? t('detail.noPhone')}</Text>
+            <View className="ml-3 min-w-0 flex-1">
+              <Text variant="headline" numberOfLines={1}>
+                {customer.name}
+              </Text>
+              <Text variant="label" tone="muted" weight="regular" numberOfLines={1} tabular>
+                {[bookText, customer.phone ? `+91 ${customer.phone}` : t('detail.noPhone')].filter(Boolean).join(' · ')}
+              </Text>
               {customer.address ? (
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{customer.address}</Text>
-              ) : null}
-              {customer.book_number ? (
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-                  {t('detail.bookNumberPrefix')} {customer.book_number}
+                <Text variant="caption" tone="muted" weight="regular" numberOfLines={1}>
+                  {customer.address}
                 </Text>
               ) : null}
             </View>
           </View>
-        </Card>
-      </View>
 
-      {/* Three tabs instead of one long scroll: a client page mixes three
-          unrelated jobs (who they are, what they've ordered, what they owe)
-          and stacking them meant scrolling past measurements to reach money. */}
-      <View className="mt-4 flex-row border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-        {TABS.map((tabKey) => {
-          const active = tab === tabKey;
-          return (
-            <Pressable
-              key={tabKey}
-              onPress={() => setTab(tabKey)}
-              className={`min-h-[52px] flex-1 items-center justify-center border-b-2 ${
-                active ? 'border-primary-600' : 'border-transparent'
-              }`}
-            >
-              <Text
-                className={`text-base font-semibold ${
-                  active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                {t(`detail.tabs.${tabKey}`)}
+          <View className="mt-3 flex-row items-end justify-between border-t border-line-2 pt-3">
+            <View>
+              <Text variant="caption" tone="muted" weight="regular">
+                {t('detail.outstandingBalance')}
               </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {tab !== 'info' ? (
-        <View className="bg-white px-4 pt-3 dark:bg-gray-950">
-          <SearchBar
-            value={search}
-            onChangeText={setSearch}
-            placeholder={t(tab === 'orders' ? 'detail.searchOrders' : 'detail.searchBills')}
-          />
-        </View>
-      ) : null}
-
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 224 }}>
-        {tab === 'info' ? (
-        <>
-
-        <View>
-          <View className="mb-2 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <FontAwesome5 name="ruler-combined" size={13} color="#6B7280" />
-              <Text className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.measurements')}</Text>
-            </View>
-            <Pressable
-              onPress={() => navigation.navigate('MeasurementForm', { customerId })}
-              className="rounded-md bg-primary-50 px-3 py-1.5 dark:bg-primary-950"
-            >
-              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">
-                {customerMeasurementProfile ? 'Edit Measurements' : 'Add Measurements'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {customerMeasurementProfile ? (
-            <Card
-              onPress={() => navigation.navigate('MeasurementForm', { customerId })}
-              className="p-4"
-            >
-              <View className="flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">
-                <View>
-                  <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                    {profileTemplateName ?? 'Customer Measurements'}
-                  </Text>
-                  <Text className="text-xs text-gray-500">Universal Profile</Text>
-                </View>
-                <Text className="text-xs text-primary-600 font-semibold">Edit</Text>
-              </View>
-
-              <View className="flex-row flex-wrap gap-y-3">
-                {Object.entries(
-                  typeof customerMeasurementProfile.measurements === 'object' && customerMeasurementProfile.measurements
-                    ? (customerMeasurementProfile.measurements as Record<string, unknown>)
-                    : {}
-                ).map(([key, val]) => (
-                  <View key={key} className="w-1/3 pr-2">
-                    <Text className="font-sans text-xs text-gray-500 dark:text-gray-400">{key}</Text>
-                    <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{String(val)}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <Text className="font-sans mt-3 text-xs text-gray-400 dark:text-gray-500">
-                {t('detail.updated', { date: formatDate(customerMeasurementProfile.updated_at) })}
-              </Text>
-            </Card>
-          ) : (
-            <EmptyState
-              variant="compact"
-              icon="ruler-combined"
-              title="No measurements added"
-              description="Add measurements once for this customer to reuse across all orders."
-            />
-          )}
-        </View>
-        </>
-        ) : null}
-
-        {tab === 'orders' ? (
-        <View>
-          <View className="mb-2 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <FontAwesome5 name="tshirt" size={13} color="#6B7280" />
-              <Text className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.orderHistory')}</Text>
-            </View>
-            <Pressable
-              onPress={() => navigation.navigate('OrderForm', { customerId })}
-              className="rounded-md bg-primary-50 px-3 py-1.5 dark:bg-primary-950"
-            >
-              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('detail.newOrderShort')}</Text>
-            </Pressable>
-          </View>
-          {filteredOrders.length > 0 ? (
-            <View className="gap-2">
-              {filteredOrders.map((o) => (
-                <Card
-                  key={o.id}
-                  onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })}
-                >
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">#{o.order_number}</Text>
-                    {o.delivery_date ? (
-                      <Badge
-                        label={t('detail.deliveryBadge', { date: formatDate(o.delivery_date) })}
-                        bg="#F3F4F6"
-                        color="#374151"
-                      />
-                    ) : null}
-                  </View>
-                  <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">
-                    {o.cloth_type ?? t('detail.noClothType')} · {t('detail.ordered', { date: formatDate(o.order_date) })}
-                  </Text>
-                </Card>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              variant="compact"
-              icon="tshirt"
-              title={t('detail.noOrdersTitle')}
-              description={t('detail.noOrdersDescription')}
-            />
-          )}
-        </View>
-        ) : null}
-
-        {tab === 'bills' ? (
-          <View>
-            <View className="mb-3 flex-row items-center justify-between rounded-lg bg-gray-100 px-4 py-3 dark:bg-gray-800">
-              <Text className="text-base text-gray-600 dark:text-gray-300">{t('detail.outstandingBalance')}</Text>
-              <Text className={`text-xl font-bold ${balance > 0 ? 'text-danger' : 'text-success'}`}>
+              <Text variant="display" tone={balance > 0 ? 'danger' : 'success'} tabular>
                 {formatCurrency(balance)}
               </Text>
             </View>
+            <View className="items-end">
+              <Text variant="label" tone="muted" weight="regular" tabular>
+                {orders.length} {t('detail.totalOrders')}
+              </Text>
+              <Text variant="label" tone="muted" weight="regular" tabular>
+                {activeOrdersCount} {t('detail.activeOrders')}
+              </Text>
+            </View>
+          </View>
 
-            {filteredBills.length > 0 ? (
-              <View className="gap-2">
-                {filteredBills.map((b) => {
-                  const pending = Math.max(Number(b.total_amount ?? 0) - Number(b.paid ?? 0), 0);
-                  return (
-                    <Card key={b.id} onPress={() => navigation.navigate('BillDetail', { billId: b.id })}>
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                          {formatCurrency(b.total_amount)}
-                        </Text>
-                        <Badge type="payment_status" value={b.payment_status} />
-                      </View>
-                      <View className="mt-1 flex-row items-center justify-between">
-                        <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-                          {formatDate(b.created_at)}
-                        </Text>
-                        {pending > 0 ? (
-                          <Text className="text-base font-semibold text-danger">
-                            {t('detail.pendingAmount', { amount: formatCurrency(pending) })}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </Card>
-                  );
-                })}
+          <View className="mt-3 flex-row gap-2 border-t border-line-2 pt-3">
+            <Button
+              title={t('detail.newOrder')}
+              icon={<Icon name="plus" size={20} color={colors.onPrimary} />}
+              className="flex-[1.4]"
+              onPress={() => {
+                haptics.tap();
+                navigation.navigate('OrderForm', { customerId: customer.id });
+              }}
+            />
+            <Button
+              title={t('detail.measurements')}
+              variant="secondary"
+              icon={<Icon name="ruler" size={20} color={colors.textPrimary} />}
+              className="flex-1"
+              onPress={() => {
+                haptics.tap();
+                navigation.navigate('MeasurementForm', { customerId: customer.id });
+              }}
+            />
+          </View>
+          {customer.phone ? (
+            <View className="mt-2 flex-row gap-2">
+              <CallButton phone={customer.phone} />
+              <WhatsAppButton phone={customer.phone} />
+            </View>
+          ) : null}
+        </Card>
+
+        <SegmentedControl
+          options={[
+            { label: t('detail.measurementsTab'), value: 'measurements' as TabKey, count: measurementCount || undefined },
+            { label: t('detail.ordersTab'), value: 'orders' as TabKey, count: orders.length },
+          ]}
+          value={tab}
+          onChange={(v) => {
+            haptics.tap();
+            setTab(v);
+          }}
+        />
+
+        {tab === 'measurements' ? (
+          <>
+            {clothTypes.length > 0 ? (
+              <View className="mb-1">
+                <Text variant="caption" tone="muted" className="mb-2 px-1">
+                  {t('detail.filterByCloth')}
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  <Chip
+                    label={t('detail.allCloths')}
+                    selected={selectedCloth === 'all'}
+                    onPress={() => void handleSelectCloth('all')}
+                  />
+                  {clothTypes.map((c) => (
+                    <Chip
+                      key={c.clothType}
+                      label={garmentNameLabel(c.clothType)}
+                      selected={selectedCloth === c.clothType}
+                      onPress={() => void handleSelectCloth(c.clothType)}
+                    />
+                  ))}
+                </View>
               </View>
+            ) : null}
+
+            {measurementView.length > 0 ? (
+              <Section
+                title={
+                  selectedCloth !== 'all'
+                    ? garmentNameLabel(selectedCloth)
+                    : templateName
+                    ? garmentNameLabel(templateName)
+                    : t('detail.measurements')
+                }
+              >
+                {measurementView.map((group, gIdx) => (
+                  <View key={`${group.title ?? 'all'}-${gIdx}`} className="mb-4">
+                    {group.title ? (
+                      <Text variant="caption" tone="muted" className="mb-2">
+                        {garmentNameLabel(group.title)}
+                      </Text>
+                    ) : null}
+                    <View className="flex-row flex-wrap gap-2">
+                      {group.entries.map(([label, val]) => (
+                        <View key={label} className="min-w-[88px] flex-1 rounded-md border border-line-2 bg-surface-2 px-3 py-2">
+                          <Text variant="caption" tone="muted" weight="regular" numberOfLines={1}>
+                            {measurementFieldLabel(label)}
+                          </Text>
+                          <Text variant="bodyLg" tabular>
+                            {val}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+                <Button
+                  title={
+                    selectedCloth !== 'all'
+                      ? t('detail.editClothMeasurement', { cloth: garmentNameLabel(selectedCloth) })
+                      : t('detail.addMeasurement')
+                  }
+                  variant="secondary"
+                  onPress={() =>
+                    navigation.navigate('MeasurementForm', {
+                      customerId: customer.id,
+                      clothType: selectedCloth !== 'all' ? selectedCloth : undefined,
+                    })
+                  }
+                />
+              </Section>
             ) : (
               <EmptyState
                 variant="compact"
-                icon="file-invoice-dollar"
-                title={t('detail.noBillsTitle')}
-                description={t('detail.noBillsDescription')}
+                icon="ruler"
+                title={t('detail.noMeasurementsTitle')}
+                description={t('detail.noMeasurementsDescription')}
+                actionLabel={t('detail.takeMeasurement')}
+                onAction={() => navigation.navigate('MeasurementForm', { customerId: customer.id })}
               />
             )}
-          </View>
-        ) : null}
+
+            {history.length > 0 ? (
+              <Section
+                title={t('detail.measurementHistory')}
+                action={
+                  <Badge
+                    label={`${history.length}`}
+                    tone="primary"
+                    size="sm"
+                  />
+                }
+              >
+                <View className="gap-3">
+                  {history.map((item, idx) => (
+                    <Card key={item.id || idx} variant="subtle" className="p-3">
+                      <View className="mb-2 flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-2">
+                          <Badge
+                            label={garmentNameLabel(item.cloth_type)}
+                            tone="primary"
+                            icon="ruler"
+                            size="sm"
+                          />
+                          <Text variant="caption" tone="muted" weight="regular">
+                            {formatDate(item.date)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="flex-row flex-wrap gap-1.5 pt-1">
+                        {Object.entries(
+                          typeof item.values === 'object' && item.values !== null
+                            ? item.values
+                            : {}
+                        )
+                          .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+                          .slice(0, 10)
+                          .map(([field, val]) => (
+                            <View key={field} className="rounded border border-line-2 bg-surface px-2 py-1">
+                              <Text variant="caption" tone="muted">
+                                {measurementFieldLabel(field)}:{' '}
+                                <Text variant="caption" weight="bold">
+                                  {String(val)}
+                                </Text>
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    </Card>
+                  ))}
+                </View>
+              </Section>
+            ) : null}
+          </>
+        ) : orders.length === 0 ? (
+          <EmptyState
+            variant="compact"
+            icon="orders"
+            title={t('detail.noOrdersTitle')}
+            description={t('detail.noOrdersDescription')}
+            actionLabel={t('detail.newOrder')}
+            onAction={() => navigation.navigate('OrderForm', { customerId: customer.id })}
+          />
+        ) : (
+          <>
+            {activeOrders.length > 0 ? (
+              <Section padded={false}>{activeOrders.map((o, i) => renderOrderRow(o, i === activeOrders.length - 1))}</Section>
+            ) : null}
+            {deliveredOrders.length > 0 ? (
+              <Section title={`${t('orders:list.delivered', { defaultValue: 'Delivered' })} · ${deliveredOrders.length}`} padded={false}>
+                {deliveredOrders.map((o, i) => renderOrderRow(o, i === deliveredOrders.length - 1))}
+              </Section>
+            ) : null}
+          </>
+        )}
+
+        <Button
+          title={t('detail.deleteCustomer')}
+          variant="danger"
+          icon={<Icon name="trash" size={20} color={palette.danger} />}
+          onPress={handleDeleteCustomer}
+        />
       </ScrollView>
     </View>
   );

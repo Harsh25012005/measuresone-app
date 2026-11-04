@@ -20,7 +20,19 @@
     "errorLoad": "બિલ લોડ કરી શકાયા નહીં",
     "lastBill": "છેલ્લું બિલ {{date}}",
     "billCount": "{{count}} બિલ",
-    "outstanding": "{{amount}} બાકી"
+    "outstanding": "{{amount}} બાકી",
+    "dictationFailed": "વૉઇસ સર્ચ નિષ્ફળ ગયું",
+    "micPermissionRequired": "માઇક્રોફોનની પરવાનગી જોઈએ",
+    "totalDues": "કુલ બાકી",
+    "clientsCount_one": "{{count}} ગ્રાહક",
+    "clientsCount_other": "{{count}} ગ્રાહકો",
+    "totalBills_one": "કુલ {{count}} બિલ",
+    "totalBills_other": "કુલ {{count}} બિલ",
+    "billsSuffix": " · {{count}} બિલ",
+    "due": "બાકી",
+    "settled": "ચૂકવેલ",
+    "reminderMessage": "નમસ્તે {{name}}, {{shopName}} તરફથી નમ્ર યાદ: તમારા ઓર્ડર માટે {{amount}} બાકી છે. આભાર!",
+    "sendReminder": "રિમાઇન્ડર મોકલો"
   },
   "detail": {
     "loading": "બિલ લોડ થઈ રહ્યું છે...",
@@ -67,7 +79,8 @@
       "UPI": "UPI",
       "Card": "કાર્ડ",
       "Bank Transfer": "બેંક ટ્રાન્સફર"
-    }
+    },
+    "whatsappMessage": "નમસ્તે {{name}}, {{shopName}} તરફથી તમારું બિલ {{amount}} છે."
   },
   "form": {
     "title": "નવું બિલ",
@@ -111,5 +124,30 @@
     "emptyTitle": "બધું ચૂકતે છે",
     "emptyDescription": "જ્યારે કોઈ ગ્રાહકના પૈસા બાકી હશે, તે અહીં વસૂલવા માટે દેખાશે.",
     "totalOwed": "{{count}} ગ્રાહકો પાસેથી {{amount}} બાકી"
+  },
+  "pdf": {
+    "title": "બિલ / રસીદ",
+    "customer": "ગ્રાહક",
+    "orderNumber": "ઓર્ડર નંબર",
+    "date": "તારીખ",
+    "deliveryDate": "ડિલિવરી તારીખ",
+    "items": "વસ્તુઓ",
+    "quantity": "સંખ્યા",
+    "thankYou": "આપના વ્યવસાય બદલ આભાર!",
+    "notFound": "બિલ મળ્યું નહીં",
+    "sendBill": "WhatsApp પર બિલ મોકલો",
+    "failed": "બિલ મોકલી શકાયું નહીં",
+    "item": "વસ્તુ",
+    "totalPieces": "કુલ ટુકડા",
+    "billTo": "ગ્રાહક વિગત",
+    "orderDetails": "ઓર્ડર વિગત",
+    "photos": "કપડાના ફોટા",
+    "photo": "ફોટો {{number}}",
+    "paidInFull": "પૂરેપૂરું ચૂકવેલ",
+    "contact": "કોઈ પણ પ્રશ્ન માટે {{phone}} પર કૉલ કરો"
+  },
+  "search": {
+    "listening": "સાંભળી રહ્યા છીએ…",
+    "listeningHint": "ગ્રાહકનું નામ બોલો, રોકવા ટૅપ કરો"
   }
 }

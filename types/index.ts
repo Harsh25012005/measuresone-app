@@ -15,7 +15,7 @@ export type PaymentStatus = Enums<'payment_status'>;
 export type WageType = Enums<'wage_type'>;
 
 /** A customer row augmented with their computed outstanding balance. */
-export type CustomerWithBalance = Pick<Customer, 'id' | 'name' | 'phone'> & {
+export type CustomerWithBalance = Pick<Customer, 'id' | 'name' | 'phone' | 'book_number'> & {
   balance: number;
 };
 
