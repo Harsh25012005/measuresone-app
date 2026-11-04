@@ -15,8 +15,10 @@ export type DSImagePickerProps = {
   source?: 'library' | 'camera';
   /** Called when the required OS permission was refused. */
   onPermissionDenied?: () => void;
-  /** Diameter in px. */
+  /** Diameter in px (width for the rect shape). */
   size?: number;
+  /** circle (default) or a 3:4 rounded rectangle for design photos. */
+  shape?: 'circle' | 'rect';
 };
 
 /** Round photo picker: dashed ring with a camera when empty, the photo plus an edit badge once chosen. */
@@ -28,7 +30,10 @@ export function DSImagePicker({
   source = 'library',
   onPermissionDenied,
   size = 104,
+  shape = 'circle',
 }: DSImagePickerProps) {
+  const height = shape === 'rect' ? Math.round((size * 4) / 3) : size;
+  const radius = shape === 'rect' ? 20 : 9999;
   const { t } = useTranslation('common');
   const { colors } = useTheme();
   const scale = useSharedValue(1);
@@ -66,7 +71,8 @@ export function DSImagePicker({
             styles.circle,
             {
               width: size,
-              height: size,
+              height,
+              borderRadius: radius,
               backgroundColor: uri ? colors.bgSubtle : colors.primaryTint,
               borderColor: uri ? colors.borderDefault : primary[600],
               borderStyle: uri ? 'solid' : 'dashed',
@@ -75,7 +81,7 @@ export function DSImagePicker({
           ]}
         >
           {uri ? (
-            <Image source={{ uri }} style={{ width: size, height: size }} resizeMode="cover" />
+            <Image source={{ uri }} style={{ width: size, height }} resizeMode="cover" />
           ) : (
             <View style={{ alignItems: 'center', gap: 4 }}>
               <IconCamera size={size * 0.26} color={primary[600]} strokeWidth={1.9} />

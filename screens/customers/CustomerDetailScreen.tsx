@@ -28,6 +28,7 @@ import { supabase } from '../../lib/supabase';
 import { customersRepo, ordersRepo, billsRepo, customerMeasurementsRepo, universalTemplatesRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage, buildPaymentDueMessage } from '../../lib/whatsapp';
+import { groupMeasurements } from '../../lib/measurementGroups';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { colors as legacyColors, darkColors } from '../../constants/theme';
@@ -40,9 +41,6 @@ const f = typography.family;
 
 const TABS = ['info', 'orders', 'bills'] as const;
 type TabKey = (typeof TABS)[number];
-
-/** Bookkeeping keys older flows stored next to the real measurements. */
-const META_KEYS = new Set(['updated_at', 'created_at', 'template_id', 'template_name', 'history', 'by_cloth_type']);
 
 const PAYMENT_LABEL = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' } as const;
 
@@ -239,26 +237,7 @@ export default function CustomerDetailScreen({
   };
   void handleDeleteMeasurement;
 
-  // The stored profile is normally flat (field → number), but older flows nested groups of
-  // values. Walk it (a few levels deep), show each group's numbers as chips under its own
-  // heading, and never print an object as text.
-  const rawMeasurements: Record<string, unknown> =
-    customerMeasurementProfile && typeof customerMeasurementProfile.measurements === 'object' && customerMeasurementProfile.measurements
-      ? (customerMeasurementProfile.measurements as Record<string, unknown>)
-      : {};
-  const measurementGroups: [string, [string, string | number][]][] = [];
-  const collect = (obj: Record<string, unknown>, label: string, depth: number) => {
-    const entries: [string, string | number][] = [];
-    for (const [key, val] of Object.entries(obj)) {
-      if (META_KEYS.has(key)) continue;
-      if (typeof val === 'string' || typeof val === 'number') entries.push([key, val]);
-      else if (val && typeof val === 'object' && !Array.isArray(val) && depth < 3) collect(val as Record<string, unknown>, key, depth + 1);
-    }
-    if (entries.length > 0) measurementGroups.unshift([label, entries]);
-  };
-  collect(rawMeasurements, '', 0);
-  // keep the top-level flat group first
-  measurementGroups.sort((x, y) => (x[0] === '' ? -1 : y[0] === '' ? 1 : 0));
+  const measurementGroups = groupMeasurements(customerMeasurementProfile?.measurements);
 
   return (
     <DSScreen
@@ -371,7 +350,7 @@ export default function CustomerDetailScreen({
                     </View>
                     <IconRuler2 size={22} color={primary[600]} />
                   </View>
-                  {measurementGroups.map(([group, entries], gi) => (
+                  {measurementGroups.map(({ label: group, entries }, gi) => (
                     <View key={group || 'flat'} style={{ marginTop: gi > 0 ? 14 : 0, gap: 8 }}>
                       {group ? (
                         <Text style={{ fontFamily: f.semibold, fontSize: 12, color: colors.textSecondary }}>{group.replace(/_/g, ' ')}</Text>

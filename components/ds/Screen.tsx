@@ -135,7 +135,16 @@ export function DSScreen({ title, subtitle, onBack, actions = [], headerExtra, c
  * Form page: black header + sheet holding a scrollable, keyboard-aware form.
  * Children are laid out in a column with 20px gaps.
  */
-export function DSFormScreen({ title, subtitle, onBack, actions, children }: Omit<DSScreenProps, 'headerExtra'>) {
+export function DSFormScreen({
+  title,
+  subtitle,
+  onBack,
+  actions,
+  children,
+  footer,
+}: Omit<DSScreenProps, 'headerExtra'> & { /** Pinned under the scrolling form (primary actions). */ footer?: ReactNode }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   return (
     <DSScreen title={title} subtitle={subtitle} onBack={onBack} actions={actions}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -146,6 +155,20 @@ export function DSFormScreen({ title, subtitle, onBack, actions, children }: Omi
         >
           {children}
         </ScrollView>
+        {footer ? (
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingTop: 12,
+              paddingBottom: insets.bottom + 12,
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: colors.borderDefault,
+              backgroundColor: colors.bgPage,
+            }}
+          >
+            {footer}
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </DSScreen>
   );

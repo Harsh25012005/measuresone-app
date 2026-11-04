@@ -12,10 +12,10 @@
     "next": "Next",
     "back": "Back",
     "urgentQuestion": "Is this urgent?",
-    "measurementsOnFile": "This client has measurements on file.",
+    "measurementsOnFile": "Measurements on file",
     "noMeasurementsOnFile": "No measurements saved for this client yet.",
     "noMeasurementsHint": "Add them now so the tailor has exact numbers to work from.",
-    "viewEditMeasurements": "View / Edit Measurements",
+    "viewEditMeasurements": "View / edit measurements",
     "addMeasurementsNow": "+ Add Measurements Now",
     "createOrderFinal": "Create Order",
     "saveNow": "Save Order Now",
@@ -108,6 +108,7 @@
     "upiConfirmNo": "No",
     "createOrder": "Create Order",
     "customerRequired": "Customer is required",
+    "piecesRequired": "Add at least 1 piece",
     "photoUploadFailed": "Could not upload one of the design photos",
     "billCreateFailed": "Order saved, but the bill could not be created automatically",
     "orderCreated": "Order created",
@@ -119,7 +120,13 @@
     "orderUpdateFailed": "Could not update order",
     "loading": "Loading order...",
     "loadError": "Could not load order",
-    "billingNotice": "Total, paid amount, and payment mode are managed from this order's bill once created — find it under Billing to record payments."
+    "billingNotice": "Total, paid amount, and payment mode are managed from this order's bill once created — find it under Billing to record payments.",
+    "measurementsProfile": "Universal profile",
+    "measurementsMissing": "Measurements not added",
+    "measurementsMissingHint": "Add measurements once and reuse them across all orders.",
+    "addMeasurements": "Add measurements",
+    "noResults": "No matches",
+    "confirm": "Confirm"
   },
   "detail": {
     "pantPieces": "Pant pieces",
@@ -174,7 +181,8 @@
       "sendFailed": "Could not open WhatsApp",
       "completionBody": "Hi {{customerName}}, your order #{{orderNumber}} at {{shopName}} is complete and ready for pickup. Thank you!",
       "reminderPaymentBody": "Hi {{customerName}}, a gentle reminder that {{amount}} is still pending on your order #{{orderNumber}} at {{shopName}}. Please clear it at your convenience. Thank you!"
-    }
+    },
+    "inProgress": "In progress"
   },
   "list": {
     "title": "Orders",

@@ -89,11 +89,12 @@ export default function CustomerListScreen({ navigation }: CustomersScreenProps<
         </ScrollView>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
         >
           <DSClientList
+            edge
             items={filtered.map((c) => ({
               id: c.id,
               number: c.book_number || '—',

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,7 @@ import {
   universalFieldsRepo,
   customerMeasurementsRepo,
 } from '../../lib/data/repository';
+import { groupMeasurements } from '../../lib/measurementGroups';
 import type { CustomersScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 
@@ -37,7 +38,9 @@ export default function MeasurementFormScreen({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [fields, setFields] = useState<Field[]>([]);
-  const [values, setValues] = useState<Record<string, string>>({});
+  // Values the user typed this session, keyed by field key (see keyedFields).
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [stored, setStored] = useState<unknown>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,12 +54,8 @@ export default function MeasurementFormScreen({
 
       if (profile) {
         setSelectedTemplateId(profile.template_id);
-        const parsedVals: Record<string, string> = {};
-        const raw = typeof profile.measurements === 'object' && profile.measurements ? (profile.measurements as Record<string, unknown>) : {};
-        for (const [k, v] of Object.entries(raw)) {
-          parsedVals[k] = v !== null && v !== undefined ? String(v) : '';
-        }
-        setValues(parsedVals);
+        setStored(profile.measurements);
+        setEdits({});
 
         if (profile.template_id) {
           const fList = await universalFieldsRepo.listForTemplate(profile.template_id);
@@ -85,13 +84,47 @@ export default function MeasurementFormScreen({
     }
   };
 
-  const handleValueChange = (fieldName: string, text: string) => {
+  const templateName = templates.find((tm) => tm.id === selectedTemplateId)?.template_name ?? '';
+
+  /**
+   * A combined template ("Shirt + Pant") can list the same measurement twice
+   * (Length). Keying values by name alone made both inputs share one value, so
+   * duplicates get their own key: the first keeps the plain name (matches what
+   * is already stored), the next is prefixed with its garment ("Pant Length").
+   */
+  const keyedFields = useMemo(() => {
+    const parts = templateName.split('+').map((x) => x.trim()).filter(Boolean);
+    const total: Record<string, number> = {};
+    for (const f of fields) total[f.field_name] = (total[f.field_name] ?? 0) + 1;
+    const seen: Record<string, number> = {};
+    return fields.map((f) => {
+      const n = (seen[f.field_name] = (seen[f.field_name] ?? 0) + 1);
+      const dup = total[f.field_name] > 1;
+      const group = dup ? parts[n - 1] ?? '' : '';
+      const key = n === 1 ? f.field_name : group ? `${group} ${f.field_name}` : `${f.field_name} ${n}`;
+      return { id: f.id, name: f.field_name, key, group };
+    });
+  }, [fields, templateName]);
+
+  /** Saved number for a field: its own group first, then the flat key, then any group. */
+  const storedValue = useCallback(
+    (name: string, key: string, group: string) => {
+      const groups = groupMeasurements(stored);
+      const inGroup = group ? groups.find((g) => g.label.toLowerCase() === group.toLowerCase()) : undefined;
+      const hit =
+        inGroup?.entries.find(([k]) => k === name) ??
+        groups.find((g) => g.label === '')?.entries.find(([k]) => k === key) ??
+        (group ? undefined : groups.flatMap((g) => g.entries).find(([k]) => k === name));
+      return hit ? String(hit[1]) : '';
+    },
+    [stored]
+  );
+
+  const valueOf = (f: { name: string; key: string; group: string }) => edits[f.key] ?? storedValue(f.name, f.key, f.group);
+
+  const handleValueChange = (key: string, text: string) => {
     // Keep only numeric and decimal
-    const numericOnly = text.replace(/[^0-9.]/g, '');
-    setValues((prev) => ({
-      ...prev,
-      [fieldName]: numericOnly,
-    }));
+    setEdits((prev) => ({ ...prev, [key]: text.replace(/[^0-9.]/g, '') }));
   };
 
   const handleSave = async () => {
@@ -103,11 +136,9 @@ export default function MeasurementFormScreen({
     setSaving(true);
     try {
       const numericMeasurements: Record<string, number> = {};
-      for (const [k, v] of Object.entries(values)) {
-        const parsed = parseFloat(v);
-        if (!isNaN(parsed)) {
-          numericMeasurements[k] = parsed;
-        }
+      for (const f of keyedFields) {
+        const parsed = parseFloat(valueOf(f));
+        if (!isNaN(parsed)) numericMeasurements[f.key] = parsed;
       }
 
       await customerMeasurementsRepo.save(shop.id, {
@@ -154,13 +185,13 @@ export default function MeasurementFormScreen({
                 <DSEmptyState variant="compact" icon={IconRuler2} title={t('measurementForm.noFields')} />
               ) : (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 22 }}>
-                  {fields.map((f) => (
+                  {keyedFields.map((f) => (
                     <View key={f.id} style={{ width: '47.5%' }}>
                       <DSInput
-                        label={f.field_name}
+                        label={f.group ? `${f.group} ${f.name}` : f.name}
                         keyboardType="decimal-pad"
-                        value={values[f.field_name] ?? ''}
-                        onChangeText={(text) => handleValueChange(f.field_name, text)}
+                        value={valueOf(f)}
+                        onChangeText={(text) => handleValueChange(f.key, text)}
                       />
                     </View>
                   ))}

@@ -22,10 +22,10 @@
     "next": "આગળ",
     "back": "પાછળ",
     "urgentQuestion": "શું આ તાત્કાલિક છે?",
-    "measurementsOnFile": "આ ગ્રાહકનું માપ સેવ છે.",
+    "measurementsOnFile": "સાચવેલા માપ",
     "noMeasurementsOnFile": "આ ગ્રાહકનું હજુ સુધી કોઈ માપ સેવ નથી.",
     "noMeasurementsHint": "હમણાં ઉમેરો જેથી દરજીને ચોક્કસ નંબર મળે.",
-    "viewEditMeasurements": "માપ જુઓ / એડિટ કરો",
+    "viewEditMeasurements": "માપ જુઓ / બદલો",
     "addMeasurementsNow": "+ હમણાં માપ ઉમેરો",
     "createOrderFinal": "ઓર્ડર બનાવો",
     "orderCreatedWithPayment": "ગ્રાહક {{customer}} માટે ઓર્ડર #{{number}} બન્યો. {{total}} માંથી {{paid}} લેવાયા — {{due}} હજુ બાકી છે.",
@@ -120,6 +120,7 @@
     "upiConfirmNo": "ના",
     "createOrder": "ઓર્ડર બનાવો",
     "customerRequired": "ગ્રાહક જરૂરી છે",
+    "piecesRequired": "ઓછામાં ઓછો 1 નંગ ઉમેરો",
     "photoUploadFailed": "એક ડિઝાઇન ફોટો અપલોડ કરી શકાયો નહીં",
     "billCreateFailed": "ઓર્ડર સેવ થયો, પરંતુ બિલ આપમેળે બનાવી શકાયું નહીં",
     "orderCreated": "ઓર્ડર બનાવવામાં આવ્યો",
@@ -132,7 +133,13 @@
     "loading": "ઓર્ડર લોડ થઈ રહ્યો છે...",
     "loadError": "ઓર્ડર લોડ કરી શકાયો નહીં",
     "billingNotice": "કુલ રકમ, ચૂકવેલી રકમ અને ચુકવણી પદ્ધતિ આ ઓર્ડરના બિલ બન્યા પછી ત્યાંથી સંભાળાય છે — ચુકવણી નોંધવા માટે ઓર્ડર વિગત પર \"ચુકવણી ઉમેરો / બિલ જુઓ\" વાપરો.",
-    "saveNow": "ઓર્ડર હમણાં સેવ કરો"
+    "saveNow": "ઓર્ડર હમણાં સેવ કરો",
+    "measurementsProfile": "યુનિવર્સલ પ્રોફાઇલ",
+    "measurementsMissing": "માપ ઉમેરાયા નથી",
+    "measurementsMissingHint": "માપ એકવાર ઉમેરો અને બધા ઓર્ડરમાં ફરી વાપરો.",
+    "addMeasurements": "માપ ઉમેરો",
+    "noResults": "કોઈ મેળ નથી",
+    "confirm": "પુષ્ટિ કરો"
   },
   "detail": {
     "pantPieces": "પેન્ટના ટુકડા",
@@ -197,7 +204,8 @@
       "reminderPaymentBody": "નમસ્તે {{customerName}}, {{shopName}} માં તમારા ઓર્ડર #{{orderNumber}} પર {{amount}} બાકી છે. અનુકૂળતાએ ચૂકવી દેશો. આભાર!"
     },
     "tokenBadge": "ટોકન #{{number}}",
-    "deliveryBadge": "ડિલિવરી {{date}}"
+    "deliveryBadge": "ડિલિવરી {{date}}",
+    "inProgress": "ચાલુ છે"
   },
   "list": {
     "title": "ઓર્ડરો",

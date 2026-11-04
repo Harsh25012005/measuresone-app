@@ -1,9 +1,15 @@
 import { useCallback, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
-import { Badge, Card, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSBadge, useBadgeTones } from '../../components/ds/Badge';
+import { DSButton } from '../../components/ds/Button';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconBolt, IconBrandWhatsapp, IconCalendarEvent, IconCheck, IconPencil, IconTrash } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { ordersRepo, billsRepo, paymentsRepo, customersRepo, staffRepo } from '../../lib/data/repository';
 import { sendPushNotification } from '../../lib/notify';
@@ -11,8 +17,12 @@ import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { haptics } from '../../lib/haptics';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, status, typography } from '../../constants/tokens';
 import type { AppScreenProps } from '../../navigation/types';
 import type { Customer, Order, Staff } from '../../types';
+
+const f = typography.family;
 
 type OrderDetail = Order & {
   customers: Pick<Customer, 'name' | 'phone'> | null;
@@ -23,7 +33,11 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
   const { orderId } = route.params;
   const shop = useShop();
   const showToast = useToast();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation('orders');
+  const { colors, scheme } = useTheme();
+  const tones = useBadgeTones();
+  const dark = scheme === 'dark';
 
   /** Labels garment piece counts by type when the linked measurement says so. */
   function clothPieceLabel(garmentType: string | null | undefined): string {
@@ -195,263 +209,223 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     );
   };
 
-  if (loading || !order) return <LoadingSpinner fullScreen text={t('detail.loadingOrder')} />;
+  const isDelivered = order?.status === 'delivered';
+  const photos = order
+    ? order.design_photo_urls?.length
+      ? order.design_photo_urls
+      : order.design_photo_url
+        ? [order.design_photo_url]
+        : []
+    : [];
 
-  const isDelivered = order.status === 'delivered';
-
-  const photos = order.design_photo_urls?.length
-    ? order.design_photo_urls
-    : order.design_photo_url
-      ? [order.design_photo_url]
-      : [];
-
-  const totalAmount = billAmounts ? billAmounts.total : Number(order.total_amount ?? 0);
-  const paidAmount = billAmounts ? billAmounts.paid : Number(order.paid_amount ?? 0);
+  const totalAmount = order ? (billAmounts ? billAmounts.total : Number(order.total_amount ?? 0)) : 0;
+  const paidAmount = order ? (billAmounts ? billAmounts.paid : Number(order.paid_amount ?? 0)) : 0;
   const balanceDue = Math.max(totalAmount - paidAmount, 0);
-  const hasBilling = order.total_amount != null;
-  const customerName = order.customers?.name ?? '';
-  const hasPhone = !!order.customers?.phone;
+  const hasBilling = order ? order.total_amount != null : false;
+  const customerName = order?.customers?.name ?? '';
+  const hasPhone = !!order?.customers?.phone;
+  const paidRatio = totalAmount > 0 ? Math.min(1, paidAmount / totalAmount) : 0;
+
+  const Row = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
+    <View>
+      <View style={[styles.kv, { paddingHorizontal: 16, paddingVertical: 13 }]}>
+        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{label}</Text>
+        <Text style={{ fontFamily: f.semibold, fontSize: 14, color: colors.textPrimary }}>{value}</Text>
+      </View>
+      {last ? null : <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />}
+    </View>
+  );
+
+  const card = [styles.card, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }];
 
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header
-        title={t('detail.orderNumber', { number: order.order_number })}
-        onBack={() => navigation.goBack()}
-        right={
-          <View className="flex-row items-center">
-            <Pressable
-              onPress={() => navigation.navigate('OrderForm', { orderId })}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="pen" size={15} color="#1D4ED8" />
-            </Pressable>
-            <Pressable
-              onPress={handleDelete}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
-            </Pressable>
-          </View>
-        }
-      />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 14 }}>
-        {/* Header card: order token + delivery date — the two things that
-            actually matter at a glance. The intermediate cutting/stitching/
-            ready pipeline stages aren't shown as a badge here anymore. */}
-        <Card>
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-2">
-              <Text className="text-xl font-bold text-[#101828] dark:text-gray-50">#{order.order_number}</Text>
-              <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">{order.customers?.name}</Text>
-            </View>
-            <View className="items-end gap-1.5">
-              <Badge label={t('detail.tokenBadge', { number: order.order_number })} bg="#EFF6FF" color="#1D4ED8" />
-              {order.delivery_date ? (
-                <Badge
-                  label={t('detail.deliveryBadge', { date: formatDate(order.delivery_date) })}
-                  bg="#F3F4F6"
-                  color="#374151"
-                />
-              ) : null}
-            </View>
-          </View>
-          {order.priority === 'urgent' ? (
-            <View className="mt-3 flex-row items-center gap-2">
-              <View className="flex-row items-center gap-1.5 self-start rounded-full bg-red-50 px-2.5 py-1">
-                <FontAwesome5 name="bolt" size={10} color="#EF4444" solid />
-                <Text className="text-base font-semibold text-danger">{t('detail.urgent')}</Text>
-              </View>
-            </View>
-          ) : null}
-        </Card>
-
-        {/* Photos gallery */}
-        {photos.length > 0 ? (
-          <Card>
-            <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
-              {t('detail.designPhotos')} {photos.length > 1 ? `(${photos.length})` : ''}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-3">
-                {photos.map((url, index) => (
-                  <Image
-                    key={`${url}-${index}`}
-                    source={{ uri: url }}
-                    className="h-48 w-40 rounded-md"
-                    resizeMode="cover"
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </Card>
-        ) : null}
-
-        {/* Details section */}
-        <Card>
-          <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
-            {t('detail.orderDetails')}
-          </Text>
-          <View className="gap-2.5">
-            {order.cloth_count != null ? (
-              <View className="flex-row items-center justify-between">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-                  {clothPieceLabel(garmentType)}
-                </Text>
-                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">{order.cloth_count}</Text>
-              </View>
-            ) : null}
-            {order.bill_book_number ? (
-              <View className="flex-row items-center justify-between">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.billBookNumber')}</Text>
-                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                  {order.bill_book_number}
-                </Text>
-              </View>
-            ) : null}
-            <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.orderDate')}</Text>
-              <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                {formatDate(order.order_date)}
-              </Text>
-            </View>
-            <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.deliveryDate')}</Text>
-              <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                {formatDate(order.delivery_date)}
-              </Text>
-            </View>
-            {order.staff?.name ? (
-              <View className="flex-row items-center justify-between">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.assignedStaff')}</Text>
-                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">{order.staff.name}</Text>
-              </View>
-            ) : null}
-          </View>
-        </Card>
-
-        {/* Payment / amount section */}
-        {hasBilling ? (
-          <Card>
-            <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
-              {t('detail.payment')}
-            </Text>
-            <View className="gap-2.5">
-              <View className="flex-row items-center justify-between">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.totalAmount')}</Text>
-                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                  {formatCurrency(totalAmount)}
-                </Text>
-              </View>
-              <View className="flex-row items-center justify-between">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.paidAmount')}</Text>
-                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                  {formatCurrency(paidAmount)}
-                </Text>
-              </View>
-              <View className="flex-row items-center justify-between border-t border-gray-100 pt-2.5">
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.balanceDue')}</Text>
-                <Text
-                  className={`font-sans text-base font-bold ${
-                    balanceDue > 0 ? 'text-danger' : 'text-green-600'
-                  }`}
-                >
-                  {formatCurrency(balanceDue)}
-                </Text>
-              </View>
-              {order.payment_mode ? (
-                <View className="flex-row items-center justify-between">
-                  <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.paymentMode')}</Text>
-                  <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
-                    {order.payment_mode}
-                  </Text>
+    <DSScreen
+      title={order ? t('detail.orderNumber', { number: order.order_number }) : ''}
+      onBack={() => navigation.goBack()}
+      actions={
+        order
+          ? [
+              { icon: IconPencil, label: 'Edit', onPress: () => navigation.navigate('OrderForm', { orderId }) },
+              { icon: IconTrash, label: t('detail.delete'), onPress: handleDelete },
+            ]
+          : []
+      }
+    >
+      {loading || !order ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={4} />
+        </View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24, gap: 16 }} showsVerticalScrollIndicator={false}>
+            {/* who and when — the two things that matter at a glance */}
+            <Animated.View entering={FadeInDown.duration(300)} style={card}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ fontFamily: f.bold, fontSize: 22, color: colors.textPrimary }}>{customerName || `#${order.order_number}`}</Text>
+                  <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textMuted }}>#{order.order_number}</Text>
                 </View>
-              ) : null}
-            </View>
+                <DSBadge
+                  label={isDelivered ? t('detail.orderDelivered') : t('detail.inProgress')}
+                  bg={isDelivered ? tones.success.bg : tones.primary.bg}
+                  fg={isDelivered ? tones.success.fg : tones.primary.fg}
+                />
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 14 }}>
+                {order.delivery_date ? (
+                  <DSBadge
+                    icon={IconCalendarEvent}
+                    label={t('detail.deliveryBadge', { date: formatDate(order.delivery_date) })}
+                    bg={tones.neutral.bg}
+                    fg={tones.neutral.fg}
+                  />
+                ) : null}
+                {order.priority === 'urgent' ? (
+                  <DSBadge icon={IconBolt} label={t('detail.urgent')} bg={tones.warning.bg} fg={tones.warning.fg} />
+                ) : null}
+              </View>
+            </Animated.View>
 
-            {/* Chasing money belongs next to the balance it refers to, not
-                in a separate messaging card further down the page. */}
-            {balanceDue > 0 ? (
-              <Pressable
+            {/* photos */}
+            {photos.length > 0 ? (
+              <Animated.View entering={FadeInDown.delay(60).duration(300)} style={{ gap: 10 }}>
+                <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>
+                  {t('detail.designPhotos')} {photos.length > 1 ? `(${photos.length})` : ''}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                  {photos.map((url, index) => (
+                    <Image key={`${url}-${index}`} source={{ uri: url }} style={styles.photo} resizeMode="cover" />
+                  ))}
+                </ScrollView>
+              </Animated.View>
+            ) : null}
+
+            {/* details */}
+            <Animated.View entering={FadeInDown.delay(120).duration(300)} style={{ gap: 10 }}>
+              <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.orderDetails')}</Text>
+              <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }]}>
+                {order.cloth_count != null ? <Row label={clothPieceLabel(garmentType)} value={String(order.cloth_count)} /> : null}
+                {order.bill_book_number ? <Row label={t('detail.billBookNumber')} value={order.bill_book_number} /> : null}
+                <Row label={t('detail.orderDate')} value={formatDate(order.order_date)} />
+                <Row label={t('detail.deliveryDate')} value={formatDate(order.delivery_date)} last={!order.staff?.name} />
+                {order.staff?.name ? <Row label={t('detail.assignedStaff')} value={order.staff.name} last /> : null}
+              </View>
+            </Animated.View>
+
+            {/* payment */}
+            {hasBilling ? (
+              <Animated.View entering={FadeInDown.delay(180).duration(300)} style={{ gap: 10 }}>
+                <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.payment')}</Text>
+                <View style={card}>
+                  <View style={styles.kv}>
+                    <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.totalAmount')}</Text>
+                    <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{formatCurrency(totalAmount)}</Text>
+                  </View>
+                  <View style={[styles.track, { backgroundColor: dark ? '#262626' : '#E2E8F0' }]}>
+                    <View style={[styles.fill, { width: `${paidRatio * 100}%` }]} />
+                  </View>
+                  <View style={styles.kv}>
+                    <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.paidAmount')}</Text>
+                    <Text style={{ fontFamily: f.semibold, fontSize: 14, color: status.success[600] }}>{formatCurrency(paidAmount)}</Text>
+                  </View>
+                  <View style={styles.kv}>
+                    <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.balanceDue')}</Text>
+                    <Text style={{ fontFamily: f.bold, fontSize: 14, color: balanceDue > 0 ? status.danger[600] : status.success[600] }}>
+                      {formatCurrency(balanceDue)}
+                    </Text>
+                  </View>
+                  {order.payment_mode ? (
+                    <View style={styles.kv}>
+                      <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.paymentMode')}</Text>
+                      <Text style={{ fontFamily: f.semibold, fontSize: 14, color: colors.textPrimary }}>{order.payment_mode}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* chasing money belongs next to the balance it refers to */}
+                  {balanceDue > 0 ? (
+                    <View style={{ marginTop: 14 }}>
+                      <DSButton
+                        title={t('detail.whatsapp.sendReminder')}
+                        variant="line"
+                        size="rg"
+                        fullWidth
+                        leftIcon={IconBrandWhatsapp}
+                        disabled={!hasPhone}
+                        onPress={() =>
+                          sendMessage(
+                            t('detail.whatsapp.reminderPaymentBody', {
+                              customerName,
+                              amount: formatCurrency(balanceDue),
+                              orderNumber: order.order_number,
+                              shopName: shop.shop_name,
+                            })
+                          )
+                        }
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              </Animated.View>
+            ) : null}
+
+            {/* customer messaging */}
+            <Animated.View entering={FadeInDown.delay(240).duration(300)} style={{ gap: 10 }}>
+              <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.whatsapp.sectionTitle')}</Text>
+              {!hasPhone ? (
+                <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{t('detail.whatsapp.noPhone')}</Text>
+              ) : null}
+              <DSButton
+                title={t('detail.whatsapp.sendCompletion')}
+                variant="line"
+                size="rg"
+                fullWidth
+                leftIcon={IconBrandWhatsapp}
                 disabled={!hasPhone}
                 onPress={() =>
                   sendMessage(
-                    t('detail.whatsapp.reminderPaymentBody', {
+                    t('detail.whatsapp.completionBody', {
                       customerName,
-                      amount: formatCurrency(balanceDue),
                       orderNumber: order.order_number,
                       shopName: shop.shop_name,
                     })
                   )
                 }
-                className={`mt-4 flex-row items-center justify-center gap-2 rounded-md bg-[#25D366] py-3 active:opacity-80 ${
-                  hasPhone ? '' : 'opacity-40'
-                }`}
-              >
-                <FontAwesome5 name="whatsapp" size={16} color="#FFFFFF" />
-                <Text className="text-base font-semibold text-white">
-                  {t('detail.whatsapp.sendReminder')}
-                </Text>
-              </Pressable>
-            ) : null}
-          </Card>
-        ) : null}
+              />
+            </Animated.View>
+          </ScrollView>
 
-        {/* Customer messaging actions */}
-        <Card>
-          <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
-            {t('detail.whatsapp.sectionTitle')}
-          </Text>
-          {!hasPhone ? (
-            <Text className="font-sans mb-3 text-base text-gray-500 dark:text-gray-400">
-              {t('detail.whatsapp.noPhone')}
-            </Text>
-          ) : null}
-          <View className="gap-2.5">
-            <Pressable
-              disabled={!hasPhone}
-              onPress={() =>
-                sendMessage(
-                  t('detail.whatsapp.completionBody', {
-                    customerName,
-                    orderNumber: order.order_number,
-                    shopName: shop.shop_name,
-                  })
-                )
-              }
-              className={`flex-row items-center justify-center gap-2 rounded-md bg-[#25D366] py-3 active:opacity-80 ${
-                hasPhone ? '' : 'opacity-40'
-              }`}
-            >
-              <FontAwesome5 name="whatsapp" size={16} color="#FFFFFF" />
-              <Text className="text-base font-semibold text-white">
-                {t('detail.whatsapp.sendCompletion')}
-              </Text>
-            </Pressable>
-
+          {/* the one status action stays pinned */}
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingTop: 12,
+              paddingBottom: insets.bottom + 12,
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: colors.borderDefault,
+              backgroundColor: colors.bgPage,
+            }}
+          >
+            {!isDelivered ? (
+              <DSButton title={t('detail.markComplete')} size="lg" fullWidth leftIcon={IconCheck} loading={updating} onPress={markComplete} />
+            ) : (
+              <View style={[styles.done, { backgroundColor: dark ? '#0F2E1C' : status.success[50] }]}>
+                <IconCheck size={18} color={status.success[600]} strokeWidth={2.4} />
+                <Text style={{ fontFamily: f.semibold, fontSize: 15, color: status.success[600] }}>{t('detail.orderDelivered')}</Text>
+              </View>
+            )}
           </View>
-        </Card>
-
-        {/* Status action */}
-        <Card>
-          {!isDelivered ? (
-            <Pressable
-              onPress={markComplete}
-              disabled={updating}
-              className={`items-center rounded-md bg-primary-600 py-3 active:bg-primary-700 ${
-                updating ? 'opacity-50' : ''
-              }`}
-            >
-              <Text className="text-base font-semibold text-white">{t('detail.markComplete')}</Text>
-            </Pressable>
-          ) : (
-            <View className="items-center rounded-md bg-gray-100 py-3 dark:bg-gray-800">
-              <Text className="text-base font-semibold text-gray-500 dark:text-gray-400">{t('detail.orderDelivered')}</Text>
-            </View>
-          )}
-        </Card>
-      </ScrollView>
-    </View>
+        </>
+      )}
+    </DSScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 24, padding: 16, gap: 10 },
+  list: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  kv: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 0 },
+  photo: { width: 150, height: 200, borderRadius: 20 },
+  track: { height: 8, borderRadius: 9999, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 9999, backgroundColor: primary[600] },
+  done: { height: 56, borderRadius: 9999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+});

@@ -22,10 +22,10 @@
     "next": "आगे",
     "back": "पीछे",
     "urgentQuestion": "क्या यह अत्यावश्यक है?",
-    "measurementsOnFile": "इस ग्राहक का माप सेव है।",
+    "measurementsOnFile": "सेव किए गए माप",
     "noMeasurementsOnFile": "इस ग्राहक का अभी तक कोई माप सेव नहीं है।",
     "noMeasurementsHint": "अभी जोड़ दें ताकि दर्जी को सही नंबर मिलें।",
-    "viewEditMeasurements": "माप देखें / एडिट करें",
+    "viewEditMeasurements": "माप देखें / बदलें",
     "addMeasurementsNow": "+ अभी माप जोड़ें",
     "createOrderFinal": "ऑर्डर बनाएं",
     "orderCreatedWithPayment": "ग्राहक {{customer}} के लिए ऑर्डर #{{number}} बन गया। {{total}} में से {{paid}} लिया गया — {{due}} अभी बाकी है।",
@@ -120,6 +120,7 @@
     "upiConfirmNo": "नहीं",
     "createOrder": "ऑर्डर बनाएं",
     "customerRequired": "ग्राहक आवश्यक है",
+    "piecesRequired": "कम से कम 1 नग जोड़ें",
     "photoUploadFailed": "एक डिज़ाइन फ़ोटो अपलोड नहीं की जा सकी",
     "billCreateFailed": "ऑर्डर सेव हो गया, लेकिन बिल स्वतः नहीं बन सका",
     "orderCreated": "ऑर्डर बनाया गया",
@@ -132,7 +133,13 @@
     "loading": "ऑर्डर लोड हो रहा है...",
     "loadError": "ऑर्डर लोड नहीं हो सका",
     "billingNotice": "कुल राशि, भुगतान की गई राशि और भुगतान का तरीका इस ऑर्डर का बिल बनने के बाद वहीं से प्रबंधित होते हैं — भुगतान दर्ज करने के लिए ऑर्डर विवरण पर \"भुगतान जोड़ें / बिल देखें\" का उपयोग करें।",
-    "saveNow": "ऑर्डर अभी सेव करें"
+    "saveNow": "ऑर्डर अभी सेव करें",
+    "measurementsProfile": "यूनिवर्सल प्रोफ़ाइल",
+    "measurementsMissing": "माप जोड़े नहीं गए",
+    "measurementsMissingHint": "माप एक बार जोड़ें और सभी ऑर्डर में दोबारा इस्तेमाल करें।",
+    "addMeasurements": "माप जोड़ें",
+    "noResults": "कोई मिलान नहीं",
+    "confirm": "पुष्टि करें"
   },
   "detail": {
     "pantPieces": "पैंट के टुकड़े",
@@ -197,7 +204,8 @@
       "reminderPaymentBody": "नमस्ते {{customerName}}, {{shopName}} में आपके ऑर्डर #{{orderNumber}} पर {{amount}} अभी बाकी है। सुविधानुसार चुका दें। धन्यवाद!"
     },
     "tokenBadge": "टोकन #{{number}}",
-    "deliveryBadge": "डिलीवरी {{date}}"
+    "deliveryBadge": "डिलीवरी {{date}}",
+    "inProgress": "चालू है"
   },
   "list": {
     "title": "ऑर्डर",
