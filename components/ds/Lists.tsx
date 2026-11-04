@@ -161,3 +161,50 @@ const styles = StyleSheet.create({
   sub: { fontFamily: f.regular, fontSize: 13, lineHeight: 18 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });
+
+// ───────────────────────────────── Bills (one row per client)
+
+export type BillItem = {
+  id: string;
+  name: string;
+  /** "Last bill 03 Nov · 2 bills" */
+  meta: string;
+  /** Amount still owed across the client's bills. */
+  outstanding: number;
+  /** Shown when nothing is owed. */
+  total: number;
+  payment: PaymentStatus;
+  paymentLabel: string;
+};
+
+export function DSBillList({ items, onPressItem, edge }: { items: BillItem[]; onPressItem?: (b: BillItem) => void; edge?: boolean }) {
+  const { colors, scheme } = useTheme();
+  const tones = useBadgeTones();
+  const palette = scheme === 'dark' ? darkColors : legacyColors;
+  return (
+    <ListShell>
+      {items.map((b, i) => {
+        const pay = palette.payment[b.payment];
+        return (
+          <Row key={b.id} edge={edge} index={i} last={i === items.length - 1} onPress={() => onPressItem?.(b)}>
+            <NumberCircle value={(b.name.trim()[0] ?? '?').toUpperCase()} bg={pay.bg} fg={pay.text} size={48} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+                {b.name}
+              </Text>
+              <Text style={[styles.subSm, { color: colors.textMuted }]} numberOfLines={1}>
+                {b.meta}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 8 }}>
+              <Text style={{ fontFamily: f.bold, fontSize: 14, color: b.outstanding > 0 ? tones.danger.fg : colors.textMuted }}>
+                {money(b.outstanding > 0 ? b.outstanding : b.total)}
+              </Text>
+              <DSBadge size="sm" label={b.paymentLabel} bg={pay.bg} fg={pay.text} />
+            </View>
+          </Row>
+        );
+      })}
+    </ListShell>
+  );
+}

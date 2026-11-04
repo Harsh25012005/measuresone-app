@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { DSAvatar } from '../../components/ds/Avatar';
 import { DSBadge } from '../../components/ds/Badge';
+import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
 import { DSButton } from '../../components/ds/Button';
 import { DSEmptyState } from '../../components/ds/EmptyState';
 import { DSInput } from '../../components/ds/Input';
@@ -65,9 +66,10 @@ function ActionTile({ icon: Icon, label, onPress }: { icon: TablerIcon; label: s
   );
 }
 
-function toOrderItem(o: Order, clientName: string, fallbackGarment: string): OrderItem {
-  const total = Number(o.total_amount ?? 0);
-  const paid = Number(o.paid_amount ?? 0);
+function toOrderItem(o: Order, clientName: string, fallbackGarment: string, bill?: { total_amount: number | null; paid: number }): OrderItem {
+  // the bill's payments are the live figure; orders.paid_amount is only a snapshot from creation
+  const total = bill ? Number(bill.total_amount ?? 0) : Number(o.total_amount ?? 0);
+  const paid = bill ? Number(bill.paid ?? 0) : Number(o.paid_amount ?? 0);
   return {
     id: o.id,
     number: String(o.order_number).replace(/^ORD-/i, 'O-'),
@@ -86,6 +88,7 @@ export default function CustomerDetailScreen({
   route,
 }: CustomersScreenProps<'CustomerDetail'>) {
   const { t } = useTranslation('customers');
+  const { t: tOrders } = useTranslation('orders');
   const { customerId } = route.params;
   const shop = useShop();
   const showToast = useToast();
@@ -172,28 +175,25 @@ export default function CustomerDetailScreen({
     }, [load])
   );
 
+  const { confirm: confirmDelete, popup: deletePopup } = useConfirmDelete();
+
   const handleDeleteCustomer = () => {
     if (!customer) return;
-    Alert.alert(
-      t('detail.deleteConfirmTitle'),
-      t('detail.deleteConfirmMessage', { name: customer.name }),
-      [
-        { text: t('detail.cancel'), style: 'cancel' },
-        {
-          text: t('detail.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await customersRepo.remove(customerId, shop.id);
-              showToast(t('detail.deleteSuccess'), 'success');
-              navigation.goBack();
-            } catch (err) {
-              showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
-            }
-          },
-        },
-      ]
-    );
+    confirmDelete({
+      title: t('detail.deleteConfirmTitle'),
+      description: t('detail.deleteConfirmMessage', { name: customer.name }),
+      confirmLabel: t('detail.delete'),
+      cancelLabel: t('detail.cancel'),
+      onConfirm: async () => {
+        try {
+          await customersRepo.remove(customerId, shop.id);
+          showToast(t('detail.deleteSuccess'), 'success');
+          navigation.goBack();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
+        }
+      },
+    });
   };
 
   const handleDeleteMeasurement = (measurementId: string, garmentType: string) => {
@@ -261,43 +261,30 @@ export default function CustomerDetailScreen({
           {/* who this person is stays visible whichever tab is open */}
           <Animated.View entering={FadeInDown.duration(300)} style={styles.profile}>
             <DSAvatar name={customer.name} size="xl" />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ fontFamily: f.bold, fontSize: 22, lineHeight: 28, color: colors.textPrimary }} numberOfLines={2}>
-                {customer.name}
-              </Text>
-              <Text style={{ fontFamily: f.medium, fontSize: 14, color: colors.textSecondary }}>
-                {customer.phone ?? t('detail.noPhone')}
-              </Text>
+            <Text style={{ fontFamily: f.bold, fontSize: 24, lineHeight: 30, color: colors.textPrimary, textAlign: 'center' }} numberOfLines={2}>
+              {customer.name}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+              <View style={[styles.infoChip, { backgroundColor: colors.bgSubtle }]}>
+                <IconPhone size={14} color={colors.textMuted} />
+                <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textSecondary }}>{customer.phone ?? t('detail.noPhone')}</Text>
+              </View>
               {customer.address ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={[styles.infoChip, { backgroundColor: colors.bgSubtle, maxWidth: '100%' }]}>
                   <IconMapPin size={14} color={colors.textMuted} />
-                  <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted, flex: 1 }} numberOfLines={2}>
+                  <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textSecondary, flexShrink: 1 }} numberOfLines={1}>
                     {customer.address}
                   </Text>
                 </View>
               ) : null}
               {customer.book_number ? (
-                <View style={{ alignSelf: 'flex-start', marginTop: 2, height: 24, paddingHorizontal: 10, borderRadius: 9999, backgroundColor: colors.primaryTint, justifyContent: 'center' }}>
-                  <Text style={{ fontFamily: f.bold, fontSize: 11, color: primary[600] }}>
+                <View style={[styles.infoChip, { backgroundColor: colors.primaryTint }]}>
+                  <Text style={{ fontFamily: f.bold, fontSize: 12, color: primary[600] }}>
                     {t('detail.clientNumber')} {customer.book_number}
                   </Text>
                 </View>
               ) : null}
             </View>
-          </Animated.View>
-
-          {/* what they owe */}
-          <Animated.View
-            entering={FadeInDown.delay(60).duration(300)}
-            style={[
-              styles.balance,
-              { backgroundColor: balance > 0 ? (dark ? '#3A1414' : status.danger[50]) : dark ? '#0F2E1C' : status.success[50] },
-            ]}
-          >
-            <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textSecondary }}>{t('detail.outstandingBalance')}</Text>
-            <Text style={{ fontFamily: f.bold, fontSize: 24, color: balance > 0 ? status.danger[600] : status.success[600] }}>
-              {formatCurrency(balance)}
-            </Text>
           </Animated.View>
 
           {/* quick actions */}
@@ -310,7 +297,6 @@ export default function CustomerDetailScreen({
               }}
             />
             <ActionTile icon={IconClipboardPlus} label={t('detail.newOrderAction')} onPress={() => navigation.navigate('OrderForm', { customerId })} />
-            <ActionTile icon={IconRuler2} label={t('detail.measurementsAction')} onPress={() => navigation.navigate('MeasurementForm', { customerId })} />
           </Animated.View>
 
           <DSTabs
@@ -394,7 +380,7 @@ export default function CustomerDetailScreen({
               <DSInput kind="search" label={t('detail.searchOrders')} placeholder={t('detail.searchOrders')} value={search} onChangeText={setSearch} />
               {filteredOrders.length > 0 ? (
                 <DSOrderList
-                  items={filteredOrders.map((o) => toOrderItem(o, customer.name, t('detail.noClothType')))}
+                  items={filteredOrders.map((o) => toOrderItem(o, customer.name, tOrders('form.defaultGarmentType'), bills.find((b) => b.order_id === o.id)))}
                   onPressItem={(item) => navigation.navigate('OrderDetail', { orderId: item.id })}
                 />
               ) : (
@@ -453,12 +439,14 @@ export default function CustomerDetailScreen({
           ) : null}
         </ScrollView>
       )}
+      {deletePopup}
     </DSScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  profile: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  profile: { alignItems: 'center', gap: 12, paddingTop: 4 },
+  infoChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 9999 },
   balance: { borderRadius: 24, paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   action: { flex: 1, borderWidth: 1, borderRadius: 22, paddingVertical: 14, alignItems: 'center', gap: 8 },
   actionIcon: { width: 40, height: 40, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },

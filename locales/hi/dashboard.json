@@ -118,7 +118,8 @@
   "stats": {
     "ordersToday": "आज के ऑर्डर",
     "delivered": "डिलीवर हुए",
-    "unpaidBills": "बकाया बिल"
+    "unpaidBills": "बकाया बिल",
+    "todaysRevenue": "आज की कमाई"
   },
   "aiCard": {
     "title": "AI ऑर्डर असिस्टेंट",

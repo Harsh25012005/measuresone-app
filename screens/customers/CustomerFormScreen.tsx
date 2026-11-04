@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { DSPopup } from '../../components/ds/Popup';
 import { DSButton } from '../../components/ds/Button';
 import { DSInput } from '../../components/ds/Input';
 import { DSSkeletonList } from '../../components/ds/Loading';
+import { IconRuler2 } from '../../components/ds/icons';
 import { DSFormScreen } from '../../components/ds/Screen';
 import { useToast } from '../../components/ui';
 import { customersRepo } from '../../lib/data/repository';
@@ -26,6 +28,7 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
   const [phoneError, setPhoneError] = useState('');
   const [bookNumberError, setBookNumberError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   const phoneDigits = phone.trim().replace(/\D/g, '');
   const [fetching, setFetching] = useState(isEditing);
@@ -97,13 +100,8 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
       } else {
         const created = await customersRepo.create({ shop_id: shop.id, ...payload });
         showToast(t('form.saveSuccess'), 'success');
-        Alert.alert(t('form.addMeasurementsPromptTitle'), t('form.addMeasurementsPromptMessage'), [
-          { text: t('form.addMeasurementsPromptNo'), style: 'cancel', onPress: () => navigation.goBack() },
-          {
-            text: t('form.addMeasurementsPromptYes'),
-            onPress: () => navigation.replace('MeasurementForm', { customerId: created.id }),
-          },
-        ]);
+        // Alert.alert has no web implementation, so ask with the design-system popup.
+        setCreatedId(created.id);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('form.saveError'), 'error');
@@ -167,6 +165,29 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
           </View>
         </>
       )}
+      <DSPopup
+        visible={createdId !== null}
+        onClose={() => {
+          setCreatedId(null);
+          navigation.goBack();
+        }}
+        dismissOnScrim={false}
+        tone="info"
+        icon={IconRuler2}
+        title={t('form.addMeasurementsPromptTitle')}
+        description={t('form.addMeasurementsPromptMessage')}
+        primaryLabel={t('form.addMeasurementsPromptYes')}
+        onPrimary={() => {
+          const id = createdId;
+          setCreatedId(null);
+          if (id) navigation.replace('MeasurementForm', { customerId: id });
+        }}
+        secondaryLabel={t('form.addMeasurementsPromptNo')}
+        onSecondary={() => {
+          setCreatedId(null);
+          navigation.goBack();
+        }}
+      />
     </DSFormScreen>
   );
 }

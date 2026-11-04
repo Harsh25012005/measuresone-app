@@ -26,6 +26,7 @@ import {
 import { useToast } from '../../components/ui';
 import { ordersRepo, customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
+import { loadOrderBillAmounts, type BillAmounts } from '../../lib/orderPayments';
 import { haptics } from '../../lib/haptics';
 import { hasSeenProductTour, markProductTourSeen } from '../../lib/productTour';
 import { useShop } from '../../context/AuthContext';
@@ -48,7 +49,9 @@ type Stats = {
   recentOrders: OrderListItem[];
   topClients: ClientItem[];
   recentPayments: RecentPaymentItem[];
-  unpaidBillsCount: number;
+  /** Money received today (sum of payments). */
+  todaysRevenue: number;
+  billAmounts: BillAmounts;
 };
 
 const AVATAR_COLORS = ['#2563EB', '#7C3AED', '#0891B2', '#D97706', '#DB2777', '#16A34A'];
@@ -69,10 +72,18 @@ function todayRange() {
 
 
 
+/** YYYY-MM-DD of an instant in the device's local time zone. */
+function localDay(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Order → row for the shared order list. */
-function toOrderItem(o: OrderListItem, fallbackGarment: string): OrderItem {
-  const total = Number(o.total_amount ?? 0);
-  const paid = Number(o.paid_amount ?? 0);
+function toOrderItem(o: OrderListItem, fallbackGarment: string, bill?: { total: number; paid: number }): OrderItem {
+  const total = bill ? bill.total : Number(o.total_amount ?? 0);
+  const paid = bill ? bill.paid : Number(o.paid_amount ?? 0);
   return {
     id: o.id,
     number: String(o.order_number).replace(/^ORD-/i, 'O-'),
@@ -159,16 +170,19 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
       // create/order/payment flow writes through) rather than Supabase
       // directly, so the dashboard reflects the real current data instead of
       // racing the background sync.
-      const [allOrders, customers, allBills, allPayments] = await Promise.all([
+      const [allOrders, customers, allBills, allPayments, billAmounts] = await Promise.all([
         ordersRepo.listWithCustomer(shop.id),
         customersRepo.list(shop.id),
         billsRepo.list(shop.id),
         paymentsRepo.listForShop(shop.id),
+        loadOrderBillAmounts(shop.id),
       ]);
       const customerById = new Map(customers.map((c) => [c.id, c]));
       const billById = new Map(allBills.map((b) => [b.id, b]));
 
-      const todaysOrders = allOrders.filter((o) => o.order_date === localDate);
+      // order_date was stored as the UTC date, which is yesterday for part of every
+      // local day — so an order also counts as today's when it was created today locally.
+      const todaysOrders = allOrders.filter((o) => o.order_date === localDate || localDay(o.created_at) === localDate);
       const todaysDeliveries = todaysOrders.filter((o) => o.status === 'delivered');
       const recentOrders = [...allOrders]
         .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
@@ -193,7 +207,9 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         .filter((c): c is (typeof customers)[number] => !!c)
         .map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
 
-      const unpaidBillsCount = allBills.filter((b) => b.payment_status !== 'paid').length;
+      const todaysRevenue = allPayments
+        .filter((p) => localDay(p.payment_date) === localDate)
+        .reduce((sum, p) => sum + Number(p.amount_paid ?? 0), 0);
 
       // Latest payments received, regardless of which bill/order they're
       // tied to — a fast "money coming in" pulse distinct from Transaction
@@ -219,7 +235,8 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         recentOrders,
         topClients,
         recentPayments,
-        unpaidBillsCount,
+        todaysRevenue,
+        billAmounts,
       });
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('errorLoad'), 'error');
@@ -298,20 +315,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
                   onPress={() => navigation.navigate('OrdersTab' as any)}
                 />
                 <StatTile
-                  icon={IconCheck}
-                  label={t('stats.delivered')}
-                  value={String(stats.todaysDeliveries.length)}
+                  icon={IconCurrencyRupee}
+                  label={t('stats.todaysRevenue')}
+                  value={formatCurrency(stats.todaysRevenue)}
                   tint={dark ? '#0F2E1C' : status.success[100]}
                   fg={status.success[600]}
-                  onPress={() => navigation.navigate('OrdersTab' as any)}
-                />
-                <StatTile
-                  icon={IconReceipt}
-                  label={t('stats.unpaidBills')}
-                  value={String(stats.unpaidBillsCount)}
-                  tint={dark ? '#33240A' : status.warning[100]}
-                  fg={status.warning[600]}
-                  onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Billing' })}
+                  onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Revenue' })}
                 />
               </Animated.View>
 
@@ -392,7 +401,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
                   />
                 ) : (
                   <DSOrderList
-                    items={stats.todaysDeliveries.slice(0, 3).map((o) => toOrderItem(o, t('garmentOrder')))}
+                    items={stats.todaysDeliveries.slice(0, 3).map((o) => toOrderItem(o, t('garmentOrder'), stats.billAmounts[o.id]))}
                     onPressItem={(item) => navigation.navigate('OrderDetail', { orderId: item.id })}
                   />
                 )}

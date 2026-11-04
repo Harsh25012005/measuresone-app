@@ -1,30 +1,36 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Header,
-  LoadingSpinner,
-  RecordPaymentSheet,
-  useToast,
-} from '../../components/ui';
+import { DSBadge } from '../../components/ds/Badge';
+import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconBrandWhatsapp, IconCash, IconReceipt, IconTrash } from '../../components/ds/icons';
+import { RecordPaymentSheet, useToast } from '../../components/ui';
 import { billsRepo, customersRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDateTime } from '../../lib/format';
 import { sendWhatsAppMessage, buildBillMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { colors as legacyColors, darkColors } from '../../constants/theme';
+import { primary, status, typography } from '../../constants/tokens';
 import type { BillingScreenProps } from '../../navigation/types';
 import type { BillWithRelations } from '../../types';
+
+const f = typography.family;
 
 export default function BillDetailScreen({ navigation, route }: BillingScreenProps<'BillDetail'>) {
   const { billId } = route.params;
   const shop = useShop();
   const showToast = useToast();
   const { t } = useTranslation('billing');
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
+  const { confirm: confirmDelete, popup: deletePopup } = useConfirmDelete();
 
   const [bill, setBill] = useState<BillWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,26 +81,21 @@ export default function BillDetailScreen({ navigation, route }: BillingScreenPro
 
   const handleDelete = () => {
     if (!bill) return;
-    Alert.alert(
-      t('detail.deleteConfirmTitle'),
-      t('detail.deleteConfirmMessage'),
-      [
-        { text: t('detail.cancel'), style: 'cancel' },
-        {
-          text: t('detail.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await billsRepo.remove(bill.id, shop.id);
-              showToast(t('detail.deleteSuccess'), 'success');
-              navigation.goBack();
-            } catch (err) {
-              showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
-            }
-          },
-        },
-      ]
-    );
+    confirmDelete({
+      title: t('detail.deleteConfirmTitle'),
+      description: t('detail.deleteConfirmMessage'),
+      confirmLabel: t('detail.delete'),
+      cancelLabel: t('detail.cancel'),
+      onConfirm: async () => {
+        try {
+          await billsRepo.remove(bill.id, shop.id);
+          showToast(t('detail.deleteSuccess'), 'success');
+          navigation.goBack();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
+        }
+      },
+    });
   };
 
   const handleShare = async () => {
@@ -115,174 +116,146 @@ export default function BillDetailScreen({ navigation, route }: BillingScreenPro
     }
   };
 
-  if (loading || !bill) return <LoadingSpinner fullScreen text={t('detail.loading')} />;
+  const pay = (dark ? darkColors : legacyColors).payment[(bill?.payment_status ?? 'unpaid') as 'paid' | 'partial' | 'unpaid'];
+  const total = Number(bill?.total_amount ?? 0);
+  const ratio = total > 0 ? Math.min(1, paidTotal / total) : 0;
+  const border = dark ? '#262626' : colors.borderDefault;
+
+  const KV = ({ label, value, last, bold }: { label: string; value: string; last?: boolean; bold?: boolean }) => (
+    <View>
+      <View style={styles.kvRow}>
+        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{label}</Text>
+        <Text style={{ fontFamily: bold ? f.bold : f.semibold, fontSize: 14, color: colors.textPrimary }}>{value}</Text>
+      </View>
+      {last ? null : <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />}
+    </View>
+  );
 
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header
-        title={t('detail.billTitle', { name: bill.customers?.name })}
-        onBack={() => navigation.goBack()}
-        right={
-          <Pressable
-            onPress={handleDelete}
-            hitSlop={8}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-          >
-            <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
-          </Pressable>
-        }
-      />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
-        {/* Hero card: total / paid / balance due */}
-        <View className="rounded-xl bg-[#101828] p-5 dark:border dark:border-gray-700">
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="font-sans text-base font-medium text-[#98A2B3]">
-              {t('detail.totalAmount')}
-            </Text>
-            <Badge type="payment_status" value={bill.payment_status} />
-          </View>
-          <Text className="text-[34px] font-medium text-white tracking-tight">
-            {formatCurrency(bill.total_amount)}
-          </Text>
+    <DSScreen
+      title={bill ? t('detail.billTitle', { name: bill.customers?.name }) : ''}
+      onBack={() => navigation.goBack()}
+      actions={bill ? [{ icon: IconTrash, label: t('detail.delete'), onPress: handleDelete }] : []}
+    >
+      {loading || !bill ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={4} />
+        </View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24, gap: 16 }} showsVerticalScrollIndicator={false}>
+            {/* total, paid and what's left — the whole story in one card */}
+            <Animated.View entering={FadeInDown.duration(300)} style={[styles.card, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+              <View style={styles.between}>
+                <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textMuted }}>{t('detail.totalAmount')}</Text>
+                <DSBadge label={t(`list.filters.${bill.payment_status}`)} bg={pay.bg} fg={pay.text} />
+              </View>
+              <Text style={{ fontFamily: f.bold, fontSize: 32, color: colors.textPrimary }}>{formatCurrency(bill.total_amount)}</Text>
+              <View style={[styles.track, { backgroundColor: dark ? '#262626' : '#E2E8F0' }]}>
+                <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+              </View>
+              <View style={styles.between}>
+                <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.paid')}</Text>
+                <Text style={{ fontFamily: f.semibold, fontSize: 14, color: status.success[600] }}>{formatCurrency(paidTotal)}</Text>
+              </View>
+              <View style={styles.between}>
+                <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.balanceDue')}</Text>
+                <Text style={{ fontFamily: f.bold, fontSize: 14, color: pending > 0 ? status.danger[600] : status.success[600] }}>
+                  {formatCurrency(pending)}
+                </Text>
+              </View>
+              {bill.customers?.phone ? (
+                <View style={{ marginTop: 6 }}>
+                  <DSButton title={t('detail.shareWhatsapp')} variant="line" size="rg" fullWidth leftIcon={IconBrandWhatsapp} onPress={handleShare} />
+                </View>
+              ) : null}
+            </Animated.View>
 
-          <View className="mt-5 flex-row gap-3">
-            <View className="flex-1 rounded-lg bg-white/10 p-3">
-              <Text className="font-sans text-base text-[#98A2B3]">{t('detail.paid')}</Text>
-              <Text className="mt-0.5 text-base font-semibold text-white">
-                {formatCurrency(paidTotal)}
-              </Text>
-            </View>
-            <View className="flex-1 rounded-lg bg-white/10 p-3">
-              <Text className="font-sans text-base text-[#98A2B3]">{t('detail.balanceDue')}</Text>
-              <Text
-                className={`mt-0.5 text-base font-semibold ${
-                  pending > 0 ? 'text-[#F87171]' : 'text-[#4ADE80]'
-                }`}
-              >
-                {formatCurrency(pending)}
-              </Text>
-            </View>
-          </View>
+            {/* customer */}
+            <Animated.View entering={FadeInDown.delay(60).duration(300)} style={{ gap: 10 }}>
+              <Text style={[styles.h, { color: colors.textPrimary }]}>{t('detail.customer')}</Text>
+              <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+                <KV label={t('detail.name')} value={bill.customers?.name ?? '—'} last={!bill.customers?.phone} />
+                {bill.customers?.phone ? <KV label={t('detail.phone')} value={bill.customers.phone} last /> : null}
+              </View>
+              {bill.order_id ? (
+                <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{t('detail.linkedOrderDesc')}</Text>
+              ) : null}
+            </Animated.View>
 
-          {bill.customers?.phone ? (
-            <Pressable
-              onPress={handleShare}
-              className="mt-4 flex-row items-center justify-center rounded-lg bg-white/10 py-2.5 active:bg-white/20"
-            >
-              <FontAwesome5 name="whatsapp" size={16} color="#4ADE80" />
-              <Text className="ml-2 text-base font-semibold text-white">{t('detail.shareWhatsapp')}</Text>
-            </Pressable>
+            {/* breakdown */}
+            <Animated.View entering={FadeInDown.delay(120).duration(300)} style={{ gap: 10 }}>
+              <Text style={[styles.h, { color: colors.textPrimary }]}>{t('detail.breakdown')}</Text>
+              <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+                <KV label={t('detail.fabricCost')} value={formatCurrency(bill.fabric_cost)} />
+                <KV label={t('detail.stitchingCharge')} value={formatCurrency(bill.stitching_charge)} />
+                <KV label={t('detail.tax')} value={formatCurrency(bill.tax)} />
+                <KV label={t('detail.discount')} value={`- ${formatCurrency(bill.discount)}`} />
+                <KV label={t('detail.totalAmount')} value={formatCurrency(bill.total_amount)} bold last />
+              </View>
+            </Animated.View>
+
+            {/* payments */}
+            <Animated.View entering={FadeInDown.delay(180).duration(300)} style={{ gap: 10 }}>
+              <Text style={[styles.h, { color: colors.textPrimary }]}>{t('detail.paymentHistory')}</Text>
+              {bill.payments.length === 0 ? (
+                <DSEmptyState variant="compact" icon={IconReceipt} title={t('detail.noPayments')} description={pending > 0 ? t('detail.recordPaymentHint') : undefined} />
+              ) : (
+                <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+                  {bill.payments.map((p, i) => (
+                    <View key={p.id}>
+                      <View style={[styles.kvRow, { gap: 12 }]}>
+                        <View style={[styles.dot, { backgroundColor: colors.primaryTint }]}>
+                          <IconCash size={18} color={primary[600]} strokeWidth={2} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>{formatCurrency(p.amount_paid)}</Text>
+                          <Text style={{ fontFamily: f.regular, fontSize: 12, color: colors.textMuted }}>{formatDateTime(p.payment_date)}</Text>
+                        </View>
+                        <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textMuted }}>{p.payment_mode}</Text>
+                      </View>
+                      {i === bill.payments.length - 1 ? null : (
+                        <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </Animated.View>
+          </ScrollView>
+
+          {pending > 0 ? (
+            <View style={[styles.footer, { borderTopColor: colors.borderDefault, backgroundColor: colors.bgPage }]}>
+              <DSButton title={t('detail.recordPayment')} size="lg" fullWidth onPress={() => setSheetOpen(true)} />
+            </View>
           ) : null}
-        </View>
-
-        {/* Customer info */}
-        <Card>
-          <Text className="mb-2 text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.customer')}</Text>
-          <View className="gap-1.5">
-            <Row label={t('detail.name')} value={bill.customers?.name ?? '—'} />
-            {bill.customers?.phone ? <Row label={t('detail.phone')} value={bill.customers.phone} /> : null}
-          </View>
-        </Card>
-
-        {/* Related order */}
-        {bill.order_id ? (
-          <View className="flex-row items-center rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
-              <FontAwesome5 name="shopping-bag" size={14} color="#2563EB" />
-            </View>
-            <View className="ml-3 flex-1">
-              <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.linkedOrder')}</Text>
-              <Text className="font-sans text-base text-gray-400 dark:text-gray-500">{t('detail.linkedOrderDesc')}</Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Charge breakdown */}
-        <Card>
-          <Text className="mb-2 text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.breakdown')}</Text>
-          <View className="gap-1.5">
-            <Row label={t('detail.fabricCost')} value={formatCurrency(bill.fabric_cost)} />
-            <Row label={t('detail.stitchingCharge')} value={formatCurrency(bill.stitching_charge)} />
-            <Row label={t('detail.tax')} value={formatCurrency(bill.tax)} />
-            <Row label={t('detail.discount')} value={`- ${formatCurrency(bill.discount)}`} />
-            <View className="my-2 h-px bg-gray-100 dark:bg-gray-800" />
-            <Row label={t('detail.totalAmount')} value={formatCurrency(bill.total_amount)} bold />
-          </View>
-        </Card>
-
-        <View>
-          <Text className="mb-2 text-base font-semibold text-gray-900 dark:text-gray-50">{t('detail.paymentHistory')}</Text>
-          {bill.payments.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              icon="receipt"
-              title={t('detail.noPayments')}
-              description={pending > 0 ? t('detail.recordPaymentHint') : undefined}
-            />
-          ) : (
-            <View className="gap-2">
-              {bill.payments.map((p) => (
-                <Card key={p.id}>
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                      {formatCurrency(p.amount_paid)}
-                    </Text>
-                    <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{p.payment_mode}</Text>
-                  </View>
-                  <Text className="font-sans mt-1 text-base text-gray-400 dark:text-gray-500">
-                    {formatDateTime(p.payment_date)}
-                  </Text>
-                </Card>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {pending > 0 ? (
-          <Button title={t('detail.recordPayment')} size="lg" onPress={() => setSheetOpen(true)} />
-        ) : null}
-      </ScrollView>
+        </>
+      )}
 
       {/* Same sheet the dashboard's "Collect" button opens, so recording a
           payment behaves identically wherever it's started from. */}
       <RecordPaymentSheet
         bill={
-          sheetOpen
-            ? {
-                id: bill.id,
-                customerId: bill.customer_id,
-                customerName: bill.customers?.name ?? '',
-                pending,
-              }
+          sheetOpen && bill
+            ? { id: bill.id, customerId: bill.customer_id, customerName: bill.customers?.name ?? '', pending }
             : null
         }
         onClose={() => setSheetOpen(false)}
         onSaved={() => void load()}
       />
-    </View>
+      {deletePopup}
+    </DSScreen>
   );
 }
 
-function Row({
-  label,
-  value,
-  bold = false,
-  color,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-  color?: string;
-}) {
-  return (
-    <View className="flex-row items-center justify-between">
-      <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{label}</Text>
-      <Text
-        className={bold ? 'text-base font-bold text-gray-900 dark:text-gray-50' : 'text-base text-gray-700 dark:text-gray-300'}
-        style={color ? { color } : undefined}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 24, padding: 16, gap: 10 },
+  list: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  kvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  h: { fontFamily: f.bold, fontSize: 18 },
+  track: { height: 8, borderRadius: 9999, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 9999, backgroundColor: primary[600] },
+  dot: { width: 38, height: 38, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+  footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, borderTopWidth: StyleSheet.hairlineWidth },
+});

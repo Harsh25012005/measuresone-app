@@ -1,9 +1,16 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSRevenueChart } from '../../components/ds/RevenueChart';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconChartBar } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
+import { useTheme } from '../../context/ThemeContext';
+import { status, typography } from '../../constants/tokens';
 import { supabase } from '../../lib/supabase';
 import { billsRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
@@ -37,51 +44,14 @@ function localDayString(date: Date): string {
   ).padStart(2, '0')}`;
 }
 
-/**
- * Plain flexbox bar chart — deliberately avoids SVG/viewBox math (which kept
- * looking subtly off across devices) in favor of something that can't get
- * the geometry wrong: each bar's height is just a CSS percentage.
- */
-function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
-  const ordered = [...months].reverse(); // oldest -> newest, left to right
-  const max = Math.max(...ordered.map((m) => m.amount), 1);
-
-  return (
-    <View className="mt-3 flex-row items-end justify-between" style={{ height: 160 }}>
-      {ordered.map((m, i) => {
-        const isLast = i === ordered.length - 1;
-        const heightPct = Math.max(4, (m.amount / max) * 100);
-        return (
-          <View key={m.key} className="flex-1 items-center">
-            <Text
-              className={`mb-1 text-base font-semibold ${
-                isLast ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-              }`}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {formatCurrency(m.amount)}
-            </Text>
-            <View className="w-full flex-1 justify-end px-1">
-              <View
-                className={`w-full rounded-t-md ${isLast ? 'bg-primary-600' : 'bg-primary-200 dark:bg-primary-900'}`}
-                style={{ height: `${heightPct}%` }}
-              />
-            </View>
-            <Text className="font-sans mt-2 text-base text-gray-500 dark:text-gray-400" numberOfLines={1}>
-              {m.label.split(' ')[0]}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
+const f = typography.family;
 
 export default function RevenueScreen({ navigation }: SettingsScreenProps<'Revenue'>) {
   const { t } = useTranslation('revenue');
   const showToast = useToast();
   const shop = useShop();
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
 
   const [data, setData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,87 +116,71 @@ export default function RevenueScreen({ navigation }: SettingsScreenProps<'Reven
     }, [load])
   );
 
-  if (loading || !data) return <LoadingSpinner fullScreen text={t('loading')} />;
+  const net = data ? data.total - data.staffCost : 0;
+  const border = dark ? '#262626' : colors.borderDefault;
+  const card = [styles.card, { backgroundColor: colors.bgSurface, borderColor: border }];
 
-  const net = data.total - data.staffCost;
-
-  if (data.total === 0) {
-    return (
-      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-        <Header title={t('title')} onBack={() => navigation.goBack()} />
-        <EmptyState icon="chart-bar" title={t('emptyTitle')} description={t('emptyDescription')} />
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header title={t('title')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
-        {/* Total revenue hero */}
-        <View className="rounded-md bg-[#101828] p-4 dark:border dark:border-gray-700">
-          <View className="flex-row items-start justify-between">
-            <View className="gap-1">
-              <Text className="font-sans text-base font-medium text-[#98A2B3]">{t('totalRevenue')}</Text>
-              <Text className="text-[32px] font-medium tracking-tight text-white">
-                {formatCurrency(data.total)}
-              </Text>
-            </View>
-            <View className="h-12 w-12 items-center justify-center rounded-md bg-[#1D4ED8]/20">
-              <FontAwesome5 name="rupee-sign" size={20} color="#1D4ED8" />
-            </View>
-          </View>
-          <Text className="font-sans mt-2 text-base text-[#667085] dark:text-gray-400">{t('revenueNote')}</Text>
-        </View>
-
-        {/* This month / today / net */}
-        <View className="flex-row gap-3">
-          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('thisMonth')}</Text>
-            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(data.thisMonth)}</Text>
-          </View>
-          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('today')}</Text>
-            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(data.today)}</Text>
-          </View>
-          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('net')}</Text>
-            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(net)}</Text>
-          </View>
-        </View>
-
-        {/* Monthly trend chart */}
-        <Card>
-          <View className="mb-1 flex-row items-center">
-            <FontAwesome5 name="chart-bar" size={13} color="#6B7280" />
-            <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('byMonth')}</Text>
-          </View>
-          <MonthlyBarChart months={data.months} />
-        </Card>
-
-        {/* Net summary */}
-        <Card>
-          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">{t('summary')}</Text>
-          <View className="gap-2">
-            <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('received')}</Text>
-              <Text className="text-base font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(data.total)}</Text>
-            </View>
-            <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('staffCost')}</Text>
-              <Text className="text-base font-bold text-danger">- {formatCurrency(data.staffCost)}</Text>
-            </View>
-            <View className="flex-row items-center justify-between rounded-md bg-gray-100 p-3 dark:bg-gray-800">
-              <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('net')}</Text>
-              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(net)}</Text>
-            </View>
-            <View className="flex-row items-center justify-between rounded-md bg-amber-50 p-3 dark:bg-amber-950">
-              <Text className="font-sans text-base text-amber-800 dark:text-amber-300">{t('outstanding')}</Text>
-              <Text className="text-base font-bold text-amber-800 dark:text-amber-300">{formatCurrency(data.outstanding)}</Text>
-            </View>
-          </View>
-        </Card>
-      </ScrollView>
+  const Stat = ({ label, value }: { label: string; value: string }) => (
+    <View style={[card, { flex: 1, padding: 14, gap: 4 }]}>
+      <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textMuted }}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: f.bold, fontSize: 16, color: colors.textPrimary }}>
+        {value}
+      </Text>
     </View>
   );
+
+  const Line = ({ label, value, color, last, bold }: { label: string; value: string; color?: string; last?: boolean; bold?: boolean }) => (
+    <View>
+      <View style={styles.line}>
+        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{label}</Text>
+        <Text style={{ fontFamily: bold ? f.bold : f.semibold, fontSize: 14, color: color ?? colors.textPrimary }}>{value}</Text>
+      </View>
+      {last ? null : <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />}
+    </View>
+  );
+
+  return (
+    <DSScreen title={t('title')} onBack={() => navigation.goBack()}>
+      {loading || !data ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={4} />
+        </View>
+      ) : data.total === 0 ? (
+        <DSEmptyState icon={IconChartBar} title={t('emptyTitle')} description={t('emptyDescription')} />
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }} showsVerticalScrollIndicator={false}>
+          <Animated.View entering={FadeInDown.duration(300)}>
+            <DSRevenueChart
+              title={t('totalRevenue')}
+              subtitle={t('revenueNote')}
+              total={data.total}
+              data={[...data.months].reverse().map((m) => ({ label: m.label.split(' ')[0], value: m.amount }))}
+            />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(60).duration(300)} style={{ flexDirection: 'row', gap: 10 }}>
+            <Stat label={t('thisMonth')} value={formatCurrency(data.thisMonth)} />
+            <Stat label={t('today')} value={formatCurrency(data.today)} />
+            <Stat label={t('net')} value={formatCurrency(net)} />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(120).duration(300)} style={{ gap: 10 }}>
+            <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('summary')}</Text>
+            <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+              <Line label={t('received')} value={formatCurrency(data.total)} color={status.success[600]} />
+              <Line label={t('staffCost')} value={`- ${formatCurrency(data.staffCost)}`} color={status.danger[600]} />
+              <Line label={t('net')} value={formatCurrency(net)} bold />
+              <Line label={t('outstanding')} value={formatCurrency(data.outstanding)} color={status.warning[600]} last />
+            </View>
+          </Animated.View>
+        </ScrollView>
+      )}
+    </DSScreen>
+  );
 }
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 24 },
+  list: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  line: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 },
+});

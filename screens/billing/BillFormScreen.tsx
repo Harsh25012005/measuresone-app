@@ -1,18 +1,25 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Platform, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Button, Dropdown, EmptyState, Header, InputField, QuickAddCustomerSheet, RadioGroup, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSInput } from '../../components/ds/Input';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { DSSelect } from '../../components/ds/Select';
+import { DSTabs } from '../../components/ds/Tabs';
+import { IconPhone, IconUserPlus } from '../../components/ds/icons';
+import { QuickAddCustomerSheet, useToast } from '../../components/ui';
 import { customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { sendWhatsAppMessage, buildBillMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, typography } from '../../constants/tokens';
 import type { AppScreenProps } from '../../navigation/types';
 import type { Customer } from '../../types';
 
-type Option = { label: string; value: string };
+const f = typography.family;
 
 function toAmount(value: string): number {
   const parsed = Number(value.trim());
@@ -23,9 +30,10 @@ export default function BillFormScreen({ navigation, route }: AppScreenProps<'Bi
   const orderId = route.params?.orderId;
   const presetCustomerId = route.params?.customerId;
   const shop = useShop();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('billing');
+  const { t: tOrders } = useTranslation('orders');
+  const { colors } = useTheme();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -54,7 +62,7 @@ export default function BillFormScreen({ navigation, route }: AppScreenProps<'Bi
     }, [shop.id])
   );
 
-  const customerOptions: Option[] = customers.map((c) => ({ label: c.name, value: c.id }));
+  const customerOptions = customers.map((c) => ({ label: c.name, value: c.id }));
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
   const total = useMemo(
@@ -94,10 +102,9 @@ export default function BillFormScreen({ navigation, route }: AppScreenProps<'Bi
       });
       showToast(t('form.successCreated'), 'success');
 
-      // Payment status is now chosen up-front in the form (paidStatus state)
-      // instead of an Alert fired after the bill already exists — many bills
-      // are settled on the spot, and asking here means the whole "create a
-      // bill" action is one decision instead of two sequential pop-ups.
+      // Payment status is chosen up-front in the form instead of an Alert
+      // fired after the bill already exists — many bills are settled on the
+      // spot, so "create a bill" stays one decision instead of two.
       let paidAmount = 0;
       if (paidStatus === 'paid') {
         try {
@@ -119,13 +126,10 @@ export default function BillFormScreen({ navigation, route }: AppScreenProps<'Bi
       };
 
       const pending = Math.max(total - paidAmount, 0);
-      if (selectedCustomer?.phone) {
+      // Alert.alert has no web implementation, so skip the prompt there.
+      if (selectedCustomer?.phone && Platform.OS !== 'web') {
         Alert.alert(t('form.sendMessageTitle'), t('form.sendMessageMessage'), [
-          {
-            text: t('form.doItLater'),
-            style: 'cancel',
-            onPress: goToBillDetail,
-          },
+          { text: t('form.doItLater'), style: 'cancel', onPress: goToBillDetail },
           {
             text: t('form.sendMessage'),
             onPress: async () => {
@@ -157,139 +161,106 @@ export default function BillFormScreen({ navigation, route }: AppScreenProps<'Bi
     }
   };
 
+  const noClients = customersLoaded && customers.length === 0;
+
   return (
     <>
-      <Header title={t('form.title')} onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      <DSFormScreen
+        title={t('form.title')}
+        onBack={() => navigation.goBack()}
+        footer={noClients ? undefined : <DSButton title={t('form.createBill')} size="lg" fullWidth onPress={handleSave} loading={loading} />}
       >
-      <ScrollView
-        className="flex-1 bg-white dark:bg-gray-950"
-        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {customersLoaded && customers.length === 0 ? (
-          <View className="mb-4">
-            <EmptyState
-              variant="compact"
-              icon="user-plus"
-              title={t('form.noClientsTitle')}
-              description={t('form.noClientsDescription')}
-              actionLabel={t('form.addClient')}
-              onAction={() => setQuickAddVisible(true)}
-            />
-          </View>
+        {noClients ? (
+          <DSEmptyState
+            icon={IconUserPlus}
+            title={t('form.noClientsTitle')}
+            description={t('form.noClientsDescription')}
+            actionLabel={t('form.addClient')}
+            onAction={() => setQuickAddVisible(true)}
+          />
         ) : (
           <>
-            <Dropdown
-              label={t('form.customer')}
+            <DSSelect
+              label={`${t('form.customer')} *`}
               value={customerId}
-              onChange={setCustomerId}
+              onChange={(v) => {
+                setCustomerId(v);
+                setError('');
+              }}
               options={customerOptions}
-              placeholder={t('form.selectCustomer')}
-              error={error}
-              required
+              error={error || undefined}
               searchable
               searchPlaceholder={t('form.searchClientPlaceholder')}
               onAddNew={() => setQuickAddVisible(true)}
               addNewLabel={t('form.addClient')}
+              emptyText={tOrders('form.noResults')}
             />
 
             {selectedCustomer ? (
-              <View className="mb-4 flex-row items-center gap-2 rounded-md bg-gray-50 px-4 py-3 dark:bg-gray-800">
-                <FontAwesome5 name="phone-alt" size={12} color="#6B7280" />
-                <Text className="font-sans text-base text-gray-600 dark:text-gray-300">
-                  {selectedCustomer.phone ?? t('form.noPhone')}
-                </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -6 }}>
+                <IconPhone size={14} color={colors.textMuted} />
+                <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{selectedCustomer.phone ?? t('form.noPhone')}</Text>
               </View>
             ) : null}
-          </>
-        )}
 
-        {itemized ? (
-          <>
-            <InputField
-              label={t('form.fabricCost')}
-              value={fabricCost}
-              onChangeText={setFabricCost}
-              placeholder={t('form.fabricCostPlaceholder')}
-              keyboardType="number-pad"
-            />
-            <InputField
-              label={t('form.stitchingCharge')}
-              value={stitchingCharge}
-              onChangeText={setStitchingCharge}
-              placeholder={t('form.stitchingChargePlaceholder')}
-              keyboardType="number-pad"
-            />
-            <InputField
-              label={t('form.discount')}
-              value={discount}
-              onChangeText={setDiscount}
-              placeholder={t('form.discountPlaceholder')}
-              keyboardType="number-pad"
-            />
-            <InputField
-              label={t('form.tax')}
-              value={tax}
-              onChangeText={setTax}
-              placeholder={t('form.taxPlaceholder')}
-              keyboardType="number-pad"
-            />
-            <Pressable onPress={() => setItemized(false)} hitSlop={8} className="mb-4 -mt-1 self-start py-2">
-              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">
-                {t('form.useSimpleTotal')}
-              </Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <InputField
-              label={t('form.billAmount')}
-              value={billAmount}
-              onChangeText={(v) => {
-                setBillAmount(v);
-                setAmountError('');
+            {itemized ? (
+              <>
+                <DSInput label={t('form.fabricCost')} placeholder={t('form.fabricCostPlaceholder')} keyboardType="number-pad" value={fabricCost} onChangeText={setFabricCost} />
+                <DSInput label={t('form.stitchingCharge')} placeholder={t('form.stitchingChargePlaceholder')} keyboardType="number-pad" value={stitchingCharge} onChangeText={setStitchingCharge} />
+                <DSInput label={t('form.discount')} placeholder={t('form.discountPlaceholder')} keyboardType="number-pad" value={discount} onChangeText={setDiscount} />
+                <DSInput label={t('form.tax')} placeholder={t('form.taxPlaceholder')} keyboardType="number-pad" value={tax} onChangeText={setTax} />
+                <View style={{ alignItems: 'flex-start', marginTop: -8 }}>
+                  <DSButton title={t('form.useSimpleTotal')} variant="link" size="sm" onPress={() => setItemized(false)} />
+                </View>
+              </>
+            ) : (
+              <>
+                <DSInput
+                  label={`${t('form.billAmount')} *`}
+                  placeholder={t('form.billAmountPlaceholder')}
+                  keyboardType="number-pad"
+                  value={billAmount}
+                  onChangeText={(v) => {
+                    setBillAmount(v);
+                    setAmountError('');
+                  }}
+                  error={amountError || undefined}
+                />
+                <View style={{ alignItems: 'flex-start', marginTop: -8 }}>
+                  <DSButton title={t('form.splitIntoItems')} variant="link" size="sm" onPress={() => setItemized(true)} />
+                </View>
+              </>
+            )}
+
+            <View style={{ gap: 10 }}>
+              <Text style={{ fontFamily: f.semibold, fontSize: 13, color: colors.textSecondary }}>{t('form.paymentStatus')}</Text>
+              <DSTabs
+                variant="pill"
+                value={paidStatus}
+                onChange={(k) => setPaidStatus(k as 'unpaid' | 'paid')}
+                items={[
+                  { key: 'unpaid', label: t('form.markUnpaid') },
+                  { key: 'paid', label: t('form.markPaid') },
+                ]}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderRadius: 24,
+                padding: 16,
+                backgroundColor: colors.primaryTint,
               }}
-              placeholder={t('form.billAmountPlaceholder')}
-              keyboardType="number-pad"
-              error={amountError}
-              required
-            />
-            <Pressable onPress={() => setItemized(true)} hitSlop={8} className="mb-4 -mt-1 self-start py-2">
-              <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">
-                {t('form.splitIntoItems')}
-              </Text>
-            </Pressable>
+            >
+              <Text style={{ fontFamily: f.semibold, fontSize: 14, color: primary[600] }}>{t('form.totalAmount')}</Text>
+              <Text style={{ fontFamily: f.bold, fontSize: 24, color: primary[600] }}>{formatCurrency(total)}</Text>
+            </View>
           </>
         )}
-
-        <View className="mb-4">
-          <Text className="mb-1.5 text-base font-semibold text-gray-600 dark:text-gray-400">
-            {t('form.paymentStatus')}
-          </Text>
-          <RadioGroup
-            variant="cards"
-            direction="row"
-            value={paidStatus}
-            onChange={setPaidStatus}
-            options={[
-              { label: t('form.markUnpaid'), value: 'unpaid' },
-              { label: t('form.markPaid'), value: 'paid' },
-            ]}
-          />
-        </View>
-
-        <View className="mb-6 flex-row items-center justify-between rounded-lg bg-primary-50 p-4 dark:bg-primary-950">
-          <Text className="text-base font-medium text-primary-700 dark:text-primary-300">{t('form.totalAmount')}</Text>
-          <Text className="text-2xl font-bold text-primary-700 dark:text-primary-300">{formatCurrency(total)}</Text>
-        </View>
-
-        <Button title={t('form.createBill')} size="lg" onPress={handleSave} loading={loading} />
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </DSFormScreen>
 
       <QuickAddCustomerSheet
         visible={quickAddVisible}

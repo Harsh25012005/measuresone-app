@@ -116,9 +116,10 @@
   "seeAll": "See all",
   "last7Days": "Last 7 days",
   "stats": {
-    "ordersToday": "Orders today",
+    "ordersToday": "Today's orders",
     "delivered": "Delivered",
-    "unpaidBills": "Unpaid bills"
+    "unpaidBills": "Unpaid bills",
+    "todaysRevenue": "Today's revenue"
   },
   "aiCard": {
     "title": "AI Order Assistant",

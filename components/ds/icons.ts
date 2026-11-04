@@ -38,6 +38,7 @@ export {
   IconCircleX,
   IconInbox,
   IconSearchOff,
+  IconFileInvoice,
   IconWifiOff,
   IconClipboardPlus,
   IconFilePlus,

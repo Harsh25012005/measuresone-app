@@ -11,6 +11,11 @@ import type { Tables, TablesInsert, TablesUpdate } from '../database.types';
  * screens never call `supabase.from()` directly for these entities.
  */
 
+/** YYYY-MM-DD in the device's local time zone (not UTC). */
+function localDateString(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -304,7 +309,7 @@ export const ordersRepo = {
       design_photo_url: order.design_photo_url ?? null,
       design_photo_urls: order.design_photo_urls ?? [],
       measurement_id: order.measurement_id ?? null,
-      order_date: order.order_date ?? created_at.slice(0, 10),
+      order_date: order.order_date ?? localDateString(new Date(created_at)),
       delivery_date: order.delivery_date ?? null,
       trial_date: order.trial_date ?? null,
       status: order.status ?? 'order_taken',

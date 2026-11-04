@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { DSBadge, useBadgeTones } from '../../components/ds/Badge';
+import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
 import { DSButton } from '../../components/ds/Button';
 import { DSSkeletonList } from '../../components/ds/Loading';
 import { DSScreen } from '../../components/ds/Screen';
@@ -37,6 +38,7 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
   const { t } = useTranslation('orders');
   const { colors, scheme } = useTheme();
   const tones = useBadgeTones();
+  const { confirm: confirmDelete, popup: deletePopup } = useConfirmDelete();
   const dark = scheme === 'dark';
 
   /** Labels garment piece counts by type when the linked measurement says so. */
@@ -187,26 +189,21 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
 
   const handleDelete = () => {
     if (!order) return;
-    Alert.alert(
-      t('detail.deleteConfirmTitle'),
-      t('detail.deleteConfirmMessage', { number: order.order_number }),
-      [
-        { text: t('detail.cancel'), style: 'cancel' },
-        {
-          text: t('detail.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await ordersRepo.remove(orderId, shop.id);
-              showToast(t('detail.deleteSuccess'), 'success');
-              navigation.goBack();
-            } catch (err) {
-              showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
-            }
-          },
-        },
-      ]
-    );
+    confirmDelete({
+      title: t('detail.deleteConfirmTitle'),
+      description: t('detail.deleteConfirmMessage', { number: order.order_number }),
+      confirmLabel: t('detail.delete'),
+      cancelLabel: t('detail.cancel'),
+      onConfirm: async () => {
+        try {
+          await ordersRepo.remove(orderId, shop.id);
+          showToast(t('detail.deleteSuccess'), 'success');
+          navigation.goBack();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
+        }
+      },
+    });
   };
 
   const isDelivered = order?.status === 'delivered';
@@ -416,6 +413,7 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
           </View>
         </>
       )}
+      {deletePopup}
     </DSScreen>
   );
 }
