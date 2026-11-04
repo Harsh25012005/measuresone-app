@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -27,6 +27,8 @@ export type DSButtonProps = {
   rightIcon?: boolean | TablerIcon;
   /** Icon-only button: pass a Tabler icon component. Renders a circle of the size's height. */
   icon?: TablerIcon;
+  /** Custom node before the label (e.g. a brand logo that isn't a Tabler icon). */
+  leftNode?: ReactNode;
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
@@ -40,6 +42,7 @@ export function DSButton({
   leftIcon,
   rightIcon,
   icon,
+  leftNode,
   loading = false,
   disabled = false,
   fullWidth = false,
@@ -122,6 +125,7 @@ export function DSButton({
           <ActivityIndicator size="small" color={fg} />
         ) : (
           <View style={[styles.row, { gap: s.gap }]}>
+            {leftNode}
             {LeftIcon ? <LeftIcon size={s.icon} color={fg} strokeWidth={2.25} /> : null}
             {MainIcon ? <MainIcon size={s.icon + 2} color={fg} strokeWidth={2.25} /> : null}
             {title ? (

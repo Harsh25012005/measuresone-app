@@ -1,12 +1,20 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { Button, ImagePickerField, InputField, useToast } from '../../components/ui';
+import { AuthLayout } from '../../components/ds/AuthLayout';
+import { DSButton } from '../../components/ds/Button';
+import { DSImagePicker } from '../../components/ds/ImagePicker';
+import { DSInput } from '../../components/ds/Input';
+import { DSTabs } from '../../components/ds/Tabs';
+import { IconChevronDown } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { uploadImage } from '../../lib/storage';
 import { setAppLanguage, SUPPORTED_LANGUAGES, type AppLanguage } from '../../lib/i18n';
+import { typography } from '../../constants/tokens';
 
 type ShopSetupErrors = { shopName?: string; ownerName?: string };
 
@@ -19,8 +27,8 @@ const LANGUAGE_ENDONYMS: Record<AppLanguage, string> = {
 
 export default function ShopSetupScreen() {
   const { user, refreshShop } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
+  const { colors } = useTheme();
   const { t, i18n } = useTranslation('auth');
   const currentLanguage = (i18n.language as AppLanguage) || 'en';
 
@@ -83,99 +91,74 @@ export default function ShopSetupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-white dark:bg-gray-950">
-      <ScrollView
-        className="flex-1 bg-white dark:bg-gray-950"
-        contentContainerStyle={{ padding: 24, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('shopSetup.title')}</Text>
-        <Text className="font-sans mb-6 text-base text-gray-500 dark:text-gray-400">
-          {t('shopSetup.subtitle')}
+    <AuthLayout scene="shop" title={t('shopSetup.title')} subtitle={t('shopSetup.subtitle')}>
+      <View style={{ gap: 8 }}>
+        <Text style={{ fontFamily: typography.family.semibold, fontSize: 13, color: colors.textSecondary }}>
+          {t('shopSetup.language')}
         </Text>
+        <DSTabs
+          variant="pill"
+          value={currentLanguage}
+          onChange={(k) => setAppLanguage(k as AppLanguage)}
+          items={SUPPORTED_LANGUAGES.map((lang) => ({ key: lang, label: LANGUAGE_ENDONYMS[lang] }))}
+        />
+        <Text style={{ fontFamily: typography.family.regular, fontSize: 12, color: colors.textMuted, marginLeft: 4 }}>
+          {t('shopSetup.languageHint')}
+        </Text>
+      </View>
 
-        <View className="mb-6">
-          <Text className="mb-1.5 text-base font-bold text-gray-600 dark:text-gray-400">
-            {t('shopSetup.language')}
+      <DSInput
+        label={`${t('shopSetup.shopName')} *`}
+        value={shopName}
+        onChangeText={setShopName}
+        placeholder={t('shopSetup.shopNamePlaceholder')}
+        error={errors.shopName}
+      />
+
+      <DSInput
+        label={`${t('shopSetup.ownerName')} *`}
+        value={ownerName}
+        onChangeText={setOwnerName}
+        placeholder={t('shopSetup.ownerNamePlaceholder')}
+        error={errors.ownerName}
+      />
+
+      {/* Progressive disclosure: only the two fields above are required to
+          get into the app. Everything else — logo, address, phone — is an
+          optional expansion the user opts into, not a gate they must clear. */}
+      {showMoreDetails ? (
+        <Animated.View entering={FadeInDown.duration(260)} style={{ gap: 20 }}>
+          <DSImagePicker label={t('shopSetup.shopLogo')} uri={logoUri} onChange={setLogoUri} />
+          <DSInput
+            label={t('shopSetup.address')}
+            value={address}
+            onChangeText={setAddress}
+            placeholder={t('shopSetup.addressPlaceholder')}
+          />
+          <DSInput
+            label={t('shopSetup.phone')}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder={t('shopSetup.phonePlaceholder')}
+            keyboardType="phone-pad"
+          />
+        </Animated.View>
+      ) : (
+        <View style={{ gap: 2 }}>
+          <DSButton
+            title={t('shopSetup.addMoreDetails')}
+            variant="link"
+            size="sm"
+            rightIcon={IconChevronDown}
+            onPress={() => setShowMoreDetails(true)}
+          />
+          <Text style={{ fontFamily: typography.family.regular, fontSize: 13, color: colors.textMuted, marginLeft: 8 }}>
+            {t('shopSetup.addMoreDetailsHint')}
           </Text>
-          <View className="flex-row gap-2">
-            {SUPPORTED_LANGUAGES.map((lang) => {
-              const active = lang === currentLanguage;
-              return (
-                <Pressable
-                  key={lang}
-                  onPress={() => setAppLanguage(lang)}
-                  className={`min-h-[52px] flex-1 items-center justify-center rounded-md border py-3 ${
-                    active ? 'border-primary-600 bg-primary-50 dark:bg-primary-950' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
-                  }`}
-                >
-                  <Text
-                    className={`font-sans text-base font-medium ${
-                      active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
-                    }`}
-                  >
-                    {LANGUAGE_ENDONYMS[lang]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text className="font-sans mt-1.5 text-base text-gray-400 dark:text-gray-500">{t('shopSetup.languageHint')}</Text>
         </View>
+      )}
 
-        <InputField
-          label={t('shopSetup.shopName')}
-          value={shopName}
-          onChangeText={setShopName}
-          placeholder={t('shopSetup.shopNamePlaceholder')}
-          error={errors.shopName}
-          required
-        />
-
-        <InputField
-          label={t('shopSetup.ownerName')}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder={t('shopSetup.ownerNamePlaceholder')}
-          error={errors.ownerName}
-          required
-        />
-
-        {/* Progressive disclosure: only the two fields above are required to
-            get into the app. Everything else — logo, address, phone — is an
-            optional expansion the user opts into, not a gate they must clear. */}
-        {showMoreDetails ? (
-          <View className="mb-2">
-            <ImagePickerField label={t('shopSetup.shopLogo')} uri={logoUri} onChange={setLogoUri} />
-
-            <InputField
-              label={t('shopSetup.address')}
-              value={address}
-              onChangeText={setAddress}
-              placeholder={t('shopSetup.addressPlaceholder')}
-            />
-
-            <InputField
-              label={t('shopSetup.phone')}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder={t('shopSetup.phonePlaceholder')}
-              keyboardType="phone-pad"
-            />
-          </View>
-        ) : (
-          <Pressable onPress={() => setShowMoreDetails(true)} className="mb-6 py-2">
-            <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">
-              {t('shopSetup.addMoreDetails')}
-            </Text>
-            <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">
-              {t('shopSetup.addMoreDetailsHint')}
-            </Text>
-          </Pressable>
-        )}
-
-        <Button title={t('shopSetup.continue')} size="lg" onPress={handleSave} loading={loading} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <DSButton title={t('shopSetup.continue')} size="lg" fullWidth onPress={handleSave} loading={loading} />
+    </AuthLayout>
   );
 }

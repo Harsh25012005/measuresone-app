@@ -14,6 +14,7 @@ import { LoadingSpinner, ToastProvider } from './components/ui';
 import { AuthProvider } from './context/AuthContext';
 import { ProductTourProvider } from './context/ProductTourContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { StatusBarProvider, useStatusBarHero } from './context/StatusBarContext';
 import { RootNavigator } from './navigation/RootNavigator';
 import { initI18n } from './lib/i18n';
 import { initTheme, type ThemeMode } from './lib/theme';
@@ -25,6 +26,9 @@ import { initTheme, type ThemeMode } from './lib/theme';
 function StatusBarBackdrop() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const hero = useStatusBarHero();
+  // Hero screens (blue gradient header) draw behind the status bar themselves.
+  if (hero) return null;
   return (
     <View
       pointerEvents="none"
@@ -43,7 +47,8 @@ function StatusBarBackdrop() {
 
 function ThemedStatusBar() {
   const { scheme } = useTheme();
-  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />;
+  const hero = useStatusBarHero();
+  return <StatusBar style={hero || scheme === 'dark' ? 'light' : 'dark'} />;
 }
 
 export default function App() {
@@ -69,6 +74,7 @@ export default function App() {
 
   return (
     <ThemeProvider initialMode={initialThemeMode}>
+      <StatusBarProvider>
       <SafeAreaProvider>
         <ToastProvider>
           <AuthProvider>
@@ -80,6 +86,7 @@ export default function App() {
         <StatusBarBackdrop />
         <ThemedStatusBar />
       </SafeAreaProvider>
+      </StatusBarProvider>
     </ThemeProvider>
   );
 }

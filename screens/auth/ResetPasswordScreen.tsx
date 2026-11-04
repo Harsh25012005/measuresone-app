@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { Text, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
-import { Button, InputField, useToast } from '../../components/ui';
+import { AuthLayout } from '../../components/ds/AuthLayout';
+import { DSButton } from '../../components/ds/Button';
+import { DSInput } from '../../components/ds/Input';
+import { useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 
 type ResetPasswordErrors = { password?: string; confirmPassword?: string };
 
 export default function ResetPasswordScreen() {
   const { completePasswordReset } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('auth');
 
@@ -42,42 +41,26 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white dark:bg-gray-950"
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 16 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="flex-1 justify-center px-6 py-10">
-          <View className="mb-6 h-14 w-14 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950">
-            <FontAwesome5 name="key" size={20} color="#1D4ED8" />
-          </View>
-          <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('resetPassword.title')}</Text>
-          <Text className="font-sans mb-8 text-base text-gray-500 dark:text-gray-400">{t('resetPassword.instructions')}</Text>
+    <AuthLayout scene="reset" title={t('resetPassword.title')} subtitle={t('resetPassword.instructions')}>
+      <DSInput
+        kind="password"
+        label={t('resetPassword.password')}
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••"
+        error={errors.password}
+      />
 
-          <InputField
-            label={t('resetPassword.password')}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            error={errors.password}
-          />
+      <DSInput
+        kind="password"
+        label={t('resetPassword.confirmPassword')}
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        placeholder="••••••••"
+        error={errors.confirmPassword}
+      />
 
-          <InputField
-            label={t('resetPassword.confirmPassword')}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            error={errors.confirmPassword}
-          />
-
-          <Button title={t('resetPassword.save')} onPress={handleSave} loading={loading} />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <DSButton title={t('resetPassword.save')} size="lg" fullWidth onPress={handleSave} loading={loading} />
+    </AuthLayout>
   );
 }

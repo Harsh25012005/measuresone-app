@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
+import { AppState, Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { BottomSheet, Button, useToast } from '../../components/ui';
+import { AuthLayout } from '../../components/ds/AuthLayout';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSButton } from '../../components/ds/Button';
+import { IconChevronRight, IconMail } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
+import { useTheme } from '../../context/ThemeContext';
+import { typography } from '../../constants/tokens';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -20,9 +24,9 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export default function ConfirmEmailScreen({ navigation, route }: AuthScreenProps<'ConfirmEmail'>) {
   const { email } = route.params;
   const { resendConfirmationEmail } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('auth');
+  const { colors, scheme } = useTheme();
 
   const [resending, setResending] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -99,72 +103,85 @@ export default function ConfirmEmailScreen({ navigation, route }: AuthScreenProp
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-white dark:bg-gray-950"
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingTop: insets.top + 24,
-        paddingBottom: insets.bottom + 24,
-        paddingHorizontal: 24,
-      }}
+    <AuthLayout
+      scene="mail"
+      title={t('confirmEmail.title')}
+      subtitle={t('confirmEmail.subtitle')}
+      footer={
+        <DSButton title={t('confirmEmail.backToLogin')} variant="link" size="sm" onPress={() => navigation.navigate('Login')} />
+      }
+      overlay={
+        <DSBottomSheet visible={showMailPicker} onClose={() => setShowMailPicker(false)} title={t('confirmEmail.chooseMailApp')}>
+          <View style={{ gap: 8, paddingBottom: 4 }}>
+            {mailApps.map((app) => (
+              <Pressable
+                key={app.key}
+                onPress={() => handlePickMailApp(app)}
+                accessibilityRole="button"
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  height: 52,
+                  paddingHorizontal: 20,
+                  borderRadius: 9999,
+                  borderWidth: 1,
+                  backgroundColor: pressed ? colors.primaryTint : colors.bgSubtle,
+                  borderColor: scheme === 'dark' ? '#262626' : colors.borderSubtle,
+                })}
+              >
+                <Text style={{ fontFamily: typography.family.semibold, fontSize: 15, color: colors.textPrimary }}>{app.label}</Text>
+                <IconChevronRight size={16} color={colors.textFaint} />
+              </Pressable>
+            ))}
+          </View>
+        </DSBottomSheet>
+      }
     >
-      <View className="flex-1 justify-center">
-        <View className="mb-6 h-14 w-14 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950">
-          <FontAwesome5 name="envelope-open-text" size={22} color="#1D4ED8" />
-        </View>
-
-        <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('confirmEmail.title')}</Text>
-        <Text className="font-sans mb-2 text-base text-gray-500 dark:text-gray-400">
-          {t('confirmEmail.subtitle')}
+      {/* the address, shown as a pill so it's easy to double-check */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          alignSelf: 'flex-start',
+          maxWidth: '100%',
+          paddingHorizontal: 14,
+          height: 40,
+          borderRadius: 9999,
+          backgroundColor: colors.primaryTint,
+        }}
+      >
+        <IconMail size={16} color={colors.primary} />
+        <Text style={{ fontFamily: typography.family.semibold, fontSize: 14, color: colors.textPrimary, flexShrink: 1 }} numberOfLines={1}>
+          {email}
         </Text>
-        <Text className="mb-8 text-base font-semibold text-gray-900 dark:text-gray-50">{email}</Text>
-
-        <Button title={t('confirmEmail.openMailApp')} onPress={handleOpenMail} />
-
-        <View className="mt-3">
-          <Button
-            title={t('confirmEmail.alreadyConfirmed')}
-            variant="secondary"
-            onPress={handleCheck}
-            loading={checking}
-          />
-        </View>
-
-        <View className="mt-8 flex-row items-center justify-center gap-1">
-          <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('confirmEmail.noEmail')}</Text>
-          <Pressable onPress={handleResend} disabled={resending || cooldown > 0}>
-            <Text
-              className={`text-base font-semibold ${
-                resending || cooldown > 0 ? 'text-gray-400 dark:text-gray-600' : 'text-primary-600'
-              }`}
-            >
-              {cooldown > 0 ? t('confirmEmail.resendIn', { seconds: cooldown }) : t('confirmEmail.resend')}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Pressable className="mt-6 items-center" onPress={() => navigation.navigate('Login')}>
-          <Text className="text-base font-semibold text-gray-500 dark:text-gray-400">{t('confirmEmail.backToLogin')}</Text>
-        </Pressable>
       </View>
 
-      <BottomSheet visible={showMailPicker} onClose={() => setShowMailPicker(false)}>
-        <Text className="mb-3 text-base font-semibold text-gray-900 dark:text-gray-50">
-          {t('confirmEmail.chooseMailApp')}
+      <View style={{ gap: 12 }}>
+        <DSButton title={t('confirmEmail.openMailApp')} size="lg" fullWidth leftIcon={IconMail} onPress={handleOpenMail} />
+        <DSButton
+          title={t('confirmEmail.alreadyConfirmed')}
+          variant="line"
+          size="lg"
+          fullWidth
+          onPress={handleCheck}
+          loading={checking}
+        />
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 4 }}>
+        <Text style={{ fontFamily: typography.family.regular, fontSize: 14, color: colors.textMuted }}>
+          {t('confirmEmail.noEmail')}
         </Text>
-        <View className="gap-2">
-          {mailApps.map((app) => (
-            <Pressable
-              key={app.key}
-              onPress={() => handlePickMailApp(app)}
-              className="flex-row items-center justify-between rounded-md border border-gray-200 bg-gray-50 p-3.5 active:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:active:bg-gray-700"
-            >
-              <Text className="text-base font-semibold text-gray-800 dark:text-gray-200">{app.label}</Text>
-              <FontAwesome5 name="chevron-right" size={12} color="#9CA3AF" />
-            </Pressable>
-          ))}
-        </View>
-      </BottomSheet>
-    </ScrollView>
+        <DSButton
+          title={cooldown > 0 ? t('confirmEmail.resendIn', { seconds: cooldown }) : t('confirmEmail.resend')}
+          variant="link"
+          size="sm"
+          disabled={resending || cooldown > 0}
+          onPress={handleResend}
+        />
+      </View>
+    </AuthLayout>
   );
 }

@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { Text, View, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
+import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, GoogleIcon, InputField, useToast } from '../../components/ui';
+import { AuthLayout, OrDivider } from '../../components/ds/AuthLayout';
+import { DSButton } from '../../components/ds/Button';
+import { DSInput } from '../../components/ds/Input';
+import { GoogleIcon, useToast } from '../../components/ui';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { typography } from '../../constants/tokens';
 import type { AuthScreenProps } from '../../navigation/types';
 
 export default function LoginScreen({ navigation }: AuthScreenProps<'Login'>) {
   const { signInWithEmail, signInWithGoogle } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('auth');
+  const { colors } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,73 +71,56 @@ export default function LoginScreen({ navigation }: AuthScreenProps<'Login'>) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white dark:bg-gray-950"
+    <AuthLayout
+      scene="login"
+      title={t('login.appName')}
+      subtitle={t('login.subtitle')}
+      footer={
+        <>
+          <Text style={{ fontFamily: typography.family.regular, fontSize: 14, color: colors.textMuted }}>
+            {t('login.noAccount')}
+          </Text>
+          <DSButton title={t('login.signUp')} variant="link" size="sm" onPress={() => navigation.navigate('Signup')} />
+        </>
+      }
     >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="flex-1 justify-center px-6 py-10">
-          <View className="mb-6 h-14 w-14 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950">
-            <FontAwesome5 name="tshirt" size={22} color="#1D4ED8" />
-          </View>
-          <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('login.appName')}</Text>
-          <Text className="font-sans mb-8 text-base text-gray-500 dark:text-gray-400">{t('login.subtitle')}</Text>
+      <DSInput
+        label={t('login.email')}
+        value={email}
+        onChangeText={setEmail}
+        placeholder={t('login.emailPlaceholder')}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        error={errors.email}
+      />
 
-          <InputField
-            label={t('login.email')}
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t('login.emailPlaceholder')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            error={errors.email}
-          />
-
-          <InputField
-            label={t('login.password')}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            error={errors.password}
-          />
-
-          <Pressable
-            onPress={() => navigation.navigate('ForgotPassword')}
-            hitSlop={10}
-            className="mb-6 min-h-[44px] items-end justify-center self-end"
-          >
-            <Text className="text-base font-medium text-primary-600">{t('login.forgotPassword')}</Text>
-          </Pressable>
-
-          <Button title={t('login.signIn')} size="lg" onPress={handleLogin} loading={loading} />
-
-          <View className="my-6 flex-row items-center">
-            <View className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-            <Text className="font-sans mx-3 text-base text-gray-400 dark:text-gray-500">{t('login.or')}</Text>
-            <View className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-          </View>
-
-          <Button
-            title={t('login.continueWithGoogle')}
-            variant="google"
-            size="lg"
-            onPress={handleGoogle}
-            loading={googleLoading}
-            icon={<GoogleIcon size={20} />}
-          />
-
-          <View className="mt-8 flex-row items-center justify-center gap-1">
-            <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('login.noAccount')}</Text>
-            <Pressable onPress={() => navigation.navigate('Signup')} hitSlop={10} className="min-h-[44px] justify-center">
-              <Text className="text-base font-semibold text-primary-600">{t('login.signUp')}</Text>
-            </Pressable>
-          </View>
+      <View>
+        <DSInput
+          kind="password"
+          label={t('login.password')}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          error={errors.password}
+        />
+        <View style={{ alignSelf: 'flex-end', marginTop: 4 }}>
+          <DSButton title={t('login.forgotPassword')} variant="link" size="sm" onPress={() => navigation.navigate('ForgotPassword')} />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+
+      <DSButton title={t('login.signIn')} size="lg" fullWidth onPress={handleLogin} loading={loading} />
+
+      <OrDivider label={t('login.or')} />
+
+      <DSButton
+        title={t('login.continueWithGoogle')}
+        variant="black"
+        size="lg"
+        fullWidth
+        onPress={handleGoogle}
+        loading={googleLoading}
+        leftNode={<GoogleIcon size={20} />}
+      />
+    </AuthLayout>
   );
 }
