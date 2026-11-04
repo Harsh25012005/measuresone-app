@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthNavigator } from './AuthNavigator';
 import ShopSetupScreen from '../screens/onboarding/ShopSetupScreen';
 import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
+import DesignSystemScreen from '../screens/DesignSystemScreen';
 import { MainNavigator } from './MainNavigator';
 import type { RootStackParamList } from './types';
 
@@ -21,7 +22,9 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName="DesignSystem" screenOptions={{ headerShown: false }}>
+        {/* Redesign component page — opens first until the new screens are built. */}
+        <Stack.Screen name="DesignSystem" component={DesignSystemScreen} />
         {!session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         ) : passwordRecovery ? (

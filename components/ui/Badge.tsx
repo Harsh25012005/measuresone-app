@@ -1,5 +1,5 @@
 import { View, Text } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { colors, darkColors } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';

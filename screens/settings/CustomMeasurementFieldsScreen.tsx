@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { Button, Card, EmptyState, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { useShop } from '../../context/AuthContext';

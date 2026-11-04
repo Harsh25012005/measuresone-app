@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Text, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { Button, InputField, useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';

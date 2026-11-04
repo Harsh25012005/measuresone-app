@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from './ds/legacyIcons';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-    fontFamily: 'GoogleSansFlex_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 15,
     lineHeight: 20,
     color: '#FFFFFF',

@@ -3,7 +3,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, Vie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { Button, Dropdown, EmptyState, Header, InputField, QuickAddCustomerSheet, RadioGroup, useToast } from '../../components/ui';
 import { customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';

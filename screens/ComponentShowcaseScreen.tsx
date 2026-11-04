@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../components/ds/legacyIcons';
 import {
   Avatar,
   Badge,

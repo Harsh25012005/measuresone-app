@@ -3,7 +3,7 @@ import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-na
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { FontAwesome5, Ionicons } from '../../components/ds/legacyIcons';
 import { Avatar, Card, EmptyState,
   FilterNotice, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
 import { customersRepo, billsRepo } from '../../lib/data/repository';

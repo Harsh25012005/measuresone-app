@@ -3,7 +3,7 @@ import { ScrollView, Text, View, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { Header, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { customersRepo, ordersRepo } from '../../lib/data/repository';

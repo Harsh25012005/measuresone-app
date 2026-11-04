@@ -1,5 +1,5 @@
 import { Pressable, TextInput, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTheme } from '../../context/ThemeContext';
 
 export type SearchBarProps = {

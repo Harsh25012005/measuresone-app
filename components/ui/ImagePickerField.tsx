@@ -1,6 +1,6 @@
 import { Image, Pressable, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 

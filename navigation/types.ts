@@ -69,6 +69,7 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
+  DesignSystem: undefined;
   Auth: undefined;
   ShopSetup: undefined;
   Main: undefined;

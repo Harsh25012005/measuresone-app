@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable } from 'react-native';
 import type { KeyboardTypeOptions } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTheme } from '../../context/ThemeContext';
 
 export type InputFieldProps = {

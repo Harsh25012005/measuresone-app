@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 
 export type VoiceListeningOverlayProps = {
   visible: boolean;

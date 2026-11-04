@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 
 export type FilterNoticeProps = {

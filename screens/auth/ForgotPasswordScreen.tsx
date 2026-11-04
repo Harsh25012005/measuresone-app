@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { Button, Header, InputField, useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';

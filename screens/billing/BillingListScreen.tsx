@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { Badge, Card, EmptyState, FilterNotice, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
 import { billsRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';

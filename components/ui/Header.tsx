@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../ds/legacyIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { SearchBar, type SearchBarProps } from './SearchBar';

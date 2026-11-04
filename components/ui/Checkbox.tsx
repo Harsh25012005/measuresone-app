@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 
 export type CheckboxProps = {
   checked: boolean;

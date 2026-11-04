@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { FlatList, RefreshControl, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';

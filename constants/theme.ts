@@ -54,10 +54,10 @@ export const darkColors = {
 };
 
 export const fonts = {
-  regular: 'GoogleSansFlex_400Regular',
-  medium: 'GoogleSansFlex_500Medium',
-  semibold: 'GoogleSansFlex_600SemiBold',
-  bold: 'GoogleSansFlex_700Bold',
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
 } as const;
 
 export const spacing = {
@@ -70,8 +70,11 @@ export const spacing = {
 } as const;
 
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 16,
+  sm: 9999,
+  md: 9999,
+  lg: 9999,
   full: 9999,
+  textarea: 16,
+  card: 24,
+  sheet: 32,
 } as const;

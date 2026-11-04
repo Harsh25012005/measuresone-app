@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert, ScrollView, Text, View, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { Avatar, Badge, Card, EmptyState, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { customersRepo, ordersRepo, billsRepo, customerMeasurementsRepo, universalTemplatesRepo } from '../../lib/data/repository';

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Keyboard, Modal as RNModal, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReactNode } from 'react';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from '../ds/legacyIcons';
 import { useTheme } from '../../context/ThemeContext';
 
 export type ModalProps = {

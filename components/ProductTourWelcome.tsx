@@ -1,5 +1,5 @@
 import { Modal, Pressable, Text, View } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from './ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { Button } from './ui';
 import { useTheme } from '../context/ThemeContext';

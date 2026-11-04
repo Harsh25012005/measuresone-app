@@ -5,11 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
-  GoogleSansFlex_400Regular,
-  GoogleSansFlex_500Medium,
-  GoogleSansFlex_600SemiBold,
-  GoogleSansFlex_700Bold,
-} from '@expo-google-fonts/google-sans-flex';
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { LoadingSpinner, ToastProvider } from './components/ui';
 import { AuthProvider } from './context/AuthContext';
 import { ProductTourProvider } from './context/ProductTourContext';
@@ -48,10 +48,10 @@ function ThemedStatusBar() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    GoogleSansFlex_400Regular,
-    GoogleSansFlex_500Medium,
-    GoogleSansFlex_600SemiBold,
-    GoogleSansFlex_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
   });
   const [i18nReady, setI18nReady] = useState(false);
   const [initialThemeMode, setInitialThemeMode] = useState<ThemeMode | null>(null);

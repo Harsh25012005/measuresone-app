@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { FontAwesome5, Ionicons } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import { Button, EmptyState, LoadingSpinner, useToast } from '../../components/ui';
 import { ordersRepo, customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
