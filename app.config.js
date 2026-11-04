@@ -4,7 +4,7 @@ module.exports = {
   expo: {
     name: 'MeasuresOne',
     slug: 'measuresone',
-    owner: 'harsh22772501',
+    owner: 'is_harsh2501',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
@@ -85,7 +85,7 @@ module.exports = {
       supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
       eas: {
-        projectId: '05f9df78-ee2e-44d3-a08e-a929cf01839f',
+        projectId: '4623e4e2-cc7b-421b-8aff-d3021c25c452',
       },
     },
   },
