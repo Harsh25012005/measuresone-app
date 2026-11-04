@@ -3,7 +3,7 @@ import { Pressable } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 import { colors as legacyColors, darkColors } from '../../constants/theme';
-import { primary, radii, typography } from '../../constants/tokens';
+import { primary, radii, status, typography } from '../../constants/tokens';
 import type { PaymentStatus } from '../../types';
 import { DSBadge, useBadgeTones } from './Badge';
 import { IconCalendarEvent, IconChevronRight } from './icons';
@@ -51,7 +51,7 @@ function Row({
 function NumberCircle({ value, bg, fg, size = 44 }: { value: string; bg: string; fg: string; size?: number }) {
   return (
     <View style={[styles.circle, { backgroundColor: bg, width: size, height: size }]}>
-      <Text style={[styles.circleText, { color: fg }]}>
+      <Text numberOfLines={1} style={[styles.circleText, { color: fg, fontSize: value.length <= 3 ? 13 : value.length === 4 ? 11 : 9 }]}>
         {value}
       </Text>
     </View>
@@ -60,7 +60,7 @@ function NumberCircle({ value, bg, fg, size = 44 }: { value: string; bg: string;
 
 // ───────────────────────────────── Clients
 
-export type ClientItem = { id: string; number: string; name: string; phone: string };
+export type ClientItem = { id: string; number: string; name: string; phone: string; /** Amount still owed; shown in red when above 0. */ balance?: number };
 
 export function DSClientList({ items, onPressItem }: { items: ClientItem[]; onPressItem?: (c: ClientItem) => void }) {
   const { colors } = useTheme();
@@ -77,6 +77,9 @@ export function DSClientList({ items, onPressItem }: { items: ClientItem[]; onPr
               {c.phone}
             </Text>
           </View>
+          {c.balance && c.balance > 0 ? (
+            <Text style={{ fontFamily: f.bold, fontSize: 14, color: status.danger[600] }}>{money(c.balance)}</Text>
+          ) : null}
           <IconChevronRight size={16} color={colors.textFaint} />
         </Row>
       ))}

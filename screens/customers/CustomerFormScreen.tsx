@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSInput } from '../../components/ds/Input';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { useToast } from '../../components/ui';
 import { customersRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import type { CustomersScreenProps } from '../../navigation/types';
@@ -108,28 +112,16 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
     }
   };
 
-  if (fetching) return <LoadingSpinner fullScreen text={t('form.loading')} />;
-
   return (
-    <>
-      <Header
-        title={t(isEditing ? 'form.editTitle' : 'form.title')}
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView
-          className="flex-1 bg-white dark:bg-gray-950"
-          contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
-          keyboardShouldPersistTaps="handled"
-        >
+    <DSFormScreen title={t(isEditing ? 'form.editTitle' : 'form.title')} onBack={() => navigation.goBack()}>
+      {fetching ? (
+        <DSSkeletonList rows={4} />
+      ) : (
+        <>
           {/* Order matches how a shop owner works from their paper book:
               client number first, then name, phone, address. */}
-          <InputField
-            label={t('form.bookNumberLabel')}
+          <DSInput
+            label={`${t('form.bookNumberLabel')} *`}
             value={bookNumber}
             onChangeText={(v) => {
               setBookNumber(v);
@@ -137,18 +129,16 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
             }}
             placeholder={t('form.bookNumberPlaceholder')}
             error={bookNumberError}
-            required
           />
-          <InputField
-            label={t('form.nameLabel')}
+          <DSInput
+            label={`${t('form.nameLabel')} *`}
             value={name}
             onChangeText={setName}
             placeholder={t('form.namePlaceholder')}
             error={error}
-            required
           />
-          <InputField
-            label={t('form.phoneLabel')}
+          <DSInput
+            label={`${t('form.phoneLabel')} *`}
             value={phone}
             onChangeText={(v) => {
               setPhone(v);
@@ -157,23 +147,26 @@ export default function CustomerFormScreen({ navigation, route }: CustomersScree
             placeholder={t('form.phonePlaceholder')}
             keyboardType="phone-pad"
             error={phoneError}
-            helperText={!phoneError && phoneDigits.length === 10 ? t('form.phoneValid') : undefined}
-            required
+            helper={!phoneError && phoneDigits.length === 10 ? t('form.phoneValid') : undefined}
           />
-          <InputField
+          <DSInput
+            kind="textarea"
             label={t('form.addressLabel')}
             value={address}
             onChangeText={setAddress}
             placeholder={t('form.addressPlaceholder')}
           />
-          <Button
-            title={t(isEditing ? 'form.updateCustomer' : 'form.saveCustomer')}
-            size="lg"
-            onPress={handleSave}
-            loading={loading}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+          <View style={{ marginTop: 8 }}>
+            <DSButton
+              title={t(isEditing ? 'form.updateCustomer' : 'form.saveCustomer')}
+              size="lg"
+              fullWidth
+              onPress={handleSave}
+              loading={loading}
+            />
+          </View>
+        </>
+      )}
+    </DSFormScreen>
   );
 }

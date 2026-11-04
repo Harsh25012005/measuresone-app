@@ -1,10 +1,18 @@
 import { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Button, Card, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSInput } from '../../components/ds/Input';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { DSTabs } from '../../components/ds/Tabs';
+import { IconRuler2 } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { typography } from '../../constants/tokens';
 import {
   universalTemplatesRepo,
   universalFieldsRepo,
@@ -24,6 +32,7 @@ export default function MeasurementFormScreen({
   const { t } = useTranslation('customers');
   const shop = useShop();
   const showToast = useToast();
+  const { colors } = useTheme();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -55,9 +64,9 @@ export default function MeasurementFormScreen({
         }
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to load measurements', 'error');
+      showToast(err instanceof Error ? err.message : t('measurementForm.loadError'), 'error');
     }
-  }, [customerId, shop.id, showToast]);
+  }, [customerId, shop.id, showToast, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,7 +81,7 @@ export default function MeasurementFormScreen({
       const fList = await universalFieldsRepo.listForTemplate(templateId);
       setFields(fList);
     } catch {
-      showToast('Could not load fields for template', 'error');
+      showToast(t('measurementForm.fieldsError'), 'error');
     }
   };
 
@@ -87,7 +96,7 @@ export default function MeasurementFormScreen({
 
   const handleSave = async () => {
     if (!selectedTemplateId) {
-      showToast('Please select a measurement template', 'error');
+      showToast(t('measurementForm.selectTemplate'), 'error');
       return;
     }
 
@@ -107,103 +116,61 @@ export default function MeasurementFormScreen({
         measurements: numericMeasurements,
       });
 
-      showToast('Measurement profile saved', 'success');
+      showToast(t('measurementForm.saved'), 'success');
       navigation.goBack();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Could not save measurements', 'error');
+      showToast(err instanceof Error ? err.message : t('measurementForm.saveError'), 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-        <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
-        <LoadingSpinner />
-      </View>
-    );
-  }
+  const label = (text: string) => (
+    <Text style={{ fontFamily: typography.family.semibold, fontSize: 13, color: colors.textSecondary, marginBottom: -8 }}>{text}</Text>
+  );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="bg-gray-50 dark:bg-gray-950"
-    >
-      <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
-
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 224, gap: 20 }}>
-        {/* Template Selector */}
-        <View className="gap-2">
-          <Text className="text-sm font-semibold text-gray-900 dark:text-white">
-            Which template?
-          </Text>
-
-          <View className="flex-row flex-wrap gap-2">
-            {templates.map((tmpl) => {
-              const active = tmpl.id === selectedTemplateId;
-              return (
-                <Pressable
-                  key={tmpl.id}
-                  onPress={() => handleSelectTemplate(tmpl.id)}
-                  className={`rounded-xl border px-4 py-3 ${
-                    active
-                      ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
-                      : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'
-                  }`}
-                >
-                  <Text
-                    className={`text-sm font-semibold ${
-                      active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {tmpl.template_name}
-                  </Text>
-                </Pressable>
-              );
-            })}
+    <DSFormScreen title={t('measurementForm.title')} onBack={() => navigation.goBack()}>
+      {loading ? (
+        <DSSkeletonList rows={4} />
+      ) : (
+        <>
+          {/* Template selector */}
+          <View style={{ gap: 12 }}>
+            {label(t('measurementForm.whichTemplate'))}
+            <DSTabs
+              variant="chip"
+              value={selectedTemplateId ?? ''}
+              onChange={handleSelectTemplate}
+              items={templates.map((tmpl) => ({ key: tmpl.id, label: tmpl.template_name }))}
+            />
           </View>
-        </View>
 
-        {/* Fields list */}
-        {selectedTemplateId && (
-          <View className="gap-3">
-            <Text className="text-sm font-semibold text-gray-900 dark:text-white">
-              Measurement Values (Numeric)
-            </Text>
-
-            {fields.length === 0 ? (
-              <Card className="p-4 items-center">
-                <Text className="text-sm text-gray-500">
-                  No fields defined for this template. Add fields in Settings → Universal Measurements.
-                </Text>
-              </Card>
-            ) : (
-              <Card className="p-4 gap-3">
-                {fields.map((f) => (
-                  <View key={f.id} className="flex-row items-center justify-between">
-                    <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-1 mr-3">
-                      {f.field_name}
-                    </Text>
-
-                    <View className="w-32">
-                      <InputField
-                        placeholder="0"
+          {/* Fields */}
+          {selectedTemplateId ? (
+            <>
+              {label(t('measurementForm.values'))}
+              {fields.length === 0 ? (
+                <DSEmptyState variant="compact" icon={IconRuler2} title={t('measurementForm.noFields')} />
+              ) : (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 22 }}>
+                  {fields.map((f) => (
+                    <View key={f.id} style={{ width: '47.5%' }}>
+                      <DSInput
+                        label={f.field_name}
                         keyboardType="decimal-pad"
                         value={values[f.field_name] ?? ''}
                         onChangeText={(text) => handleValueChange(f.field_name, text)}
                       />
                     </View>
-                  </View>
-                ))}
-              </Card>
-            )}
-
-            <Button title="Save Measurements" loading={saving} onPress={handleSave} className="mt-4" />
-          </View>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+                  ))}
+                </View>
+              )}
+              <DSButton title={t('measurementForm.save')} size="lg" fullWidth loading={saving} onPress={handleSave} />
+            </>
+          ) : null}
+        </>
+      )}
+    </DSFormScreen>
   );
 }

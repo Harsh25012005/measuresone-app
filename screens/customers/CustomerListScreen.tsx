@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5, Ionicons } from '../../components/ds/legacyIcons';
-import { Avatar, Card, EmptyState,
-  FilterNotice, Header, LoadingSpinner, SearchBar, useToast } from '../../components/ui';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSClientList } from '../../components/ds/Lists';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSRadioGroup } from '../../components/ds/Selection';
+import { DSScreen, GlassSearch } from '../../components/ds/Screen';
+import { IconAdjustmentsHorizontal, IconPlus, IconSearchOff, IconUsers } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { customersRepo, billsRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
-import { formatCurrency } from '../../lib/format';
-import { haptics } from '../../lib/haptics';
 import type { CustomersScreenProps } from '../../navigation/types';
 import type { CustomerWithBalance } from '../../types';
 
@@ -23,15 +25,14 @@ async function fetchCustomersWithBalance(shopId: string): Promise<CustomerWithBa
 
 export default function CustomerListScreen({ navigation }: CustomersScreenProps<'CustomerList'>) {
   const { t } = useTranslation('customers');
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const shop = useShop();
-  const [customers, setCustomers] = useState<CustomerWithBalance[]>([]);
+  const [customers, setCustomers] = useState<(CustomerWithBalance & { book_number?: string | null })[]>([]);
   const [search, setSearch] = useState('');
   const [balanceOnly, setBalanceOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -60,124 +61,66 @@ export default function CustomerListScreen({ navigation }: CustomersScreenProps<
       (!balanceOnly || c.balance > 0)
   );
 
-  if (loading) return <LoadingSpinner fullScreen text={t('list.loading')} />;
-
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header
-        showBack={false}
-        title={t('list.title')}
-        searchProps={{
-          value: search,
-          onChangeText: setSearch,
-          placeholder: t('list.searchPlaceholder'),
-          onFilterPress: () => setShowFilterModal(true),
-          hasActiveFilter: balanceOnly,
-        }}
-      />
-
-      {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <Pressable
-          className="flex-1 justify-end bg-black/40"
-          onPress={() => setShowFilterModal(false)}
+    <DSScreen
+      title={t('list.title')}
+      actions={[
+        { icon: IconAdjustmentsHorizontal, label: t('list.filterModalTitle'), badge: balanceOnly, onPress: () => setShowFilter(true) },
+        { icon: IconPlus, label: t('list.addCustomer'), onPress: () => navigation.navigate('CustomerForm') },
+      ]}
+      headerExtra={<GlassSearch value={search} onChangeText={setSearch} placeholder={t('list.searchPlaceholder')} />}
+    >
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={7} />
+        </View>
+      ) : filtered.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
         >
-          <Pressable
-            className="rounded-t-2xl bg-white p-5 gap-4 dark:bg-gray-900"
-            style={{ paddingBottom: insets.bottom + 20 }}
-            onPress={() => {}}
-          >
-            <View className="flex-row items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-              <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{t('list.filterModalTitle')}</Text>
-              {balanceOnly ? (
-                <Pressable onPress={() => setBalanceOnly(false)}>
-                  <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('list.reset')}</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View className="gap-2">
-              <Pressable
-                onPress={() => {
-                  setBalanceOnly(false);
-                  setShowFilterModal(false);
-                }}
-                className={`flex-row items-center justify-between rounded-lg border p-3.5 ${
-                  !balanceOnly ? 'border-primary-600 bg-primary-50 dark:bg-primary-950' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
-                }`}
-              >
-                <Text className={`text-base font-semibold ${!balanceOnly ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {t('list.allCustomers')}
-                </Text>
-                {!balanceOnly ? <FontAwesome5 name="check" size={14} color="#1D4ED8" /> : null}
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  setBalanceOnly(true);
-                  setShowFilterModal(false);
-                }}
-                className={`flex-row items-center justify-between rounded-lg border p-3.5 ${
-                  balanceOnly ? 'border-primary-600 bg-primary-50 dark:bg-primary-950' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
-                }`}
-              >
-                <Text className={`text-base font-semibold ${balanceOnly ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {t('list.hasBalanceFilter')}
-                </Text>
-                {balanceOnly ? <FontAwesome5 name="check" size={14} color="#1D4ED8" /> : null}
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={
-          filtered.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 10 }
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="users"
+          <DSEmptyState
+            icon={search ? IconSearchOff : IconUsers}
             title={search ? t('list.emptySearchTitle') : t('list.emptyTitle')}
-            description={
-              search
-                ? t('list.emptySearchDescription')
-                : t('list.emptyDescription')
-            }
+            description={search ? t('list.emptySearchDescription') : t('list.emptyDescription')}
             actionLabel={search ? undefined : t('list.addCustomer')}
             onAction={search ? undefined : () => navigation.navigate('CustomerForm')}
           />
-        }
-        renderItem={({ item }) => (
-          <Card onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id })}>
-            <View className="flex-row items-center">
-              <Avatar name={item.name} size="md" />
-              <View className="ml-3 flex-1">
-                <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{item.name}</Text>
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{item.phone ?? t('list.noPhone')}</Text>
-              </View>
-              {item.balance > 0 ? (
-                <Text className="ml-2 text-base font-semibold text-danger">
-                  {formatCurrency(item.balance)}
-                </Text>
-              ) : (
-                <Text className="ml-2 font-sans text-base text-success">{t('list.settled')}</Text>
-              )}
-            </View>
-          </Card>
-        )}
-      />
-    </View>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
+        >
+          <DSClientList
+            items={filtered.map((c) => ({
+              id: c.id,
+              number: c.book_number || '—',
+              name: c.name,
+              phone: c.phone ?? t('list.noPhone'),
+              balance: c.balance,
+            }))}
+            onPressItem={(c) => navigation.navigate('CustomerDetail', { customerId: c.id })}
+          />
+        </ScrollView>
+      )}
+
+      <DSBottomSheet visible={showFilter} onClose={() => setShowFilter(false)} title={t('list.filterModalTitle')}>
+        <View style={{ paddingTop: 12, paddingBottom: 16 }}>
+          <DSRadioGroup
+            value={balanceOnly ? 'balance' : 'all'}
+            onChange={(v) => {
+              setBalanceOnly(v === 'balance');
+              setShowFilter(false);
+            }}
+            options={[
+              { value: 'all', label: t('list.allCustomers') },
+              { value: 'balance', label: t('list.hasBalanceFilter') },
+            ]}
+          />
+        </View>
+      </DSBottomSheet>
+    </DSScreen>
   );
 }

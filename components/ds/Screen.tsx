@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -128,6 +128,26 @@ export function DSScreen({ title, subtitle, onBack, actions = [], headerExtra, c
 
       <View style={[styles.sheet, { backgroundColor: colors.bgPage }]}>{children}</View>
     </View>
+  );
+}
+
+/**
+ * Form page: black header + sheet holding a scrollable, keyboard-aware form.
+ * Children are laid out in a column with 20px gaps.
+ */
+export function DSFormScreen({ title, subtitle, onBack, actions, children }: Omit<DSScreenProps, 'headerExtra'>) {
+  return (
+    <DSScreen title={title} subtitle={subtitle} onBack={onBack} actions={actions}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingTop: 28, paddingBottom: 60, gap: 20 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </DSScreen>
   );
 }
 

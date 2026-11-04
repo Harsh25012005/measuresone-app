@@ -25,7 +25,7 @@
     "measurements": "Measurements",
     "addShort": "+ Add",
     "noMeasurementsTitle": "No measurements yet",
-    "noMeasurementsDescription": "Save a measurement set to speed up future orders",
+    "noMeasurementsDescription": "Add measurements once and reuse them for every order.",
     "addMeasurement": "Add Measurement",
     "updated": "Updated {{date}}",
     "measurementSummary": "Chest {{chest}} · Waist {{waist}} · Shoulder {{shoulder}} · Length {{length}} · Sleeve {{sleeve}}",
@@ -68,7 +68,14 @@
       "shoulder": "Shoulder",
       "length": "Length",
       "sleeve": "Sleeve"
-    }
+    },
+    "call": "Call",
+    "newOrderAction": "New order",
+    "measurementsAction": "Measurements",
+    "clientNumber": "Client no.",
+    "editMeasurements": "Edit",
+    "addMeasurements": "Add",
+    "universalProfile": "Universal profile"
   },
   "quickAdd": {
     "title": "Add Client",
@@ -103,102 +110,15 @@
     "addMeasurementsPromptNo": "Not Now"
   },
   "measurementForm": {
-    "title": "New Measurement",
-    "editTitle": "Edit Measurement",
-    "loading": "Loading measurement...",
-    "loadError": "Could not load measurement",
-    "updateMeasurement": "Update Measurement",
-    "customFieldsLabel": "Custom Fields",
-    "addCustomField": "Add custom field",
-    "noCustomFields": "No custom fields added yet",
-    "customFieldLabelLabel": "Field Name",
-    "customFieldLabelPlaceholder": "e.g. Cuff Width",
-    "customFieldValueLabel": "Value",
-    "customFieldValuePlaceholder": "e.g. 2.5",
-    "garmentTypeLabel": "Garment Type",
-    "garmentTypePlaceholder": "Select garment type",
-    "garmentTypeRequired": "Garment type is required",
-    "notesLabel": "Notes",
-    "notesPlaceholder": "Any additional fitting notes",
-    "saveMeasurement": "Save Measurement",
-    "saveSuccess": "Measurement saved",
-    "saveError": "Could not save measurement",
-    "garmentTypes": {
-      "shirt": "Shirt",
-      "pant": "Pant",
-      "shirtPant": "Shirt + Pant"
-    },
-    "shirtSection": "Shirt Measurements",
-    "pantSection": "Pant Measurements",
-    "fieldsSection": "Measurements",
-    "noFieldsDefined": "No measurement fields set up yet. Add some from Settings → Custom Measurement Fields.",
-    "addDefaultFields": "+ Add default fields",
-    "selectGarmentTypeFirst": "Select a garment type above to start adding measurement fields.",
-    "fields": {
-      "chest": {
-        "label": "Chest (in)",
-        "placeholder": "e.g. 38"
-      },
-      "shoulder": {
-        "label": "Shoulder (in)",
-        "placeholder": "e.g. 17"
-      },
-      "sleeve": {
-        "label": "Sleeve Length (in)",
-        "placeholder": "e.g. 24"
-      },
-      "shirtLength": {
-        "label": "Shirt Length (in)",
-        "placeholder": "e.g. 29"
-      },
-      "collar": {
-        "label": "Collar (in)",
-        "placeholder": "e.g. 15"
-      },
-      "cuff": {
-        "label": "Cuff (in)",
-        "placeholder": "e.g. 9"
-      },
-      "biceps": {
-        "label": "Biceps (in)",
-        "placeholder": "e.g. 14"
-      },
-      "stomach": {
-        "label": "Stomach (in)",
-        "placeholder": "e.g. 36"
-      },
-      "seat": {
-        "label": "Seat (in)",
-        "placeholder": "e.g. 38"
-      },
-      "waist": {
-        "label": "Waist (in)",
-        "placeholder": "e.g. 32"
-      },
-      "pantLength": {
-        "label": "Pant Length (in)",
-        "placeholder": "e.g. 40"
-      },
-      "hip": {
-        "label": "Hip (in)",
-        "placeholder": "e.g. 38"
-      },
-      "thigh": {
-        "label": "Thigh (in)",
-        "placeholder": "e.g. 22"
-      },
-      "knee": {
-        "label": "Knee (in)",
-        "placeholder": "e.g. 16"
-      },
-      "bottom": {
-        "label": "Bottom (in)",
-        "placeholder": "e.g. 14"
-      },
-      "crotch": {
-        "label": "Crotch (in)",
-        "placeholder": "e.g. 11"
-      }
-    }
+    "title": "Measurements",
+    "whichTemplate": "Which template?",
+    "values": "Measurement values",
+    "noFields": "No fields in this template. Add fields in Settings → Universal Measurements.",
+    "save": "Save measurements",
+    "saved": "Measurements saved",
+    "selectTemplate": "Please select a measurement template",
+    "loadError": "Failed to load measurements",
+    "fieldsError": "Could not load fields for this template",
+    "saveError": "Could not save measurements"
   }
 }
