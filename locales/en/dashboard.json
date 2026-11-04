@@ -18,7 +18,15 @@
     "deliveryLabel": "Delivery — #{{number}}",
     "trialLabel": "Trial — #{{number}}",
     "emptyTitle": "Nothing scheduled",
-    "emptyDescription": "Deliveries and trials for this day will show up here."
+    "emptyDescription": "Deliveries and trials for this day will show up here.",
+    "garment": "Garment",
+    "paid": "Paid",
+    "partial": "Partial",
+    "unpaid": "Unpaid",
+    "left": "{{amount}} left",
+    "delivered": "Delivered",
+    "legendDelivery": "Delivery",
+    "legendTrial": "Trial"
   },
   "loading": "Loading dashboard...",
   "greeting": "Hi, {{name}}",
@@ -122,8 +130,8 @@
     "todaysRevenue": "Today's revenue"
   },
   "aiCard": {
-    "title": "AI Order Assistant",
-    "subtitle": "Create orders by voice or text",
+    "title": "AI Assistant",
+    "subtitle": "Ask anything or get things done",
     "placeholder": "How can I help you?"
   }
 }

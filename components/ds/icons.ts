@@ -40,6 +40,8 @@ export {
   IconCompass,
   IconLogout,
   IconWand,
+  IconRefresh,
+  IconMessageCircle,
   IconShieldLock,
   IconLock,
   IconPalette,

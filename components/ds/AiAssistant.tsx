@@ -23,7 +23,7 @@ const SHEET = { cols: 13, rows: 12, frames: 150, fps: 15 } as const;
  * a solid backdrop, which can't be blended reliably on every platform).
  * One shared value steps through the frames on the UI thread.
  */
-function AiOrb({ size = 44 }: { size?: number }) {
+export function AiOrb({ size = 44 }: { size?: number }) {
   const frame = useSharedValue(0);
   useEffect(() => {
     frame.value = 0;
@@ -60,6 +60,11 @@ export type DSAiAssistantProps = {
   /** Called with the typed text when the user sends. */
   onSend?: (text: string) => void;
   onMicPress?: () => void;
+  /**
+   * Banner mode: a fully rounded, tappable pill with no text field. Tapping anywhere
+   * calls this (e.g. to open the AI page).
+   */
+  onPress?: () => void;
 };
 
 export function DSAiAssistant({
@@ -68,6 +73,7 @@ export function DSAiAssistant({
   placeholder = 'How can I help you?',
   onSend,
   onMicPress,
+  onPress,
 }: DSAiAssistantProps) {
   const gradId = useId().replace(/[^a-zA-Z0-9]/g, '');
   const [text, setText] = useState('');
@@ -77,6 +83,36 @@ export function DSAiAssistant({
     onSend?.(text.trim());
     setText('');
   };
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        style={({ pressed }) => [styles.banner, { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] }]}
+      >
+        <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
+          <Defs>
+            <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#242424" />
+              <Stop offset="1" stopColor="#000000" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill={`url(#${gradId})`} />
+        </Svg>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+        <AiOrb />
+      </Pressable>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -124,6 +160,7 @@ export function DSAiAssistant({
 }
 
 const styles = StyleSheet.create({
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 9999, overflow: 'hidden', paddingVertical: 14, paddingLeft: 24, paddingRight: 16 },
   card: { borderRadius: 24, overflow: 'hidden', padding: 16, gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { fontFamily: f.semibold, fontSize: 20, lineHeight: 27, color: '#FFFFFF', letterSpacing: -0.6 },

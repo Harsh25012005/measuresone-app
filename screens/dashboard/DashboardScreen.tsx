@@ -338,13 +338,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
               </Animated.View>
 
               <Animated.View entering={FadeInDown.delay(120).duration(320)} style={{ marginTop: 20 }}>
-                <DSAiAssistant
-                  title={t('aiCard.title')}
-                  subtitle={t('aiCard.subtitle')}
-                  placeholder={t('aiCard.placeholder')}
-                  onSend={openAi}
-                  onMicPress={openAi}
-                />
+                <DSAiAssistant title={t('aiCard.title')} subtitle={t('aiCard.subtitle')} onPress={openAi} />
               </Animated.View>
 
               {/* Top clients — ranked by order count */}

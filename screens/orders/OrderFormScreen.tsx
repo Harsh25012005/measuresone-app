@@ -295,6 +295,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
       const designPhotoUrls = await resolveDesignPhotoUrls(orderId);
       await ordersRepo.update(orderId, shop.id, {
         customer_id: customerId,
+        cloth_type: garmentType ? GARMENT_TYPE_LABELS[garmentType] : null,
         cloth_count: clothCountNum || null,
         design_photo_urls: designPhotoUrls,
         delivery_date: deliveryDate ? deliveryDate.toISOString().slice(0, 10) : null,
@@ -352,6 +353,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
         {
           order_number: orderNumber,
           customer_id: customerId,
+          cloth_type: garmentType ? GARMENT_TYPE_LABELS[garmentType] : null,
           cloth_count: clothCountNum || null,
           design_photo_urls: designPhotoUrls,
           delivery_date: deliveryDate ? deliveryDate.toISOString().slice(0, 10) : null,

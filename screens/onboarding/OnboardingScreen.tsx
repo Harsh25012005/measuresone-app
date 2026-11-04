@@ -15,7 +15,6 @@ import { AnimatedWords } from '../../components/ds/AnimatedText';
 import { HeroGradient } from '../../components/ds/AuthLayout';
 import { DSButton } from '../../components/ds/Button';
 import { BillingScene, ClientsScene, OrdersScene } from '../../components/ds/graphics/scenes';
-import { IconShirt } from '../../components/ds/icons';
 import { useHeroStatusBar } from '../../context/StatusBarContext';
 import { useTheme } from '../../context/ThemeContext';
 import { primary, typography } from '../../constants/tokens';
@@ -105,17 +104,11 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
         <Backdrop key={s.key} i={i} x={x} w={width} colors={s.colors} />
       ))}
 
-      {/* top bar: brand + skip */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.brand}>
-          <View style={styles.brandMark}>
-            <IconShirt size={16} color="#FFFFFF" strokeWidth={2} />
-          </View>
-          <Text style={styles.brandText}>MeasuresOne</Text>
-        </View>
+      {/* just a skip link, top right */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 14 }]}>
         {!last ? (
           <Animated.View entering={FadeIn.duration(250)}>
-            <Pressable onPress={() => finish('Login')} hitSlop={10} accessibilityRole="button" style={styles.skip}>
+            <Pressable onPress={() => finish('Login')} hitSlop={12} accessibilityRole="link" accessibilityLabel={t('onboarding.skip')}>
               <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
             </Pressable>
           </Animated.View>
@@ -199,30 +192,8 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 6, zIndex: 2 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: {
-    width: 32,
-    height: 32,
-    borderRadius: 9999,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandText: { fontFamily: f.bold, fontSize: 16, color: '#FFFFFF', letterSpacing: -0.2 },
-  skip: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 9999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skipText: { fontFamily: f.semibold, fontSize: 14, color: '#FFFFFF' },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 6, minHeight: 44, zIndex: 2 },
+  skipText: { fontFamily: f.semibold, fontSize: 15, color: '#FFFFFF', textDecorationLine: 'underline', textDecorationColor: 'rgba(255,255,255,0.6)' },
   sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 26, paddingHorizontal: 24 },
   dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
 });

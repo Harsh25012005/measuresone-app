@@ -5,8 +5,8 @@
  * phrasings a shop owner is realistically going to use for each question.
  */
 
-const YES_WORDS = ['હા', 'હ', 'ha', 'haa', 'han', 'yes', 'ok', 'okay', 'બરાબર'];
-const NO_WORDS = ['ના', 'નહિ', 'નહીં', 'na', 'nahi', 'nahin', 'no', 'નકો'];
+const YES_WORDS = ['હા', 'હ', 'ha', 'haa', 'han', 'yes', 'ok', 'okay', 'બરાબર', 'हाँ', 'हां', 'जी', 'ठीक', 'सही', 'बिल्कुल'];
+const NO_WORDS = ['ના', 'નહિ', 'નહીં', 'na', 'nahi', 'nahin', 'no', 'નકો', 'नहीं', 'नही', 'ना'];
 
 function normalize(text: string): string {
   return text.trim().toLowerCase();
@@ -25,9 +25,9 @@ export function parseYesNo(text: string): boolean | null {
 
 export type ClientType = 'new' | 'existing' | 'unknown';
 
-const NEW_CLIENT_WORDS = ['નવો', 'નવો ગ્રાહક', 'navo', 'new'];
-const EXISTING_CLIENT_WORDS = ['જૂનો', 'જુનો', 'juno', 'old', 'existing'];
-const UNKNOWN_CLIENT_WORDS = ['ખબર નથી', 'khabar nathi', 'nathi khabar', "don't know", 'khabar nathi'];
+const NEW_CLIENT_WORDS = ['નવો', 'નવો ગ્રાહક', 'navo', 'new', 'नया', 'नई'];
+const EXISTING_CLIENT_WORDS = ['જૂનો', 'જુનો', 'juno', 'old', 'existing', 'पुराना', 'पुराने', 'पुरानी'];
+const UNKNOWN_CLIENT_WORDS = ['ખબર નથી', 'khabar nathi', 'nathi khabar', "don't know", 'khabar nathi', 'पता नहीं', 'not sure', 'unsure'];
 
 export function parseClientType(text: string): ClientType | null {
   if (containsAny(text, UNKNOWN_CLIENT_WORDS)) return 'unknown';
@@ -38,8 +38,8 @@ export function parseClientType(text: string): ClientType | null {
 
 export type GarmentChoice = 'Shirt' | 'Pant' | 'Shirt+Pant';
 
-const SHIRT_WORDS = ['શર્ટ', 'shirt', 'khamis'];
-const PANT_WORDS = ['પેન્ટ', 'pant', 'trouser'];
+const SHIRT_WORDS = ['શર્ટ', 'shirt', 'khamis', 'शर्ट', 'कमीज'];
+const PANT_WORDS = ['પેન્ટ', 'pant', 'trouser', 'पैंट', 'पेंट', 'पतलून'];
 
 export function parseGarmentChoice(text: string): GarmentChoice | null {
   const hasShirt = containsAny(text, SHIRT_WORDS);
@@ -64,6 +64,19 @@ const GUJARATI_NUMBER_WORDS: Record<string, number> = {
   આઠ: 8,
   નવ: 9,
   દસ: 10,
+  // Hindi
+  एक: 1,
+  दो: 2,
+  तीन: 3,
+  चार: 4,
+  पांच: 5,
+  पाँच: 5,
+  छह: 6,
+  छः: 6,
+  सात: 7,
+  आठ: 8,
+  नौ: 9,
+  दस: 10,
 };
 
 /** First number found in free-form speech — digits first, then Gujarati number words. */
@@ -79,20 +92,33 @@ export function extractFirstNumber(text: string): number | null {
 }
 
 /** A 10-digit Indian mobile number anywhere in the utterance. */
+/**
+ * The 10-digit mobile number in a sentence. Digits may be spoken in groups
+ * ("90000 00003", "9000-000-003"), and a digit stuck to the name ("Bot2") must not
+ * leak into the number, so this takes the LAST 10 digits of the digit run.
+ */
 export function extractPhoneNumber(text: string): string | null {
-  const digitsOnly = text.replace(/\D/g, '');
-  const match = digitsOnly.match(/\d{10}/);
-  return match ? match[0] : null;
+  const runs = text.match(/\d(?:[\s-]?\d)*/g) ?? [];
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const digits = runs[i].replace(/\D/g, '');
+    if (digits.length >= 10) return digits.slice(-10);
+  }
+  return null;
 }
 
-/** Strips a phone number and filler words out of "name + phone" speech, leaving just the name. */
+/** Strips the phone number and filler words out of "name + phone" speech, leaving just the name (digits in the name are kept). */
 export function extractNameAroundPhone(text: string, phone: string | null): string {
-  let cleaned = phone ? text.replace(phone, ' ') : text;
-  cleaned = cleaned.replace(/\d+/g, ' ');
-  const fillers = ['naam', 'name', 'નામ', 'mobile', 'number', 'નંબર', 'મોબાઈલ', 'છે', 'ane', 'અને'];
+  let cleaned = text;
+  if (phone) {
+    // remove those 10 digits wherever they are, even when spoken in groups
+    const pattern = new RegExp(phone.split('').join('[\\s-]?'));
+    cleaned = cleaned.replace(pattern, ' ');
+  }
+  const fillers = ['naam', 'name', 'નામ', 'mobile', 'number', 'નંબર', 'મોબાઈલ', 'છે', 'ane', 'અને', 'नाम', 'मोबाइल', 'नंबर', 'और', 'है'];
   for (const f of fillers) {
     cleaned = cleaned.replace(new RegExp(f, 'gi'), ' ');
   }
+  cleaned = cleaned.replace(/\+\s*91/g, ' ');
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
@@ -105,6 +131,8 @@ const NAME_FILLER_WORDS = [
   'name',
   'graahak',
   'ग्राहक',
+  'नाम',
+  'है',
   'છે',
   'chhe',
   'che',
@@ -142,7 +170,7 @@ export function customerNameMatches(query: string, customerName: string): boolea
 
 export type ClothOrderSummary = { shirtCount: number; pantCount: number };
 
-const PAIR_WORDS = ['જોડ', 'jod', 'pair'];
+const PAIR_WORDS = ['જોડ', 'jod', 'pair', 'जोड़ी', 'जोड़'];
 
 /**
  * Parses free-form speech about how many pieces of clothing, e.g. "બે જોડ
@@ -186,4 +214,27 @@ export function parseClothCounts(text: string): ClothOrderSummary {
   }
 
   return { shirtCount, pantCount };
+}
+
+/**
+ * Customers a spoken name refers to. A full-name match ("test manual" → Test Manual)
+ * wins over a single shared word ("test" also appears in Test Bot), so the owner is
+ * only asked to choose when the name really is ambiguous.
+ */
+export function findCustomerMatches<T extends { name: string }>(query: string, customers: T[]): T[] {
+  const loose = customers.filter((c) => customerNameMatches(query, c.name));
+  const q = normalize(cleanSpokenName(query));
+  const strong = loose.filter((c) => {
+    const name = normalize(c.name);
+    return name === q || name.includes(q) || q.includes(name);
+  });
+  return strong.length > 0 ? strong : loose;
+}
+
+/** Cash or UPI from free speech; null when neither was said. */
+export function parsePaymentMode(text: string): 'Cash' | 'UPI' | null {
+  const n = normalize(text);
+  if (/upi|gpay|google pay|phonepe|paytm|online|યુપીઆઈ|यूपीआई|ઓનલાઇન|ऑनलाइन/.test(n)) return 'UPI';
+  if (/cash|રોકડ|કેશ|નગદ|नकद|कैश|रोकड़/.test(n)) return 'Cash';
+  return null;
 }

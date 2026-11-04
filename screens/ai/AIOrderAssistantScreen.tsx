@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Header, useToast } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { customersRepo, ordersRepo } from '../../lib/data/repository';
+import { AiOrb } from '../../components/ds/AiAssistant';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { GlassButton } from '../../components/ds/Screen';
+import { IconChevronLeft, IconMessageCircle, IconMicrophone, IconRefresh, IconSend } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
+import { useHeroStatusBar } from '../../context/StatusBarContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, status, typography } from '../../constants/tokens';
+import { billsRepo, customerMeasurementsRepo, customersRepo, ordersRepo, paymentsRepo } from '../../lib/data/repository';
+import { suggestDeliveryDate } from '../../lib/orderScheduling';
+import { formatCurrency } from '../../lib/format';
 import { sendWhatsAppMessage, buildAiOrderConfirmationMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
-import { fieldDefMatchesGarment } from '../../lib/measurementFieldScope';
 import {
   parseYesNo,
   parseClientType,
@@ -18,33 +40,49 @@ import {
   extractPhoneNumber,
   extractNameAroundPhone,
   cleanSpokenName,
-  customerNameMatches,
+  findCustomerMatches,
+  parsePaymentMode,
   parseClothCounts,
 } from '../../lib/aiAssistant/gujaratiNlu';
+import { detectIntent, type Lang } from '../../lib/aiAssistant/intents';
+import { COPY, TTS_CODE } from '../../lib/aiAssistant/copy';
+import { answerQuery, loadSnapshot, unknownAnswer } from '../../lib/aiAssistant/insights';
+import { applyPayment, buildMeasurementPlan, clientDue, toMeasurements, type MeasurementPlan } from '../../lib/aiAssistant/actions';
 import type { DashboardScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 
 type Customer = Tables<'customers'>;
-type FieldDefinition = Tables<'measurement_field_definitions'>;
 
 type Step =
   | 'greeting'
   | 'askIntent'
   | 'askClientType'
   | 'collectNewClient'
+  | 'collectNewClientName'
+  | 'askClientNumber'
+  | 'askMeasureNow'
+  | 'askChangeMeasure'
   | 'collectNewClientPhoneOnly'
   | 'collectExistingClientSearch'
   | 'chooseClientFromList'
   | 'confirmCreateNewFallback'
-  | 'askMeasurementOrOrder'
   | 'askGarmentForMeasurement'
   | 'collectMeasurementField'
-  | 'confirmMeasurementDone'
   | 'askClothCount'
   | 'askTotalAmount'
   | 'askDiscount'
+  | 'askPaid'
+  | 'askPaymentMode'
   | 'confirmWhatsApp'
+  | 'collectPaymentClient'
+  | 'choosePaymentClient'
+  | 'collectPaymentAmount'
+  | 'collectPaymentMode'
+  | 'confirmPayment'
   | 'done';
+
+/** What the owner asked for; steps are shared between flows, so this decides where they go next. */
+type Mode = '' | 'order' | 'client' | 'measurement' | 'payment';
 
 type LogEntry = { who: 'ai' | 'user'; text: string };
 
@@ -61,53 +99,97 @@ async function nextOrderNumber(shopId: string): Promise<string> {
 /** All the state accumulated across the conversation — kept out of React state
  * since it's only ever read/written from the step-advance handler, never rendered directly. */
 type Session = {
-  fieldDefinitions: FieldDefinition[];
-  /** fieldDefinitions filtered to the garment type picked at
-   * askGarmentForMeasurement — the list actually walked field-by-field. */
-  activeFieldDefinitions: FieldDefinition[];
+  mode: Mode;
+  /** Language of the owner's last message — answers come back in it. */
+  lang: Lang;
   customer: Customer | null;
   matches: Customer[];
+  plan: MeasurementPlan | null;
   garmentType: string;
   fieldValues: Record<string, string>;
   fieldIndex: number;
-  measurementId: string | null;
   clothType: string;
   clothCount: number;
   totalAmount: number;
+  discount: number;
   lastOrderNumber: string;
   /** The cleaned name from a failed existing-client search — reused so the
    * new-client fallback doesn't make the owner repeat the name. */
   pendingName: string;
+  pendingPhone: string;
+  /** Measurements were started from inside an order: carry on with the order afterwards. */
+  returnToOrder: boolean;
+  paid: number;
+  payDue: number;
+  payAmount: number;
+  payMode: string;
 };
 
-function newSession(): Session {
+function newSession(lang: Lang): Session {
   return {
-    fieldDefinitions: [],
-    activeFieldDefinitions: [],
+    mode: '',
+    lang,
     customer: null,
     matches: [],
+    plan: null,
     garmentType: '',
     fieldValues: {},
     fieldIndex: 0,
-    measurementId: null,
     clothType: '',
     clothCount: 0,
     totalAmount: 0,
+    discount: 0,
     lastOrderNumber: '',
     pendingName: '',
+    pendingPhone: '',
+    returnToOrder: false,
+    paid: 0,
+    payDue: 0,
+    payAmount: 0,
+    payMode: 'Cash',
   };
 }
 
 export default function AIOrderAssistantScreen({ navigation }: DashboardScreenProps<'AIOrderAssistant'>) {
   const shop = useShop();
   const showToast = useToast();
+  const { i18n } = useTranslation();
+  const appLang: Lang = i18n.language === 'gu' || i18n.language === 'hi' ? i18n.language : 'en';
+  const c = COPY[appLang];
 
   const [log, setLog] = useState<LogEntry[]>([]);
   const [step, setStep] = useState<Step>('greeting');
+  const [flow, setFlow] = useState<Mode>('');
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
-  const session = useRef<Session>(newSession());
+  const [draft, setDraft] = useState('');
+  const { colors } = useTheme();
+  const session = useRef<Session>(newSession(appLang));
   const scrollRef = useRef<ScrollView>(null);
+
+  useHeroStatusBar();
+  const insets = useSafeAreaInsets();
+  const [showTranscript, setShowTranscript] = useState(false);
+
+  // the orb "breathes" while thinking and sends out rings while the mic is open
+  const ring = useSharedValue(0);
+  const breathe = useSharedValue(0);
+  useEffect(() => {
+    cancelAnimation(ring);
+    ring.value = 0;
+    if (listening) ring.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [listening, ring]);
+  useEffect(() => {
+    cancelAnimation(breathe);
+    breathe.value = 0;
+    if (busy) breathe.value = withRepeat(withSequence(withTiming(1, { duration: 700 }), withTiming(0, { duration: 700 })), -1, false);
+  }, [busy, breathe]);
+  const ringA = useAnimatedStyle(() => ({ opacity: 0.5 * (1 - ring.value), transform: [{ scale: 1 + 0.9 * ring.value }] }));
+  const ringB = useAnimatedStyle(() => {
+    const t = (ring.value + 0.5) % 1;
+    return { opacity: 0.35 * (1 - t), transform: [{ scale: 1 + 0.9 * t }] };
+  });
+  const orbStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 + 0.06 * breathe.value + (listening ? 0.04 : 0) }] }));
 
   // Hides the bottom tab bar while this full-screen conversation is open —
   // see CustomTabBar's descriptor-based display:none check.
@@ -123,31 +205,35 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
   }, []);
 
-  /** Speaks a line in Gujarati, logs it, then opens the mic for the reply
-   * (unless this is a terminal line). `lang` picks the recognizer language
-   * for that reply — client names/phone numbers are typically spoken or
-   * stored in English/Latin script, so those prompts listen in en-IN while
-   * everything else listens in gu-IN. */
+  /** Speaks a line, logs it, then opens the mic for the reply (unless this is a
+   * terminal line). `tts` is the voice language, `lang` the recognizer language
+   * for the reply — client names/phone numbers are typically spoken or stored in
+   * English/Latin script, so those prompts listen in en-IN. The order flow's own
+   * prompts are Gujarati, so both default to gu-IN. */
   const speak = useCallback(
-    (text: string, opts?: { listenAfter?: boolean; lang?: 'gu-IN' | 'en-IN' }) => {
+    (text: string, opts?: { listenAfter?: boolean; lang?: 'gu-IN' | 'en-IN' | 'hi-IN'; tts?: 'gu-IN' | 'en-IN' | 'hi-IN' }) => {
       appendLog({ who: 'ai', text });
       const listenAfter = opts?.listenAfter ?? true;
-      const lang = opts?.lang ?? 'gu-IN';
+      const lang = opts?.lang ?? TTS_CODE[appLang];
       Speech.speak(text, {
-        language: 'gu-IN',
+        language: opts?.tts ?? TTS_CODE[appLang],
         onDone: () => {
           if (listenAfter) void startListening(lang);
         },
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [appendLog]
+    [appendLog, appLang]
   );
 
-  const startListening = async (lang: 'gu-IN' | 'en-IN' = 'gu-IN') => {
+  /** A line in the owner's own language (answers, payments, new-client prompts). */
+  const say = (text: string, lang: Lang, opts?: { listenAfter?: boolean; lang?: 'gu-IN' | 'en-IN' | 'hi-IN' }) =>
+    speak(text, { ...opts, tts: TTS_CODE[lang], lang: opts?.lang ?? TTS_CODE[lang] });
+
+  const startListening = async (lang: 'gu-IN' | 'en-IN' | 'hi-IN' = TTS_CODE[appLang]) => {
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) {
-      showToast('માઈક્રોફોનની પરવાનગી જરૂરી છે', 'error');
+      showToast(c.micPermission, 'error');
       return;
     }
     setListening(true);
@@ -162,13 +248,30 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
   useSpeechRecognitionEvent('end', () => setListening(false));
   useSpeechRecognitionEvent('error', () => setListening(false));
 
+  const setMode = (mode: Mode) => {
+    session.current.mode = mode;
+    setFlow(mode);
+  };
+
+  /** Back to "what next?" after any task or answer. */
+  const backToIdle = (line: string, lang: Lang) => {
+    session.current.returnToOrder = false;
+    setMode('');
+    setStep('askIntent');
+    say(`${line} ${COPY[lang].more}`, lang);
+  };
+
+  const greet = () => {
+    const ownerName = shop.owner_name || shop.shop_name || (appLang === 'gu' ? 'શેઠ' : 'there');
+    session.current = newSession(appLang);
+    setMode('');
+    setStep('askIntent');
+    say(COPY[appLang].greet(ownerName), appLang);
+  };
+
   // Kick off the conversation once, on mount.
   useEffect(() => {
-    void loadFieldDefinitions().then(() => {
-      const ownerName = shop.owner_name || shop.shop_name || 'શેઠ';
-      speak(`નમસ્તે ${ownerName}! આજે શું કરીશું? નવો ઓર્ડર બનાવવો છે?`);
-      setStep('askIntent');
-    });
+    greet();
     return () => {
       Speech.stop();
       ExpoSpeechRecognitionModule.stop();
@@ -176,25 +279,33 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadFieldDefinitions = async () => {
-    const { data } = await supabase
-      .from('measurement_field_definitions')
-      .select('*')
-      .eq('shop_id', shop.id)
-      .order('sort_order', { ascending: true });
-    session.current.fieldDefinitions = data ?? [];
-  };
-
   const handleUserReply = async (transcript: string) => {
     appendLog({ who: 'user', text: transcript });
     setBusy(true);
     try {
       await advance(transcript);
     } catch (err) {
-      speak('માફ કરશો, કંઈક ભૂલ થઈ. ફરી પ્રયત્ન કરો.');
+      speak(c.error);
       showToast(err instanceof Error ? err.message : 'Error', 'error');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** A client was just found/created: carry on with whatever the owner asked for. */
+  const afterClient = async (prefix: string) => {
+    const s = session.current;
+    if (s.mode === 'client') {
+      setStep('askMeasureNow');
+      speak(`${prefix}. ${c.askMeasureNow}`);
+    } else if (s.mode === 'measurement') {
+      setStep('askGarmentForMeasurement');
+      speak(c.afterClientMeasure(prefix));
+    } else {
+      // an order starts with the client's measurements: change them, or move on
+      const profile = await customerMeasurementsRepo.getByCustomer(s.customer!.id);
+      setStep('askChangeMeasure');
+      speak(`${prefix}. ${profile ? c.changeMeasure(s.customer!.name) : c.noMeasureAdd(s.customer!.name)}`);
     }
   };
 
@@ -202,10 +313,38 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
     const s = session.current;
 
     switch (step) {
-      // Only one flow exists (create order), so any reply here just moves on.
+      // The home step: anything the owner says is routed to a question or a task.
       case 'askIntent': {
-        setStep('askClientType');
-        speak('ગ્રાહક નવો છે કે જૂનો? અથવા ખબર નથી એમ કહો.');
+        const lang = appLang;
+        const intent = detectIntent(text);
+
+        if (intent.kind === 'order') {
+          setMode('order');
+          setStep('askClientType');
+          speak(c.askClientType);
+        } else if (intent.kind === 'addClient') {
+          setMode('client');
+          setStep('collectNewClient');
+          speak(c.newClientPrompt, { lang: 'en-IN' });
+        } else if (intent.kind === 'measurement') {
+          setMode('measurement');
+          setStep('askClientType');
+          speak(c.askClientType);
+        } else if (intent.kind === 'payment') {
+          setMode('payment');
+          setStep('collectPaymentClient');
+          say(c.payWhich, lang, { lang: 'en-IN' });
+        } else if (intent.kind === 'query') {
+          const snap = await loadSnapshot(shop.id);
+          backToIdle(answerQuery(intent.topic, snap, text, lang), lang);
+        } else if (parseYesNo(text) === false) {
+          setStep('done');
+          say(c.goodbye, lang, { listenAfter: false });
+        } else if (parseYesNo(text) === true) {
+          say(c.help, lang);
+        } else {
+          say(unknownAnswer(lang), lang);
+        }
         return;
       }
 
@@ -213,12 +352,12 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         const type = parseClientType(text);
         if (type === 'new') {
           setStep('collectNewClient');
-          speak('ગ્રાહકનું નામ અને મોબાઈલ નંબર બોલો.', { lang: 'en-IN' });
+          speak(c.newClientPrompt, { lang: 'en-IN' });
         } else if (type === 'existing' || type === 'unknown') {
           setStep('collectExistingClientSearch');
-          speak('ગ્રાહકનું નામ બોલો.', { lang: 'en-IN' });
+          speak(c.existingNamePrompt, { lang: 'en-IN' });
         } else {
-          speak('માફ કરશો, નવો, જૂનો, કે ખબર નથી — એમાંથી એક બોલો.');
+          speak(c.clientTypeRetry);
         }
         return;
       }
@@ -226,14 +365,72 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
       case 'collectNewClient': {
         const phone = extractPhoneNumber(text);
         if (!phone) {
-          speak('મોબાઈલ નંબર ના મળ્યો. ફરી નામ અને 10 આંકડાનો નંબર બોલો.', { lang: 'en-IN' });
+          speak(c.phoneMissing, { lang: 'en-IN' });
           return;
         }
-        const name = extractNameAroundPhone(text, phone) || 'ગ્રાહક';
-        const customer = await customersRepo.create({ shop_id: shop.id, name, phone });
+        s.pendingPhone = phone;
+        const name = extractNameAroundPhone(text, phone);
+        if (!name) {
+          setStep('collectNewClientName');
+          speak(c.existingNamePrompt, { lang: 'en-IN' });
+          return;
+        }
+        s.pendingName = name;
+        setStep('askClientNumber');
+        speak(c.askClientNumber, { lang: 'en-IN' });
+        return;
+      }
+
+      case 'collectNewClientName': {
+        const name = cleanSpokenName(text);
+        if (!name) {
+          speak(c.existingNamePrompt, { lang: 'en-IN' });
+          return;
+        }
+        s.pendingName = name;
+        setStep('askClientNumber');
+        speak(c.askClientNumber, { lang: 'en-IN' });
+        return;
+      }
+
+      case 'askClientNumber': {
+        // the client form requires a client number, so the assistant asks for one too
+        const bookNumber = text.replace(/\b(number|no\.?)\b|નંબર|नंबर|છે|है/gi, ' ').replace(/\s+/g, ' ').trim();
+        if (!bookNumber) {
+          speak(c.askClientNumber, { lang: 'en-IN' });
+          return;
+        }
+        const customer = await customersRepo.create({
+          shop_id: shop.id,
+          name: s.pendingName,
+          phone: s.pendingPhone,
+          book_number: bookNumber,
+        });
         s.customer = customer;
-        setStep('askMeasurementOrOrder');
-        speak(`${name} ઉમેરાયા. માપ બદલવું છે કે ઓર્ડર બનાવવો છે?`);
+        await afterClient(c.addedShort(customer.name));
+        return;
+      }
+
+      case 'askChangeMeasure': {
+        if (parseYesNo(text) === true && s.customer) {
+          s.returnToOrder = true;
+          setStep('askGarmentForMeasurement');
+          speak(c.afterClientMeasure(s.customer.name));
+        } else {
+          setStep('askClothCount');
+          speak(c.askPieces);
+        }
+        return;
+      }
+
+      case 'askMeasureNow': {
+        if (parseYesNo(text) === true && s.customer) {
+          setMode('measurement');
+          setStep('askGarmentForMeasurement');
+          speak(c.afterClientMeasure(s.customer.name));
+        } else {
+          backToIdle(c.okShort, appLang);
+        }
         return;
       }
 
@@ -244,21 +441,20 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         // a cleaned version, whichever script the recognizer produced.
         s.pendingName = cleanSpokenName(text);
         const all = await customersRepo.list(shop.id);
-        const matches = all.filter((c) => customerNameMatches(text, c.name));
+        const matches = findCustomerMatches(text, all);
         if (matches.length === 0) {
           setStep('confirmCreateNewFallback');
-          speak('કોઈ ગ્રાહક ના મળ્યો. નવો ગ્રાહક બનાવીએ?');
+          speak(c.noClientFound);
         } else if (matches.length === 1) {
           s.customer = matches[0];
-          setStep('askMeasurementOrOrder');
-          speak(`${matches[0].name} મળ્યા. માપ બદલવું છે કે ઓર્ડર બનાવવો છે?`);
+          await afterClient(c.foundShort(matches[0].name));
         } else {
           // Every match is read out, not just the first few, so the owner
           // never loses a client that happens to be lower in the list.
           s.matches = matches;
           const list = s.matches.map((c, i) => `${i + 1}. ${c.name}`).join(', ');
           setStep('chooseClientFromList');
-          speak(`આ નામ મળ્યા: ${list}. કયો નંબર પસંદ કરો છો? અથવા આમાંથી કોઈ ના હોય તો "નવો ગ્રાહક" બોલો.`, {
+          speak(c.chooseFromList(list), {
             lang: 'en-IN',
           });
         }
@@ -272,10 +468,10 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         if (parseClientType(text) === 'new') {
           if (s.pendingName) {
             setStep('collectNewClientPhoneOnly');
-            speak(`ઠીક છે, ${s.pendingName} નામે નવો ગ્રાહક બનાવીએ. મોબાઈલ નંબર બોલો.`, { lang: 'en-IN' });
+            speak(c.createNewNamed(s.pendingName), { lang: 'en-IN' });
           } else {
             setStep('collectNewClient');
-            speak('ગ્રાહકનું નામ અને મોબાઈલ નંબર બોલો.', { lang: 'en-IN' });
+            speak(c.newClientPrompt, { lang: 'en-IN' });
           }
           return;
         }
@@ -283,12 +479,11 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         const idx = extractFirstNumber(text);
         const picked = idx ? s.matches[idx - 1] : undefined;
         if (!picked) {
-          speak('માફ કરશો, નંબર બોલો — 1, 2, વગેરે. અથવા "નવો ગ્રાહક" બોલો.', { lang: 'en-IN' });
+          speak(c.pickNumberOrNew, { lang: 'en-IN' });
           return;
         }
         s.customer = picked;
-        setStep('askMeasurementOrOrder');
-        speak(`${picked.name} પસંદ થયા. માપ બદલવું છે કે ઓર્ડર બનાવવો છે?`);
+        await afterClient(c.pickedShort(picked.name));
         return;
       }
 
@@ -297,14 +492,13 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         if (yes === true) {
           if (s.pendingName) {
             setStep('collectNewClientPhoneOnly');
-            speak(`ઠીક છે, ${s.pendingName} નામે નવો ગ્રાહક બનાવીએ. મોબાઈલ નંબર બોલો.`, { lang: 'en-IN' });
+            speak(c.createNewNamed(s.pendingName), { lang: 'en-IN' });
           } else {
             setStep('collectNewClient');
-            speak('ગ્રાહકનું નામ અને મોબાઈલ નંબર બોલો.', { lang: 'en-IN' });
+            speak(c.newClientPrompt, { lang: 'en-IN' });
           }
         } else {
-          setStep('done');
-          speak('ઠીક છે. જ્યારે તૈયાર હો ત્યારે ફરી બોલાવજો.', { listenAfter: false });
+          backToIdle(c.okShort, appLang);
         }
         return;
       }
@@ -312,154 +506,130 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
       case 'collectNewClientPhoneOnly': {
         const phone = extractPhoneNumber(text);
         if (!phone) {
-          speak('મોબાઈલ નંબર ના મળ્યો. ફરી 10 આંકડાનો નંબર બોલો.', { lang: 'en-IN' });
+          speak(c.phoneOnlyMissing, { lang: 'en-IN' });
           return;
         }
-        const name = s.pendingName || 'ગ્રાહક';
-        const customer = await customersRepo.create({ shop_id: shop.id, name, phone });
-        s.customer = customer;
-        setStep('askMeasurementOrOrder');
-        speak(`${name} ઉમેરાયા. માપ બદલવું છે કે ઓર્ડર બનાવવો છે?`);
-        return;
-      }
-
-      case 'askMeasurementOrOrder': {
-        if (/માપ|maap|measurement/i.test(text)) {
-          if (s.fieldDefinitions.length === 0) {
-            speak('કોઈ માપ ફીલ્ડ સેટ નથી. સેટિંગ્સ માંથી ઉમેરો. હવે ઓર્ડર બનાવીએ. કેટલા કપડાં છે?');
-            setStep('askClothCount');
-            return;
-          }
-          setStep('askGarmentForMeasurement');
-          speak('શર્ટ નું માપ કે પેન્ટ નું માપ? બંને હોય તો બંને બોલો.');
-        } else if (/ઓર્ડર|order/i.test(text)) {
-          setStep('askClothCount');
-          speak('કેટલા કપડાં છે? શર્ટ, પેન્ટ કે જોડ બોલો.');
-        } else {
-          speak('માફ કરશો, "માપ" કે "ઓર્ડર" બોલો.');
+        s.pendingPhone = phone;
+        if (!s.pendingName) {
+          setStep('collectNewClientName');
+          speak(c.existingNamePrompt, { lang: 'en-IN' });
+          return;
         }
+        setStep('askClientNumber');
+        speak(c.askClientNumber, { lang: 'en-IN' });
         return;
       }
 
       case 'askGarmentForMeasurement': {
         const garment = parseGarmentChoice(text);
         if (!garment) {
-          speak('શર્ટ કે પેન્ટ, કયું માપ બોલો.');
+          speak(c.garmentRetry);
           return;
         }
         s.garmentType = garment;
-        s.activeFieldDefinitions = s.fieldDefinitions.filter((d) => fieldDefMatchesGarment(d.garment_type, garment));
-        s.fieldIndex = 0;
-        s.fieldValues = {};
-        if (s.activeFieldDefinitions.length === 0) {
-          speak(`${garment} માટે કોઈ માપ ફીલ્ડ સેટ નથી. સેટિંગ્સ માંથી ઉમેરો. હવે ઓર્ડર બનાવીએ. કેટલા કપડાં છે?`);
-          setStep('askClothCount');
+        const plan = await buildMeasurementPlan(shop.id, garment);
+        if (!plan || plan.items.length === 0) {
+          if (s.returnToOrder) {
+            s.returnToOrder = false;
+            setStep('askClothCount');
+            speak(`${c.noFields} ${c.askPieces}`);
+          } else {
+            backToIdle(c.noFields, appLang);
+          }
           return;
         }
+        s.plan = plan;
+        s.fieldIndex = 0;
+        s.fieldValues = {};
         setStep('collectMeasurementField');
-        speak(s.activeFieldDefinitions[0].label + '?');
+        speak(`${plan.items[0].group ? plan.items[0].group + ' ' : ''}${plan.items[0].name}?`);
         return;
       }
 
       case 'collectMeasurementField': {
-        const def = s.activeFieldDefinitions[s.fieldIndex];
+        const plan = s.plan;
+        if (!plan) return;
         const value = extractFirstNumber(text);
-        if (def && value !== null) {
-          s.fieldValues[def.field_key] = String(value);
-        }
+        if (value !== null) s.fieldValues[String(s.fieldIndex)] = String(value);
         s.fieldIndex += 1;
-        if (s.fieldIndex < s.activeFieldDefinitions.length) {
-          speak(s.activeFieldDefinitions[s.fieldIndex].label + '?');
+        if (s.fieldIndex < plan.items.length) {
+          const next = plan.items[s.fieldIndex];
+          speak(`${next.group ? next.group + ' ' : ''}${next.name}?`);
           return;
         }
 
-        // All fields collected — save the measurement.
-        const customFields = s.activeFieldDefinitions
-          .filter((def2) => s.fieldValues[def2.field_key] !== undefined)
-          .map((def2) => ({ label: def2.label, value: s.fieldValues[def2.field_key] }));
-        const { data, error } = await supabase
-          .from('measurements')
-          .insert({
-            shop_id: shop.id,
-            customer_id: s.customer!.id,
-            garment_type: s.garmentType,
-            custom_fields: customFields,
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        s.measurementId = data.id;
-
-        setStep('confirmMeasurementDone');
-        speak('માપ સેવ થઈ ગયું. હવે ઓર્ડર બનાવીએ?');
-        return;
-      }
-
-      case 'confirmMeasurementDone': {
-        const yes = parseYesNo(text);
-        if (yes === false) {
-          setStep('done');
-          speak('ઠીક છે. જ્યારે તૈયાર હો ત્યારે ફરી બોલાવજો.', { listenAfter: false });
-          return;
+        // All fields collected — save to the client's measurement profile.
+        await customerMeasurementsRepo.save(shop.id, {
+          customer_id: s.customer!.id,
+          template_id: plan.templateId,
+          measurements: toMeasurements(plan.items, s.fieldValues),
+        });
+        if (s.returnToOrder) {
+          s.returnToOrder = false;
+          setStep('askClothCount');
+          speak(`${c.measureSaved} ${c.askPieces}`);
+        } else {
+          backToIdle(c.measureSaved, appLang);
         }
-        setStep('askClothCount');
-        speak('કેટલા કપડાં છે? શર્ટ, પેન્ટ કે જોડ બોલો.');
         return;
       }
 
       case 'askClothCount': {
         const { shirtCount, pantCount } = parseClothCounts(text);
         const clothCount = shirtCount + pantCount;
-        const clothType = shirtCount > 0 && pantCount > 0 ? 'Shirt+Pant' : shirtCount > 0 ? 'Shirt' : 'Pant';
+        const clothType = shirtCount > 0 && pantCount > 0 ? 'Shirt + Pant' : shirtCount > 0 ? 'Shirt' : 'Pant';
         s.clothCount = clothCount || 1;
         s.clothType = clothType;
         setStep('askTotalAmount');
-        speak('કુલ રકમ કેટલી છે?');
+        speak(c.askTotal);
         return;
       }
 
       case 'askTotalAmount': {
         const amount = extractFirstNumber(text);
         if (amount === null) {
-          speak('માફ કરશો, રકમ ફરી બોલો.');
+          speak(c.amountRetry);
           return;
         }
         s.totalAmount = amount;
         setStep('askDiscount');
-        speak('કોઈ ડિસ્કાઉન્ટ આપવો છે? રકમ બોલો, અથવા ના કહો.');
+        speak(c.askDiscount);
         return;
       }
 
       case 'askDiscount': {
         const no = parseYesNo(text) === false;
-        const discount = no ? 0 : extractFirstNumber(text) ?? 0;
-        const net = Math.max(s.totalAmount - discount, 0);
+        s.discount = no ? 0 : extractFirstNumber(text) ?? 0;
+        setStep('askPaid');
+        speak(c.askPaid);
+        return;
+      }
 
-        const orderNumber = await nextOrderNumber(shop.id);
-        const order = await ordersRepo.create(
-          shop.id,
-          {
-            order_number: orderNumber,
-            customer_id: s.customer!.id,
-            cloth_type: s.clothType,
-            cloth_count: s.clothCount,
-            measurement_id: s.measurementId,
-            total_amount: net,
-          },
-          [
-            {
-              garment_type: s.clothType,
-              cloth_count: s.clothCount,
-              unit_price: net,
-              measurement_id: s.measurementId,
-            },
-          ]
-        );
-        s.totalAmount = net;
-        s.lastOrderNumber = order.order_number;
+      case 'askPaid': {
+        const net = Math.max(s.totalAmount - s.discount, 0);
+        const none = parseYesNo(text) === false;
+        const amount = none ? 0 : extractFirstNumber(text);
+        if (amount === null) {
+          speak(c.amountRetry);
+          return;
+        }
+        s.paid = Math.min(amount, net);
+        if (s.paid > 0) {
+          setStep('askPaymentMode');
+          speak(c.askPayMode);
+        } else {
+          await createOrder('Cash');
+        }
+        return;
+      }
 
-        setStep('confirmWhatsApp');
-        speak(`ઓર્ડર #${order.order_number} બની ગયો છે. કુલ રકમ ₹${net}. WhatsApp પર મોકલું?`);
+      case 'askPaymentMode': {
+        const mode = parsePaymentMode(text);
+        if (!mode) {
+          speak(c.payModeRetry);
+          return;
+        }
+        await createOrder(mode);
         return;
       }
 
@@ -477,14 +647,79 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
               totalAmount: s.totalAmount,
             });
             await sendWhatsAppMessage(s.customer.phone, message);
-            speak('WhatsApp મોકલી દીધો. આભાર!', { listenAfter: false });
+            backToIdle(c.whatsappSent, appLang);
           } catch {
-            speak('WhatsApp મોકલી ના શકાયો. આભાર!', { listenAfter: false });
+            backToIdle(c.whatsappFailed, appLang);
           }
         } else {
-          speak('ઠીક છે. આભાર!', { listenAfter: false });
+          backToIdle(c.okShort, appLang);
         }
-        setStep('done');
+        return;
+      }
+
+      // ── record a payment
+      case 'collectPaymentClient': {
+        const c = COPY[appLang];
+        const all = await customersRepo.list(shop.id);
+        const matches = findCustomerMatches(text, all);
+        if (matches.length === 0) {
+          say(c.clientNotFound, appLang, { lang: 'en-IN' });
+        } else if (matches.length === 1) {
+          await startPayment(matches[0]);
+        } else {
+          s.matches = matches;
+          setStep('choosePaymentClient');
+          say(c.pickClient(matches.map((cu, i) => `${i + 1}. ${cu.name}`).join(', ')), appLang, { lang: 'en-IN' });
+        }
+        return;
+      }
+
+      case 'choosePaymentClient': {
+        const idx = extractFirstNumber(text);
+        const picked = idx ? s.matches[idx - 1] : undefined;
+        if (!picked) {
+          say(COPY[appLang].pickNumber, appLang, { lang: 'en-IN' });
+          return;
+        }
+        await startPayment(picked);
+        return;
+      }
+
+      case 'collectPaymentAmount': {
+        const c = COPY[appLang];
+        const amount = extractFirstNumber(text);
+        if (amount === null || amount <= 0) {
+          say(c.amountAgain, appLang, { lang: 'en-IN' });
+          return;
+        }
+        s.payAmount = Math.min(amount, s.payDue);
+        setStep('collectPaymentMode');
+        say(c.askPayMode, appLang);
+        return;
+      }
+
+      case 'collectPaymentMode': {
+        const c = COPY[appLang];
+        const mode = parsePaymentMode(text);
+        if (!mode) {
+          say(c.payModeRetry, appLang);
+          return;
+        }
+        s.payMode = mode;
+        setStep('confirmPayment');
+        say(c.confirmPay(s.customer!.name, formatCurrency(s.payAmount)), appLang);
+        return;
+      }
+
+      case 'confirmPayment': {
+        const c = COPY[appLang];
+        if (parseYesNo(text) === true && s.customer) {
+          const { applied, left } = await applyPayment(shop.id, s.customer.id, s.payAmount, s.payMode);
+          const leftLine = left > 0 ? c.owes(s.customer.name, formatCurrency(left)) : c.nothingDue(s.customer.name);
+          backToIdle(c.recorded(s.customer.name, formatCurrency(applied), leftLine), appLang);
+        } else {
+          backToIdle(c.cancelled, appLang);
+        }
         return;
       }
 
@@ -493,58 +728,290 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
     }
   };
 
-  const restart = () => {
-    session.current = newSession();
-    setLog([]);
-    void loadFieldDefinitions().then(() => {
-      const ownerName = shop.owner_name || shop.shop_name || 'શેઠ';
-      setStep('askIntent');
-      speak(`નમસ્તે ${ownerName}! આજે શું કરીશું? નવો ઓર્ડર બનાવવો છે?`);
-    });
+  /** Saves the order exactly like the order form: suggested delivery date, bill, and the payment if money was taken. */
+  const createOrder = async (mode: string) => {
+    const s = session.current;
+    const net = Math.max(s.totalAmount - s.discount, 0);
+    const paid = Math.min(s.paid, net);
+    const orderNumber = await nextOrderNumber(shop.id);
+    const delivery = await suggestDeliveryDate(shop.id, s.clothCount, null);
+
+    const order = await ordersRepo.create(
+      shop.id,
+      {
+        order_number: orderNumber,
+        customer_id: s.customer!.id,
+        cloth_type: s.clothType,
+        cloth_count: s.clothCount,
+        delivery_date: delivery.toISOString().slice(0, 10),
+        total_amount: net > 0 ? net : null,
+        paid_amount: paid,
+        payment_mode: mode,
+      },
+      [{ garment_type: s.clothType, cloth_count: s.clothCount, unit_price: net }]
+    );
+
+    if (net > 0) {
+      try {
+        const bill = await billsRepo.create({
+          shop_id: shop.id,
+          order_id: order.id,
+          customer_id: s.customer!.id,
+          fabric_cost: 0,
+          stitching_charge: s.totalAmount,
+          tax: 0,
+          discount: s.discount,
+          payment_status: paid <= 0 ? 'unpaid' : paid >= net ? 'paid' : 'partial',
+        });
+        if (paid > 0) {
+          await paymentsRepo.create({
+            shop_id: shop.id,
+            bill_id: bill.id,
+            customer_id: s.customer!.id,
+            amount_paid: paid,
+            payment_mode: mode,
+          });
+        }
+      } catch {
+        // the order itself is saved; a missing bill is fixable from the order
+      }
+    }
+
+    s.totalAmount = net;
+    s.lastOrderNumber = order.order_number;
+    setStep('confirmWhatsApp');
+    speak(c.orderAsk(order.order_number, formatCurrency(net), paid > 0 ? formatCurrency(paid) : ''));
   };
 
+  /** A client was picked for a payment: say what they owe, then ask how much was paid. */
+  const startPayment = async (customer: Customer) => {
+    const s = session.current;
+    const c = COPY[appLang];
+    const due = await clientDue(shop.id, customer.id);
+    if (due <= 0) {
+      backToIdle(c.nothingDue(customer.name), appLang);
+      return;
+    }
+    s.customer = customer;
+    s.payDue = due;
+    setStep('collectPaymentAmount');
+    say(`${c.owes(customer.name, formatCurrency(due))} ${c.askAmount}`, appLang, { lang: 'en-IN' });
+  };
+
+  const restart = () => {
+    setLog([]);
+    greet();
+  };
+
+  const sendDraft = () => {
+    const text = draft.trim();
+    if (!text || busy || step === 'done') return;
+    setDraft('');
+    Speech.stop();
+    if (listening) stopListening();
+    void handleUserReply(text);
+  };
+
+  const reply = (text: string) => {
+    if (busy) return;
+    Speech.stop();
+    if (listening) stopListening();
+    void handleUserReply(text);
+  };
+
+  const lastAi = [...log].reverse().find((e) => e.who === 'ai')?.text ?? '';
+  const lastUser = [...log].reverse().find((e) => e.who === 'user')?.text ?? '';
+  const statusText = listening ? c.listening : busy ? c.thinking : step === 'done' ? '' : c.speakOrType;
+
+  // an order is a short journey, shown as four labelled stops (other tasks have none)
+  const PHASES = c.phases;
+  const phase =
+    step === 'askClothCount' ? 1 : step === 'askTotalAmount' || step === 'askDiscount' || step === 'askPaid' || step === 'askPaymentMode' ? 2 : step === 'confirmWhatsApp' ? 3 : 0;
+
+  // one-tap answers for the questions that have obvious ones
+  const chips: string[] =
+    step === 'askIntent'
+      ? c.chips
+      : step === 'askClientType'
+        ? c.chipClientType
+        : step === 'confirmCreateNewFallback' || step === 'confirmWhatsApp' || step === 'confirmPayment' || step === 'askMeasureNow' || step === 'askChangeMeasure'
+          ? c.chipYesNo
+          : step === 'askGarmentForMeasurement'
+            ? c.chipGarments
+            : step === 'askDiscount' || step === 'askPaid'
+              ? c.chipNo
+              : step === 'askPaymentMode' || step === 'collectPaymentMode'
+                ? c.chipPayMode
+                : [];
+
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header title="AI સહાયક" onBack={() => navigation.goBack()} />
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}>
-        {log.map((entry, i) => (
-          <View
-            key={i}
-            className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-              entry.who === 'ai'
-                ? 'self-start rounded-tl-sm bg-primary-50 dark:bg-primary-950'
-                : 'self-end rounded-tr-sm bg-gray-100 dark:bg-gray-800'
-            }`}
-          >
-            <Text className="font-sans text-base text-gray-900 dark:text-gray-50">{entry.text}</Text>
-          </View>
-        ))}
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      {/* soft blue glow behind the orb */}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <RadialGradient id="glow" cx="50%" cy="38%" r="55%">
+            <Stop offset="0" stopColor={primary[600]} stopOpacity="0.38" />
+            <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#glow)" />
+      </Svg>
+
+      {/* top bar */}
+      <View style={[styles.top, { paddingTop: insets.top + 10 }]}>
+        <GlassButton icon={IconChevronLeft} label="Back" onPress={() => navigation.goBack()} />
+        <Text style={styles.title}>{c.title}</Text>
+        <GlassButton icon={IconMessageCircle} label="Transcript" onPress={() => setShowTranscript(true)} />
+      </View>
+
+      {/* order progress, only while creating an order */}
+      {flow === 'order' ? (
+        <Animated.View entering={FadeIn.duration(200)} style={styles.phases}>
+          {PHASES.map((label, i) => (
+            <View key={label} style={{ flex: 1, gap: 6 }}>
+              <View style={[styles.phaseBar, { backgroundColor: i <= phase ? primary[500] : 'rgba(255,255,255,0.16)' }]} />
+              <Text style={{ fontFamily: typography.family.medium, fontSize: 11, color: i <= phase ? '#FFFFFF' : 'rgba(255,255,255,0.45)' }} numberOfLines={1}>
+                {label}
+              </Text>
+            </View>
+          ))}
+        </Animated.View>
+      ) : (
+        <View style={styles.phases} />
+      )}
+
+      {/* the stage: orb, the one thing the assistant is saying, your last answer */}
+      <ScrollView contentContainerStyle={styles.stage} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.orbWrap}>
+          {listening ? (
+            <>
+              <Animated.View pointerEvents="none" style={[styles.ring, ringA]} />
+              <Animated.View pointerEvents="none" style={[styles.ring, ringB]} />
+            </>
+          ) : null}
+          <Animated.View style={orbStyle}>
+            <AiOrb size={132} />
+          </Animated.View>
+        </View>
+
+        {lastAi ? (
+          <Animated.Text key={log.length + lastAi} entering={FadeInDown.duration(360)} style={styles.caption}>
+            {lastAi}
+          </Animated.Text>
+        ) : (
+          <ActivityIndicator color="#FFFFFF" style={{ marginTop: 24 }} />
+        )}
+
+        {lastUser ? (
+          <Animated.View key={'u' + lastUser + log.length} entering={FadeIn.duration(260)} exiting={FadeOut.duration(120)} style={styles.youChip}>
+            <Text style={{ fontFamily: typography.family.medium, fontSize: 14, color: '#FFFFFF' }} numberOfLines={2}>
+              {lastUser}
+            </Text>
+          </Animated.View>
+        ) : null}
       </ScrollView>
 
-      <View className="items-center gap-3 border-t border-gray-100 px-6 py-6 dark:border-gray-800">
+      {/* one-tap answers */}
+      {chips.length > 0 && !busy ? (
+        <Animated.View key={step} entering={FadeInDown.duration(260)} style={styles.chips}>
+          {chips.map((c) => (
+            <Pressable key={c} onPress={() => reply(c)} accessibilityRole="button" style={({ pressed }) => [styles.chip, { opacity: pressed ? 0.7 : 1 }]}>
+              <Text style={{ fontFamily: typography.family.semibold, fontSize: 14, color: '#FFFFFF' }}>{c}</Text>
+            </Pressable>
+          ))}
+        </Animated.View>
+      ) : null}
+
+      {/* floating reply bar */}
+      <View style={[styles.dock, { paddingBottom: insets.bottom + 16 }]}>
         {step === 'done' ? (
-          <Pressable
-            onPress={restart}
-            className="flex-row items-center gap-2 rounded-full bg-primary-600 px-6 py-3.5 active:bg-primary-700"
-          >
-            <FontAwesome5 name="redo" size={14} color="#FFFFFF" />
-            <Text className="text-base font-semibold text-white">નવી વાતચીત શરૂ કરો</Text>
+          <Pressable onPress={restart} accessibilityRole="button" style={styles.restart}>
+            <IconRefresh size={20} color="#FFFFFF" strokeWidth={2.2} />
+            <Text style={{ fontFamily: typography.family.semibold, fontSize: 16, color: '#FFFFFF' }}>{c.restart}</Text>
           </Pressable>
         ) : (
-          <Pressable
-            onPress={() => (listening ? stopListening() : startListening())}
-            disabled={busy}
-            className={`h-16 w-16 items-center justify-center rounded-full ${
-              listening ? 'bg-danger' : busy ? 'bg-gray-300 dark:bg-gray-700' : 'bg-primary-600'
-            }`}
-          >
-            <FontAwesome5 name="microphone" size={22} color="#FFFFFF" />
-          </Pressable>
+          <>
+            {statusText ? (
+              <Text style={{ fontFamily: typography.family.medium, fontSize: 13, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>{statusText}</Text>
+            ) : null}
+            <View style={styles.bar}>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={c.placeholder}
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                editable={!busy}
+                onSubmitEditing={sendDraft}
+                returnKeyType="send"
+                style={[styles.input, { outlineStyle: 'none' } as object]}
+              />
+              {draft.trim().length > 0 ? (
+                <Pressable onPress={sendDraft} hitSlop={8} accessibilityRole="button" accessibilityLabel="Send" style={styles.send}>
+                  <IconSend size={20} color="#FFFFFF" strokeWidth={2.2} />
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => (listening ? stopListening() : startListening(TTS_CODE[appLang]))}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Voice input"
+                  style={[styles.send, { backgroundColor: listening ? status.danger[600] : busy ? 'rgba(255,255,255,0.2)' : primary[600] }]}
+                >
+                  <IconMicrophone size={22} color="#FFFFFF" strokeWidth={2} />
+                </Pressable>
+              )}
+            </View>
+          </>
         )}
-        <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-          {listening ? 'સાંભળી રહ્યા છીએ...' : busy ? 'વિચારી રહ્યા છીએ...' : 'બોલવા માટે માઈક દબાવો'}
-        </Text>
       </View>
+
+      {/* full conversation, on demand */}
+      <DSBottomSheet visible={showTranscript} onClose={() => setShowTranscript(false)} title={c.transcript}>
+        <View style={{ gap: 10, paddingTop: 12, paddingBottom: 12 }}>
+          {log.length === 0 ? (
+            <Text style={{ fontFamily: typography.family.regular, fontSize: 14, color: colors.textMuted }}>—</Text>
+          ) : (
+            log.map((entry, i) => {
+              const ai = entry.who === 'ai';
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.bubble,
+                    ai
+                      ? { alignSelf: 'flex-start', backgroundColor: colors.primaryTint, borderTopLeftRadius: 6 }
+                      : { alignSelf: 'flex-end', backgroundColor: primary[600], borderTopRightRadius: 6 },
+                  ]}
+                >
+                  <Text style={{ fontFamily: typography.family.medium, fontSize: 15, lineHeight: 22, color: ai ? colors.textPrimary : '#FFFFFF' }}>{entry.text}</Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+      </DSBottomSheet>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000000' },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  title: { fontFamily: typography.family.bold, fontSize: 18, color: '#FFFFFF' },
+  phases: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginTop: 18, minHeight: 28 },
+  phaseBar: { height: 4, borderRadius: 9999 },
+  stage: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 24, gap: 24 },
+  orbWrap: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center' },
+  ring: { position: 'absolute', width: 132, height: 132, borderRadius: 9999, backgroundColor: primary[500] },
+  caption: { fontFamily: typography.family.semibold, fontSize: 24, lineHeight: 34, color: '#FFFFFF', textAlign: 'center', letterSpacing: -0.4 },
+  youChip: { maxWidth: '88%', borderRadius: 9999, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: 'rgba(255,255,255,0.14)' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, paddingHorizontal: 20, paddingBottom: 14 },
+  chip: { height: 40, paddingHorizontal: 16, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: 'rgba(255,255,255,0.08)' },
+  dock: { paddingHorizontal: 20, gap: 10 },
+  bar: { flexDirection: 'row', alignItems: 'center', height: 60, borderRadius: 9999, paddingLeft: 22, paddingRight: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  input: { flex: 1, minWidth: 0, fontFamily: typography.family.medium, fontSize: 15, color: '#FFFFFF', padding: 0 },
+  send: { width: 46, height: 46, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', backgroundColor: primary[600] },
+  restart: { height: 56, borderRadius: 9999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: primary[600] },
+  bubble: { maxWidth: '85%', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
+});

@@ -18,7 +18,15 @@
     "deliveryLabel": "ડિલિવરી — #{{number}}",
     "trialLabel": "ટ્રાયલ — #{{number}}",
     "emptyTitle": "કંઈ નિર્ધારિત નથી",
-    "emptyDescription": "આ દિવસ માટે ડિલિવરી અને ટ્રાયલ અહીં દેખાશે."
+    "emptyDescription": "આ દિવસ માટે ડિલિવરી અને ટ્રાયલ અહીં દેખાશે.",
+    "garment": "કપડાં",
+    "paid": "ચૂકવેલ",
+    "partial": "આંશિક",
+    "unpaid": "બાકી",
+    "left": "{{amount}} બાકી",
+    "delivered": "ડિલિવર થયો",
+    "legendDelivery": "ડિલિવરી",
+    "legendTrial": "ટ્રાયલ"
   },
   "loading": "ડેશબોર્ડ લોડ થઈ રહ્યું છે...",
   "greeting": "નમસ્તે, {{name}}",
@@ -122,8 +130,8 @@
     "todaysRevenue": "આજની કમાણી"
   },
   "aiCard": {
-    "title": "AI ઓર્ડર આસિસ્ટન્ટ",
-    "subtitle": "અવાજ અથવા ટેક્સ્ટથી ઓર્ડર બનાવો",
+    "title": "AI આસિસ્ટન્ટ",
+    "subtitle": "બોલો કે લખો — પૂછો અથવા કામ કરાવો",
     "placeholder": "હું કેવી રીતે મદદ કરું?"
   }
 }
