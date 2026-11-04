@@ -4,7 +4,7 @@ import { BlurView } from 'expo-blur';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
-import { primary, typography } from '../../constants/tokens';
+import { neutral, primary, typography } from '../../constants/tokens';
 import { IconClipboardList, IconHome, IconLayoutGrid, IconPlus, IconUsers, type TablerIcon } from './icons';
 
 const f = typography.family;
@@ -140,7 +140,7 @@ export function DSBottomNav({
       <View
         style={[
           styles.pill,
-          { borderColor: dark ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.85)' },
+          { borderColor: dark ? neutral[600] : neutral[300], borderWidth: 1.5 },
           !dark && styles.shadow,
         ]}
       >

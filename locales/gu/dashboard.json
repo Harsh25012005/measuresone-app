@@ -111,5 +111,18 @@
       "order_ready": "ઓર્ડર તૈયાર છે",
       "payment_due": "ચુકવણી બાકી છે"
     }
+  },
+  "welcomeBack": "ફરી સ્વાગત છે",
+  "seeAll": "બધા જુઓ",
+  "last7Days": "છેલ્લા 7 દિવસ",
+  "stats": {
+    "ordersToday": "આજના ઓર્ડર",
+    "delivered": "ડિલિવર થયા",
+    "unpaidBills": "બાકી બિલ"
+  },
+  "aiCard": {
+    "title": "AI ઓર્ડર આસિસ્ટન્ટ",
+    "subtitle": "અવાજ અથવા ટેક્સ્ટથી ઓર્ડર બનાવો",
+    "placeholder": "હું કેવી રીતે મદદ કરું?"
   }
 }

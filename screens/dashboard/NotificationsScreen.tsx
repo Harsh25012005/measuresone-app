@@ -1,13 +1,21 @@
 import { useCallback, useState } from 'react';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconBell, IconCheck, IconCurrencyRupee, type TablerIcon } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
+import { status, typography } from '../../constants/tokens';
 import type { DashboardScreenProps } from '../../navigation/types';
 import type { Enums } from '../../lib/database.types';
+
+const f = typography.family;
 
 type NotificationRow = {
   id: string;
@@ -17,12 +25,9 @@ type NotificationRow = {
   customers: { name: string } | null;
 };
 
-const TYPE_META: Record<
-  Enums<'notification_type'>,
-  { icon: React.ComponentProps<typeof FontAwesome5>['name']; bg: string; color: string }
-> = {
-  order_ready: { icon: 'check-circle', bg: 'bg-emerald-50 dark:bg-emerald-950', color: '#047857' },
-  payment_due: { icon: 'rupee-sign', bg: 'bg-amber-50 dark:bg-amber-950', color: '#B45309' },
+const TYPE_META: Record<Enums<'notification_type'>, { icon: TablerIcon; light: string; dark: string; fg: string }> = {
+  order_ready: { icon: IconCheck, light: status.success[100], dark: '#0F2E1C', fg: status.success[600] },
+  payment_due: { icon: IconCurrencyRupee, light: status.warning[100], dark: '#33240A', fg: status.warning[600] },
 };
 
 function relativeTime(dateString: string | null, t: TFunction<'dashboard'>): string {
@@ -43,6 +48,8 @@ function relativeTime(dateString: string | null, t: TFunction<'dashboard'>): str
 export default function NotificationsScreen({ navigation }: DashboardScreenProps<'Notifications'>) {
   const showToast = useToast();
   const { t } = useTranslation('dashboard');
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,47 +81,51 @@ export default function NotificationsScreen({ navigation }: DashboardScreenProps
     setRefreshing(false);
   };
 
-  if (loading) return <LoadingSpinner fullScreen text={t('notifications.loading')} />;
-
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header title={t('notifications.title')} onBack={() => navigation.goBack()} />
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={
-          items.length === 0 ? { flexGrow: 1 } : { padding: 16, gap: 10 }
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="bell"
-            title={t('notifications.emptyTitle')}
-            description={t('notifications.emptyDescription')}
-          />
-        }
-        renderItem={({ item }) => {
-          const meta = TYPE_META[item.type];
-          return (
-            <View className="flex-row items-center rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-              <View className={`h-11 w-11 items-center justify-center rounded-full ${meta.bg}`}>
-                <FontAwesome5 name={meta.icon} size={16} color={meta.color} />
-              </View>
-              <View className="ml-3 flex-1">
-                <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                  {t(`notifications.types.${item.type}`)} · {item.customers?.name ?? t('notifications.customer')}
-                </Text>
-                <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">
-                  {relativeTime(item.sent_at, t)}
-                  {item.status !== 'sent' ? ` · ${item.status}` : ''}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
-      />
-    </View>
+    <DSScreen title={t('notifications.title')} onBack={() => navigation.goBack()}>
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={5} />
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={items.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : { padding: 20, paddingBottom: 140, gap: 10 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
+          ListEmptyComponent={
+            <DSEmptyState icon={IconBell} title={t('notifications.emptyTitle')} description={t('notifications.emptyDescription')} />
+          }
+          renderItem={({ item, index }) => {
+            const meta = TYPE_META[item.type];
+            const Icon = meta.icon;
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(280)}
+                style={[styles.card, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }]}
+              >
+                <View style={[styles.icon, { backgroundColor: dark ? meta.dark : meta.light }]}>
+                  <Icon size={20} color={meta.fg} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }} numberOfLines={2}>
+                    {t(`notifications.types.${item.type}`)} · {item.customers?.name ?? t('notifications.customer')}
+                  </Text>
+                  <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted, marginTop: 2 }}>
+                    {relativeTime(item.sent_at, t)}
+                    {item.status !== 'sent' ? ` · ${item.status}` : ''}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          }}
+        />
+      )}
+    </DSScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 24, borderWidth: 1 },
+  icon: { width: 44, height: 44, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

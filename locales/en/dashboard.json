@@ -111,5 +111,18 @@
       "order_ready": "Order ready",
       "payment_due": "Payment due"
     }
+  },
+  "welcomeBack": "Welcome back",
+  "seeAll": "See all",
+  "last7Days": "Last 7 days",
+  "stats": {
+    "ordersToday": "Orders today",
+    "delivered": "Delivered",
+    "unpaidBills": "Unpaid bills"
+  },
+  "aiCard": {
+    "title": "AI Order Assistant",
+    "subtitle": "Create orders by voice or text",
+    "placeholder": "How can I help you?"
   }
 }

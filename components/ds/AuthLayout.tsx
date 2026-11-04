@@ -94,8 +94,8 @@ export function AuthLayout({ scene, title, subtitle, children, footer, onBack, o
         <View style={{ paddingTop: insets.top + 8, paddingBottom: 44, paddingHorizontal: 12 }}>
           <HeroGradient />
           {onBack ? (
-            <Pressable onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
-              <IconChevronLeft size={20} color="#FFFFFF" />
+            <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
+              <IconChevronLeft size={26} color="#FFFFFF" strokeWidth={2.2} />
             </Pressable>
           ) : (
             <View style={{ height: 40 }} />
@@ -134,17 +134,7 @@ export function AuthLayout({ scene, title, subtitle, children, footer, onBack, o
 }
 
 const styles = StyleSheet.create({
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
+  back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 4 },
   sheet: {
     flexGrow: 1,
     marginTop: -30,

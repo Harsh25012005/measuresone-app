@@ -1,24 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import {
-  Avatar,
-  BottomSheet,
-  Button,
-  EmptyState,
-  Header,
-  QuickAddCustomerSheet,
-  useToast,
-  VoiceListeningOverlay,
-} from '../../components/ui';
+import { QuickAddCustomerSheet, useToast, VoiceListeningOverlay } from '../../components/ui';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSScreen, GlassSearch } from '../../components/ds/Screen';
+import { IconChevronRight, IconMicrophone, IconSearch, IconUserPlus } from '../../components/ds/icons';
 import { customersRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { status, typography } from '../../constants/tokens';
 import type { DashboardScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
+
+const f = typography.family;
+const AVATAR_COLORS = ['#2563EB', '#7C3AED', '#0891B2', '#D97706', '#DB2777', '#16A34A'];
 
 type Customer = Tables<'customers'>;
 
@@ -26,7 +26,8 @@ export default function SearchScreen({ navigation }: DashboardScreenProps<'Searc
   const { t } = useTranslation('dashboard');
   const shop = useShop();
   const showToast = useToast();
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState('');
@@ -64,9 +65,7 @@ export default function SearchScreen({ navigation }: DashboardScreenProps<'Searc
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return customers.filter(
-      (c) => c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q)
-    );
+    return customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q));
   }, [customers, query]);
 
   const handleCreated = (customer: Customer) => {
@@ -76,93 +75,92 @@ export default function SearchScreen({ navigation }: DashboardScreenProps<'Searc
   };
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header title={t('search.title')} onBack={() => navigation.goBack()} />
-
-      <View className="flex-row items-center gap-2 px-5 pt-3">
-        <View className="h-[48px] flex-1 flex-row items-center rounded-md border border-gray-200 bg-gray-50 px-4 dark:border-gray-700 dark:bg-gray-800">
-          <FontAwesome5 name="search" size={14} color={colors.iconMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder={t('search.placeholder')}
-            placeholderTextColor={colors.textFaint}
-            autoFocus
-            className="font-sans ml-3 flex-1 text-base text-gray-900 dark:text-gray-50"
-          />
-          {query.length > 0 ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <FontAwesome5 name="times-circle" size={15} color={colors.iconMuted} solid />
-            </Pressable>
-          ) : null}
+    <DSScreen
+      title={t('search.title')}
+      onBack={() => navigation.goBack()}
+      headerExtra={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <GlassSearch value={query} onChangeText={setQuery} placeholder={t('search.placeholder')} autoFocus />
+          <Pressable
+            onPress={() => (dictating ? stopDictation() : startDictation())}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Voice search"
+            style={[styles.mic, dictating && { backgroundColor: status.danger[600], borderColor: status.danger[600] }]}
+          >
+            <IconMicrophone size={20} color="#FFFFFF" strokeWidth={1.9} />
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => (dictating ? stopDictation() : startDictation())}
-          hitSlop={8}
-          className={`h-[48px] w-[48px] items-center justify-center rounded-full ${
-            dictating ? 'bg-danger' : 'bg-primary-50 dark:bg-primary-950'
-          }`}
-        >
-          <FontAwesome5 name="microphone" size={16} color={dictating ? '#FFFFFF' : colors.primary} />
-        </Pressable>
-      </View>
-
+      }
+    >
       {query.trim() === '' ? (
-        <EmptyState
-          icon="search"
-          title={t('search.emptyPromptTitle')}
-          description={t('search.emptyPromptDescription')}
-        />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <DSEmptyState icon={IconSearch} title={t('search.emptyPromptTitle')} description={t('search.emptyPromptDescription')} />
+        </View>
       ) : results.length === 0 ? (
-        <EmptyState
-          icon="user-plus"
-          title={t('search.noResultsTitle')}
-          description={t('search.noResultsDescription')}
-          actionLabel={t('search.addClient')}
-          onAction={() => setQuickAddVisible(true)}
-        />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <DSEmptyState
+            icon={IconUserPlus}
+            title={t('search.noResultsTitle')}
+            description={t('search.noResultsDescription')}
+            actionLabel={t('search.addClient')}
+            onAction={() => setQuickAddVisible(true)}
+          />
+        </View>
       ) : (
         <FlatList
           data={results}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ padding: 20, gap: 4 }}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => setActiveCustomer(item)}
-              className="flex-row items-center gap-3 rounded-md px-2 py-3 active:bg-gray-50 dark:active:bg-gray-800"
-            >
-              <Avatar name={item.name} size="md" />
-              <View className="flex-1">
-                <Text className="text-base font-semibold text-gray-900 dark:text-gray-50" numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-                  {item.phone || t('search.noPhone')}
-                </Text>
-              </View>
-              <FontAwesome5 name="chevron-right" size={13} color={colors.iconMuted} />
-            </Pressable>
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 10 }}
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 40).duration(260)}>
+              <Pressable
+                onPress={() => setActiveCustomer(item)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.row,
+                  {
+                    backgroundColor: pressed ? colors.bgSubtle : colors.bgSurface,
+                    borderColor: dark ? '#262626' : colors.borderDefault,
+                  },
+                ]}
+              >
+                <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[item.name.length % AVATAR_COLORS.length] }]}>
+                  <Text style={{ fontFamily: f.bold, fontSize: 16, color: '#FFFFFF' }}>{item.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
+                    {item.phone || t('search.noPhone')}
+                  </Text>
+                </View>
+                <IconChevronRight size={16} color={colors.textFaint} />
+              </Pressable>
+            </Animated.View>
           )}
         />
       )}
 
-      <BottomSheet
-        visible={!!activeCustomer}
-        onClose={() => setActiveCustomer(null)}
-        title={activeCustomer?.name}
-      >
-        <View className="gap-3">
-          <Button
+      <DSBottomSheet visible={!!activeCustomer} onClose={() => setActiveCustomer(null)} title={activeCustomer?.name ?? ''}>
+        <View style={{ gap: 12, paddingBottom: 12 }}>
+          <DSButton
             title={t('search.createOrder')}
+            size="lg"
+            fullWidth
             onPress={() => {
               const customer = activeCustomer;
               setActiveCustomer(null);
               if (customer) navigation.navigate('OrderForm', { customerId: customer.id });
             }}
           />
-          <Button
+          <DSButton
             title={t('search.viewProfile')}
-            variant="secondary"
+            variant="line"
+            size="lg"
+            fullWidth
             onPress={() => {
               const customer = activeCustomer;
               setActiveCustomer(null);
@@ -175,20 +173,26 @@ export default function SearchScreen({ navigation }: DashboardScreenProps<'Searc
             }}
           />
         </View>
-      </BottomSheet>
+      </DSBottomSheet>
 
-      <QuickAddCustomerSheet
-        visible={quickAddVisible}
-        onClose={() => setQuickAddVisible(false)}
-        onCreated={handleCreated}
-      />
+      <QuickAddCustomerSheet visible={quickAddVisible} onClose={() => setQuickAddVisible(false)} onCreated={handleCreated} />
 
-      <VoiceListeningOverlay
-        visible={dictating}
-        onStop={stopDictation}
-        label={t('search.listening')}
-        hint={t('search.listeningHint')}
-      />
-    </View>
+      <VoiceListeningOverlay visible={dictating} onStop={stopDictation} label={t('search.listening')} hint={t('search.listeningHint')} />
+    </DSScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  mic: {
+    width: 48,
+    height: 48,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 9999, borderWidth: 1 },
+  avatar: { width: 44, height: 44, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

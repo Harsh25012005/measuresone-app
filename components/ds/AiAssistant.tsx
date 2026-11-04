@@ -124,7 +124,7 @@ export function DSAiAssistant({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, overflow: 'hidden', padding: 16, gap: 12 },
+  card: { borderRadius: 24, overflow: 'hidden', padding: 16, gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { fontFamily: f.semibold, fontSize: 20, lineHeight: 27, color: '#FFFFFF', letterSpacing: -0.6 },
   subtitle: { fontFamily: f.medium, fontSize: 14, lineHeight: 16, color: '#7B7B7B', letterSpacing: -0.14 },

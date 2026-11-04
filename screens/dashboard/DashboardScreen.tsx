@@ -1,10 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { FontAwesome5, Ionicons } from '../../components/ds/legacyIcons';
 import { useTranslation } from 'react-i18next';
-import { Button, EmptyState, LoadingSpinner, useToast } from '../../components/ui';
+import { DSAiAssistant } from '../../components/ds/AiAssistant';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSOrderList, type OrderItem } from '../../components/ds/Lists';
+import { DSSkeletonCard, DSSkeletonList } from '../../components/ds/Loading';
+import { GlassButton } from '../../components/ds/Screen';
+import {
+  IconBell,
+  IconCalendarEvent,
+  IconCheck,
+  IconClipboardList,
+  IconCurrencyRupee,
+  IconPlus,
+  IconReceipt,
+  IconSearch,
+  IconUsers,
+  type TablerIcon,
+} from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { ordersRepo, customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { haptics } from '../../lib/haptics';
@@ -12,22 +31,16 @@ import { hasSeenProductTour, markProductTourSeen } from '../../lib/productTour';
 import { useShop } from '../../context/AuthContext';
 import { useProductTour } from '../../context/ProductTourContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useHeroStatusBar } from '../../context/StatusBarContext';
+import { primary, status, typography } from '../../constants/tokens';
 import type { DashboardScreenProps } from '../../navigation/types';
 import type { OrderListItem } from '../../types';
 
-type ClientItem = {
-  id: string;
-  name: string;
-  phone: string | null;
-};
+const f = typography.family;
 
-type RecentPaymentItem = {
-  id: string;
-  customerName: string;
-  amount: number;
-  mode: string;
-  date: string;
-};
+type ClientItem = { id: string; name: string; phone: string | null };
+
+type RecentPaymentItem = { id: string; customerName: string; amount: number; mode: string; date: string };
 
 type Stats = {
   todaysOrders: OrderListItem[];
@@ -35,19 +48,10 @@ type Stats = {
   recentOrders: OrderListItem[];
   topClients: ClientItem[];
   recentPayments: RecentPaymentItem[];
-  totalPendingBalance: number;
   unpaidBillsCount: number;
-  thisMonthRevenue: number;
 };
 
-const AVATAR_COLORS = [
-  { bg: 'bg-blue-100', text: 'text-blue-700' },
-  { bg: 'bg-purple-100', text: 'text-purple-700' },
-  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  { bg: 'bg-amber-100', text: 'text-amber-700' },
-  { bg: 'bg-rose-100', text: 'text-rose-700' },
-  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
-];
+const AVATAR_COLORS = ['#2563EB', '#7C3AED', '#0891B2', '#D97706', '#DB2777', '#16A34A'];
 
 /** Local-time day boundaries as ISO strings, plus the plain YYYY-MM-DD date. */
 function todayRange() {
@@ -63,17 +67,73 @@ function todayRange() {
   return { start: start.toISOString(), end: end.toISOString(), localDate };
 }
 
+
+
+/** Order → row for the shared order list. */
+function toOrderItem(o: OrderListItem, fallbackGarment: string): OrderItem {
+  const total = Number(o.total_amount ?? 0);
+  const paid = Number(o.paid_amount ?? 0);
+  return {
+    id: o.id,
+    number: String(o.order_number).replace(/^ORD-/i, 'O-'),
+    clientName: o.customers?.name ?? '—',
+    garment: o.cloth_type || fallbackGarment,
+    pieces: o.cloth_count ?? 1,
+    total,
+    paid,
+    payment: total > 0 && paid >= total ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+    date: o.order_date
+      ? new Date(o.order_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+      : '—',
+  };
+}
+
+function StatTile({ icon: Icon, label, value, tint, fg, onPress }: { icon: TablerIcon; label: string; value: string; tint: string; fg: string; onPress: () => void }) {
+  const { colors, scheme } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.tile,
+        {
+          backgroundColor: pressed ? colors.bgSubtle : colors.bgSurface,
+          borderColor: scheme === 'dark' ? '#262626' : colors.borderDefault,
+        },
+      ]}
+    >
+      <View style={[styles.tileIcon, { backgroundColor: tint }]}>
+        <Icon size={18} color={fg} strokeWidth={2} />
+      </View>
+      <Text style={{ fontFamily: f.bold, fontSize: 22, lineHeight: 28, color: colors.textPrimary, marginTop: 10 }}>{value}</Text>
+      <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.sectionHead}>
+      <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{title}</Text>
+      {action ? <DSButton title={action} variant="link" size="sm" onPress={onAction} /> : null}
+    </View>
+  );
+}
+
 export default function DashboardScreen({ navigation }: DashboardScreenProps<'Dashboard'>) {
   const shop = useShop();
   const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('dashboard');
-  const { scheme } = useTheme();
-  const amberIconColor = scheme === 'dark' ? '#FCD34D' : '#B45309';
+  const { colors, scheme } = useTheme();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const tour = useProductTour();
+  useHeroStatusBar();
 
   // First visit to the home page after signing up: show the tour once,
   // then never again on this device for this shop.
@@ -133,23 +193,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         .filter((c): c is (typeof customers)[number] => !!c)
         .map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
 
-      const paymentsByBill = new Map<string, number>();
-      for (const p of allPayments) {
-        paymentsByBill.set(p.bill_id, (paymentsByBill.get(p.bill_id) ?? 0) + Number(p.amount_paid));
-      }
-      const totalPendingBalance = allBills.reduce((sum, bill) => {
-        const paid = paymentsByBill.get(bill.id) ?? 0;
-        return sum + Math.max(Number(bill.total_amount ?? 0) - paid, 0);
-      }, 0);
       const unpaidBillsCount = allBills.filter((b) => b.payment_status !== 'paid').length;
-
-      // This month's revenue = payments received since the 1st of the
-      // current calendar month, in local time.
-      const monthKey = localDate.slice(0, 7);
-      const thisMonthRevenue = allPayments.reduce((sum, p) => {
-        const day = p.payment_date ? String(p.payment_date).slice(0, 10) : '';
-        return day.slice(0, 7) === monthKey ? sum + Number(p.amount_paid ?? 0) : sum;
-      }, 0);
 
       // Latest payments received, regardless of which bill/order they're
       // tied to — a fast "money coming in" pulse distinct from Transaction
@@ -175,9 +219,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         recentOrders,
         topClients,
         recentPayments,
-        totalPendingBalance,
         unpaidBillsCount,
-        thisMonthRevenue,
       });
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('errorLoad'), 'error');
@@ -197,269 +239,239 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
     setRefreshing(false);
   };
 
-  if (loading || !stats) return <LoadingSpinner fullScreen text={t('loading')} />;
+  const dark = scheme === 'dark';
+  const openAi = () => {
+    haptics.tap();
+    navigation.navigate('AIOrderAssistant');
+  };
 
   return (
-    <>
-    <ScrollView
-      className="flex-1 bg-white dark:bg-gray-950"
-      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 224 }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
-      }
-    >
-      {/* Topbar Header — every icon carries a visible text label, not just a
-          glyph, since a lone bell/calendar icon isn't self-explanatory. */}
-      <View className="flex-row items-center justify-between px-5 py-3">
-        <Text className="text-[18px] font-semibold text-[#101828] dark:text-gray-50">
-          {t('greeting', { name: shop.shop_name || t('defaultUser') })}
-        </Text>
-        <View className="flex-row items-center gap-1">
-          <Pressable
-            onPress={() => navigation.navigate('Calendar')}
-            className="min-h-[48px] flex-row items-center gap-1.5 rounded-full px-2.5 active:bg-gray-100 dark:active:bg-gray-800"
-          >
-            <Ionicons name="calendar-outline" size={20} color={scheme === 'dark' ? '#F3F4F6' : '#101828'} />
-            <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('calendarNavLabel')}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate('Notifications')}
-            className="min-h-[48px] flex-row items-center gap-1.5 rounded-full px-2.5 active:bg-gray-100 dark:active:bg-gray-800"
-          >
-            <Ionicons name="notifications-outline" size={20} color={scheme === 'dark' ? '#F3F4F6' : '#101828'} />
-            <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('alerts')}</Text>
-          </Pressable>
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: colors.bgPage }}>
+      <StatusBar style="light" />
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FFFFFF" />}
+      >
+        {/* ── header: greeting and search on solid black ── */}
+        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 44, backgroundColor: '#000000' }}>
+          <Animated.View entering={FadeInDown.duration(300)} style={styles.heroTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.welcome}>{t('welcomeBack')}</Text>
+              <Text style={styles.greeting} numberOfLines={1}>
+                {t('greeting', { name: shop.shop_name || t('defaultUser') })}
+              </Text>
+            </View>
+            <GlassButton icon={IconCalendarEvent} label={t('calendarNavLabel')} onPress={() => navigation.navigate('Calendar')} />
+            <GlassButton icon={IconBell} label={t('alerts')} onPress={() => navigation.navigate('Notifications')} />
+          </Animated.View>
 
-      {/* Tappable search field — opens the dedicated Search screen rather
-          than filtering in place, so it works the same way from anywhere
-          in the app the pattern gets reused. */}
-      <View className="mb-4 px-5">
-        <Pressable
-          onPress={() => navigation.navigate('Search')}
-          className="h-[48px] flex-row items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <Ionicons name="search-outline" size={18} color={scheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
-          <Text className="font-sans text-base text-gray-400 dark:text-gray-500">{t('searchPlaceholder')}</Text>
-        </Pressable>
-      </View>
+          <Animated.View entering={FadeInDown.delay(80).duration(300)} style={{ marginTop: 18 }}>
+            <Pressable onPress={() => navigation.navigate('Search')} accessibilityRole="search" style={styles.search}>
+              <IconSearch size={18} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.searchText} numberOfLines={1}>
+                {t('searchPlaceholder')}
+              </Text>
+            </Pressable>
+          </Animated.View>
 
-      {/* The "3 questions, no scrolling" zone: what's due today, who owes me,
-          what needs attention — answered as two big glanceable tiles plus an
-          alert strip, each tappable straight into the filtered list. */}
-      <View className="mb-4 flex-row gap-3 px-5">
-        <Pressable
-          onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Revenue' })}
-          className="flex-1 rounded-lg border border-gray-200 bg-white p-4 active:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:active:bg-gray-800"
-        >
-          <View className="mb-2 h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950">
-            <FontAwesome5 name="chart-line" size={16} color="#1D4ED8" />
-          </View>
-          <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('thisMonthRevenue.title')}</Text>
-          <Text className="mt-0.5 text-[22px] font-bold text-[#101828] dark:text-gray-50">
-            {formatCurrency(stats.thisMonthRevenue)}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Billing' })}
-          className="flex-1 rounded-lg border border-gray-200 bg-white p-4 active:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:active:bg-gray-800"
-        >
-          <View className="mb-2 h-10 w-10 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950">
-            <FontAwesome5 name="rupee-sign" size={16} color={amberIconColor} />
-          </View>
-          <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('owedToday.title')}</Text>
-          <Text className="mt-0.5 text-[22px] font-bold text-[#101828] dark:text-gray-50">
-            {formatCurrency(stats.totalPendingBalance)}
-          </Text>
-        </Pressable>
-      </View>
-
-
-      {/* One primary action, unambiguous but no longer the oversized 56px
-          hero button — medium size reads as "the main action" without
-          dominating the whole screen. Adding a client/bill/staff member
-          still lives one tap away in the Quick-Add FAB. */}
-      <View className="mb-6 px-5">
-        <Button
-          title={t('newOrder')}
-          icon={<Ionicons name="add" size={20} color="#FFFFFF" />}
-          size="md"
-          onPress={() => {
-            haptics.tap();
-            navigation.navigate('OrderForm', {});
-          }}
-        />
-      </View>
-
-      {/* Quick Send & Transactions Sheet Container */}
-      <View className="flex-1 bg-white dark:bg-gray-950">
-
-        {/* Top Clients — ranked by order count */}
-        <View className="mb-6 px-5">
-          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">{t('topClients')}</Text>
-          {stats.topClients.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              icon="user-friends"
-              title={t('emptyTopClients.title')}
-              description={t('emptyTopClients.description')}
-            />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 14 }}
-            >
-              {stats.topClients.map((client, idx) => {
-                const initial = client.name ? client.name.charAt(0).toUpperCase() : 'C';
-                const colorStyle = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-                return (
-                  <Pressable
-                    key={client.id}
-                    onPress={() =>
-                      navigation.navigate('CustomersTab' as any, {
-                        screen: 'CustomerDetail',
-                        params: { customerId: client.id },
-                      })
-                    }
-                    className="w-[54px] items-center gap-1"
-                  >
-                    <View className={`h-[54px] w-[54px] items-center justify-center rounded-full ${colorStyle.bg}`}>
-                      <Text className={`text-[18px] font-semibold ${colorStyle.text}`}>{initial}</Text>
-                    </View>
-                    <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50 text-center" numberOfLines={1}>
-                      {client.name.split(' ')[0]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
         </View>
 
-        {/* Total Today's Delivery — capped to 3 with a "view more" link into
-            the full Orders list, rather than an ever-growing scroll. */}
-        <View className="mb-6 px-5">
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">{t('todaysDelivery.title')}</Text>
-          </View>
-
-          {stats.todaysDeliveries.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              icon="calendar-day"
-              title={t('emptyTransactionsTitle')}
-              description={t('emptyTransactionsDescription')}
-            />
+        {/* ── content sheet ── */}
+        <View style={[styles.sheet, { backgroundColor: colors.bgPage }]}>
+          {loading || !stats ? (
+            <View style={{ gap: 16 }}>
+              <DSSkeletonCard />
+              <DSSkeletonList rows={3} />
+            </View>
           ) : (
             <>
-              <View className="gap-3">
-                {stats.todaysDeliveries.slice(0, 3).map((o) => {
-                  const dateStr = o.order_date
-                    ? new Date(o.order_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                    : 'Recent';
-
-                  return (
-                    <Pressable
-                      key={o.id}
-                      onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })}
-                      className="flex-row items-center justify-between rounded-xl py-2"
-                    >
-                      <View className="flex-1 flex-row items-center gap-3">
-                        <View className="h-[48px] w-[48px] items-center justify-center rounded-full bg-[#F4F6F9] dark:bg-gray-800">
-                          <FontAwesome5 name="shopping-bag" size={18} color="#1D4ED8" />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-base font-semibold text-[#101828] dark:text-gray-50" numberOfLines={1}>
-                            #{o.order_number} · {o.customers?.name || t('customer')}
-                          </Text>
-                          <Text className="font-sans text-base font-medium text-[#667085] dark:text-gray-400">
-                            {dateStr}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View className="items-end">
-                        <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">
-                          {o.cloth_type || t('garmentOrder')}
-                        </Text>
-                        <Text className="text-base font-medium text-[#12B76A]">
-                          {o.status.replace('_', ' ')}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {stats.todaysDeliveries.length > 3 ? (
-                <Pressable
+              <Animated.View entering={FadeInDown.duration(320)} style={styles.tiles}>
+                <StatTile
+                  icon={IconClipboardList}
+                  label={t('stats.ordersToday')}
+                  value={String(stats.todaysOrders.length)}
+                  tint={dark ? primary[950] : primary[100]}
+                  fg={primary[600]}
                   onPress={() => navigation.navigate('OrdersTab' as any)}
-                  className="mt-2 items-center rounded-md py-2.5 active:bg-gray-50 dark:active:bg-gray-800"
-                >
-                  <Text className="text-base font-medium text-[#1D4ED8] underline">{t('viewMore')}</Text>
-                </Pressable>
-              ) : null}
+                />
+                <StatTile
+                  icon={IconCheck}
+                  label={t('stats.delivered')}
+                  value={String(stats.todaysDeliveries.length)}
+                  tint={dark ? '#0F2E1C' : status.success[100]}
+                  fg={status.success[600]}
+                  onPress={() => navigation.navigate('OrdersTab' as any)}
+                />
+                <StatTile
+                  icon={IconReceipt}
+                  label={t('stats.unpaidBills')}
+                  value={String(stats.unpaidBillsCount)}
+                  tint={dark ? '#33240A' : status.warning[100]}
+                  fg={status.warning[600]}
+                  onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Billing' })}
+                />
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(60).duration(320)} style={{ marginTop: 16 }}>
+                <DSButton
+                  title={t('newOrder')}
+                  size="lg"
+                  fullWidth
+                  leftIcon={IconPlus}
+                  onPress={() => {
+                    haptics.tap();
+                    navigation.navigate('OrderForm', {});
+                  }}
+                />
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(120).duration(320)} style={{ marginTop: 20 }}>
+                <DSAiAssistant
+                  title={t('aiCard.title')}
+                  subtitle={t('aiCard.subtitle')}
+                  placeholder={t('aiCard.placeholder')}
+                  onSend={openAi}
+                  onMicPress={openAi}
+                />
+              </Animated.View>
+
+              {/* Top clients — ranked by order count */}
+              <View style={{ marginTop: 28 }}>
+                <SectionHeader title={t('topClients')} />
+                {stats.topClients.length === 0 ? (
+                  <DSEmptyState
+                    variant="compact"
+                    icon={IconUsers}
+                    title={t('emptyTopClients.title')}
+                    description={t('emptyTopClients.description')}
+                  />
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingRight: 8 }}>
+                    {stats.topClients.map((client, idx) => (
+                      <Pressable
+                        key={client.id}
+                        onPress={() =>
+                          navigation.navigate('CustomersTab' as any, {
+                            screen: 'CustomerDetail',
+                            params: { customerId: client.id },
+                          })
+                        }
+                        accessibilityRole="button"
+                        style={{ width: 64, alignItems: 'center', gap: 6 }}
+                      >
+                        <View style={[styles.clientAvatar, { backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length] }]}>
+                          <Text style={{ fontFamily: f.bold, fontSize: 20, color: '#FFFFFF' }}>
+                            {client.name ? client.name.charAt(0).toUpperCase() : 'C'}
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textPrimary }} numberOfLines={1}>
+                          {client.name.split(' ')[0]}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
+              {/* Today's delivery — capped to 3 with a link into the full Orders list */}
+              <View style={{ marginTop: 28 }}>
+                <SectionHeader
+                  title={t('todaysDelivery.title')}
+                  action={stats.todaysDeliveries.length > 3 ? t('viewMore') : undefined}
+                  onAction={() => navigation.navigate('OrdersTab' as any)}
+                />
+                {stats.todaysDeliveries.length === 0 ? (
+                  <DSEmptyState
+                    variant="compact"
+                    icon={IconCalendarEvent}
+                    title={t('emptyTransactionsTitle')}
+                    description={t('emptyTransactionsDescription')}
+                  />
+                ) : (
+                  <DSOrderList
+                    items={stats.todaysDeliveries.slice(0, 3).map((o) => toOrderItem(o, t('garmentOrder')))}
+                    onPressItem={(item) => navigation.navigate('OrderDetail', { orderId: item.id })}
+                  />
+                )}
+              </View>
+
+              {/* Recent payments — a fast "money coming in" pulse */}
+              <View style={{ marginTop: 28 }}>
+                <SectionHeader
+                  title={t('recentPayments.title')}
+                  action={stats.recentPayments.length > 0 ? t('seeAll') : undefined}
+                  onAction={() => navigation.navigate('Transactions')}
+                />
+                {stats.recentPayments.length === 0 ? (
+                  <DSEmptyState
+                    variant="compact"
+                    icon={IconCurrencyRupee}
+                    title={t('recentPayments.emptyTitle')}
+                    description={t('recentPayments.emptyDescription')}
+                  />
+                ) : (
+                  <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }]}>
+                    {stats.recentPayments.map((payment, i) => (
+                      <View key={payment.id}>
+                        <View style={styles.payRow}>
+                          <View style={[styles.payIcon, { backgroundColor: dark ? '#0F2E1C' : status.success[100] }]}>
+                            <IconCurrencyRupee size={18} color={status.success[600]} strokeWidth={2.2} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }} numberOfLines={1}>
+                              {payment.customerName}
+                            </Text>
+                            <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>
+                              {new Date(payment.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                              {payment.mode ? ` · ${payment.mode}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={{ fontFamily: f.bold, fontSize: 15, color: status.success[600] }}>
+                            +{formatCurrency(payment.amount)}
+                          </Text>
+                        </View>
+                        {i < stats.recentPayments.length - 1 ? (
+                          <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             </>
           )}
         </View>
-
-        {/* Recent Payments — a fast "money coming in" pulse, distinct from
-            Today's Delivery above (which lists orders, not payments). */}
-        <View className="px-5">
-          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">
-            {t('recentPayments.title')}
-          </Text>
-          {stats.recentPayments.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              icon="rupee-sign"
-              title={t('recentPayments.emptyTitle')}
-              description={t('recentPayments.emptyDescription')}
-            />
-          ) : (
-            <View className="gap-2.5">
-              {stats.recentPayments.map((payment) => (
-                <View
-                  key={payment.id}
-                  className="flex-row items-center justify-between rounded-md border border-gray-200 bg-[#F9FAFB] px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <View className="flex-1 pr-2">
-                    <Text className="text-base font-semibold text-[#101828] dark:text-gray-50" numberOfLines={1}>
-                      {payment.customerName}
-                    </Text>
-                    <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
-                      {new Date(payment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {payment.mode ? ` · ${payment.mode}` : ''}
-                    </Text>
-                  </View>
-                  <Text className="text-base font-bold text-green-600">{formatCurrency(payment.amount)}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-    </ScrollView>
-
-    {/* AI voice assistant — floats above the tab bar (which is 78px tall
-        plus its own safe-area padding, see CustomTabBar.tsx), opens a fresh
-        Gujarati conversation for hands-free order creation. */}
-    <Pressable
-      onPress={() => {
-        haptics.tap();
-        navigation.navigate('AIOrderAssistant');
-      }}
-      className="absolute right-5 h-14 w-14 items-center justify-center rounded-full bg-primary-600 shadow-lg active:bg-primary-700"
-      style={{ bottom: insets.bottom + 78 + 16 }}
-    >
-      <FontAwesome5 name="robot" size={20} color="#FFFFFF" />
-    </Pressable>
-    </>
+      </ScrollView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  welcome: { fontFamily: f.medium, fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  greeting: { fontFamily: f.bold, fontSize: 24, lineHeight: 30, color: '#FFFFFF', marginTop: 6 },
+  search: {
+    height: 48,
+    borderRadius: 9999,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  searchText: { flex: 1, fontFamily: f.medium, fontSize: 14, color: 'rgba(255,255,255,0.55)' },
+  sheet: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 24, paddingHorizontal: 20, minHeight: 500 },
+  tiles: { flexDirection: 'row', gap: 10 },
+  tile: { flex: 1, borderWidth: 1, borderRadius: 22, padding: 14 },
+  tileIcon: { width: 36, height: 36, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, minHeight: 32 },
+  clientAvatar: { width: 58, height: 58, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+  list: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  payIcon: { width: 40, height: 40, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

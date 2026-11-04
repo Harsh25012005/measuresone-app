@@ -1,19 +1,31 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Calendar, type DateData } from 'react-native-calendars';
-import { Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSCalendar } from '../../components/ds/Calendar';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSSkeletonCard } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconCalendarEvent, IconShirt, IconTruckDelivery } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { ordersRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { primary, status, typography } from '../../constants/tokens';
 import type { DashboardScreenProps } from '../../navigation/types';
+
+const f = typography.family;
 
 type AgendaItem = { id: string; kind: 'delivery' | 'trial'; title: string; subtitle?: string };
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+/** Local YYYY-MM-DD — order dates are plain dates, so avoid UTC shifting. */
+const keyOf = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fromKey = (k: string) => {
+  const [y, m, d] = k.split('-').map(Number);
+  return new Date(y!, m! - 1, d!);
+};
 
 /**
  * Unified view of delivery and trial dates for the shop. Staff leave used to
@@ -25,28 +37,9 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
   const showToast = useToast();
   const { t } = useTranslation('dashboard');
   const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
 
-  const calendarTheme = useMemo(
-    () => ({
-      backgroundColor: colors.bgPage,
-      calendarBackground: colors.bgPage,
-      textSectionTitleColor: colors.textMuted,
-      dayTextColor: colors.textPrimary,
-      todayTextColor: colors.primary,
-      monthTextColor: colors.textPrimary,
-      textDisabledColor: colors.textFaint,
-      arrowColor: colors.primary,
-      selectedDayBackgroundColor: colors.primary,
-      selectedDayTextColor: '#FFFFFF',
-      indicatorColor: colors.primary,
-      textDayFontFamily: undefined,
-      textMonthFontFamily: undefined,
-      textDayHeaderFontFamily: undefined,
-    }),
-    [colors, scheme]
-  );
-
-  const [selectedDate, setSelectedDate] = useState(todayIso());
+  const [selected, setSelected] = useState<Date>(() => new Date());
   const [byDate, setByDate] = useState<Record<string, AgendaItem[]>>({});
   const [loading, setLoading] = useState(true);
 
@@ -87,49 +80,73 @@ export default function CalendarScreen({ navigation }: DashboardScreenProps<'Cal
     }, [load])
   );
 
-  const markedDates = useMemo(() => {
-    const dotColors: Record<AgendaItem['kind'], string> = {
-      delivery: '#1D4ED8',
-      trial: '#D97706',
-    };
-    const marks: Record<string, any> = {};
-    for (const [date, items] of Object.entries(byDate)) {
-      marks[date] = {
-        dots: Array.from(new Set(items.map((i) => i.kind))).map((kind) => ({ color: dotColors[kind] })),
-      };
-    }
-    marks[selectedDate] = { ...(marks[selectedDate] ?? {}), selected: true, selectedColor: '#1D4ED8' };
-    return marks;
-  }, [byDate, selectedDate]);
-
-  const dayItems = byDate[selectedDate] ?? [];
-
-  if (loading) return <LoadingSpinner fullScreen text={t('calendar.loading')} />;
+  const marked = useMemo(() => Object.keys(byDate).map(fromKey), [byDate]);
+  const dayItems = byDate[keyOf(selected)] ?? [];
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header title={t('calendar.title')} onBack={() => navigation.goBack()} />
-      <Calendar
-        key={scheme}
-        style={{ backgroundColor: colors.bgPage }}
-        theme={calendarTheme}
-        markingType="multi-dot"
-        markedDates={markedDates}
-        onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
-      />
-      <FlatList
-        data={dayItems}
-        keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={dayItems.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 8 }}
-        ListEmptyComponent={<EmptyState icon="calendar-alt" title={t('calendar.emptyTitle')} description={t('calendar.emptyDescription')} />}
-        renderItem={({ item }) => (
-          <Card>
-            <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{item.title}</Text>
-            {item.subtitle ? <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">{item.subtitle}</Text> : null}
-          </Card>
-        )}
-      />
+    <DSScreen title={t('calendar.title')} onBack={() => navigation.goBack()}>
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonCard />
+        </View>
+      ) : (
+        <FlatList
+          data={dayItems}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 10 }}
+          ListHeaderComponent={
+            <View style={{ marginBottom: 10 }}>
+              <DSCalendar value={selected} onChange={setSelected} markedDates={marked} />
+              <View style={{ flexDirection: 'row', gap: 16, marginTop: 14, marginBottom: 6 }}>
+                <Legend color={primary[600]} label={t('calendar.legendDelivery', { defaultValue: 'Delivery' })} />
+                <Legend color={status.warning[600]} label={t('calendar.legendTrial', { defaultValue: 'Trial' })} />
+              </View>
+            </View>
+          }
+          ListEmptyComponent={
+            <DSEmptyState variant="compact" icon={IconCalendarEvent} title={t('calendar.emptyTitle')} description={t('calendar.emptyDescription')} />
+          }
+          renderItem={({ item, index }) => {
+            const delivery = item.kind === 'delivery';
+            const Icon = delivery ? IconTruckDelivery : IconShirt;
+            const fg = delivery ? primary[600] : status.warning[600];
+            const tint = delivery ? (dark ? primary[950] : primary[100]) : dark ? '#33240A' : status.warning[100];
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(Math.min(index, 8) * 40).duration(260)}
+                style={[styles.card, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }]}
+              >
+                <View style={[styles.icon, { backgroundColor: tint }]}>
+                  <Icon size={20} color={fg} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  {item.subtitle ? (
+                    <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted, marginTop: 2 }}>{item.subtitle}</Text>
+                  ) : null}
+                </View>
+              </Animated.View>
+            );
+          }}
+        />
+      )}
+    </DSScreen>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 9999, backgroundColor: color }} />
+      <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textMuted }}>{label}</Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 24, borderWidth: 1 },
+  icon: { width: 44, height: 44, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

@@ -111,5 +111,18 @@
       "order_ready": "ऑर्डर तैयार है",
       "payment_due": "भुगतान बकाया है"
     }
+  },
+  "welcomeBack": "वापसी पर स्वागत है",
+  "seeAll": "सभी देखें",
+  "last7Days": "पिछले 7 दिन",
+  "stats": {
+    "ordersToday": "आज के ऑर्डर",
+    "delivered": "डिलीवर हुए",
+    "unpaidBills": "बकाया बिल"
+  },
+  "aiCard": {
+    "title": "AI ऑर्डर असिस्टेंट",
+    "subtitle": "आवाज़ या टेक्स्ट से ऑर्डर बनाएं",
+    "placeholder": "मैं कैसे मदद करूं?"
   }
 }
