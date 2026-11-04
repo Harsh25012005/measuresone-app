@@ -51,6 +51,11 @@ export function useDSToast(): Api {
   return v;
 }
 
+/** Like useDSToast, but returns null outside the provider instead of throwing. */
+export function useDSToastSafe(): Api | null {
+  return useContext(Ctx);
+}
+
 const MAX_VISIBLE = 3;
 
 export function DSToastProvider({ children }: { children: ReactNode }) {
@@ -119,7 +124,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
     >
       <Pressable onPress={onDismiss} style={styles.row} accessibilityRole="alert">
         <Icon size={20} color={t.color} strokeWidth={2.2} />
-        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
           {item.title}
         </Text>
         {item.actionLabel ? (
@@ -152,6 +157,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 10,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 48 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, minHeight: 48 },
   title: { fontFamily: f.medium, fontSize: 14, lineHeight: 20, flexShrink: 1 },
 });

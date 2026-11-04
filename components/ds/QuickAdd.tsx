@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -32,6 +32,9 @@ const TONES = {
   pink: { fg: '#DB2777', light: '#FCE7F3', dark: '#3A1228' },
 } as const;
 
+/** Geometry other layers (e.g. the product tour) need to line up with the menu rows. */
+export const QUICK_ADD_LAYOUT = { ITEM_W: 264, ITEM_H: 62, GAP: 10, FAB: 58, FAB_GAP: 16 } as const;
+
 export type DSQuickAddProps = {
   visible: boolean;
   onClose: () => void;
@@ -40,13 +43,25 @@ export type DSQuickAddProps = {
   fabBottom?: number;
   /** Distance from the screen's right edge to the round button. */
   fabRight?: number;
+  /** Dims every row except this one (used by the product tour). */
+  highlightedKey?: string;
+  /** Extra content drawn above the menu, inside the same modal (e.g. tour tooltip). */
+  overlay?: ReactNode;
 };
 
 /**
  * Menu that opens from the nav bar's plus button: the screen blurs, the plus
  * turns into a close (×), and the actions fan up in a staggered spring.
  */
-export function DSQuickAdd({ visible, onClose, actions, fabBottom = 24, fabRight = 16 }: DSQuickAddProps) {
+export function DSQuickAdd({
+  visible,
+  onClose,
+  actions,
+  fabBottom = 24,
+  fabRight = 16,
+  highlightedKey,
+  overlay,
+}: DSQuickAddProps) {
   const { colors, scheme } = useTheme();
   const dark = scheme === 'dark';
   const insets = useSafeAreaInsets();
@@ -85,13 +100,15 @@ export function DSQuickAdd({ visible, onClose, actions, fabBottom = 24, fabRight
         </Animated.View>
 
         {/* actions, nearest-to-button first */}
-        <View pointerEvents="box-none" style={[styles.stack, { right: fabRight, bottom: bottom + 58 + 16 }]}>
+        <View pointerEvents="box-none" style={[styles.stack, { right: fabRight, bottom: bottom + QUICK_ADD_LAYOUT.FAB + QUICK_ADD_LAYOUT.FAB_GAP }]}>
           {[...actions].reverse().map((a, i) => {
             const tone = TONES[a.tone ?? 'primary'];
             const Icon = a.icon;
+            const dimmed = !!highlightedKey && highlightedKey !== a.key;
             return (
               <Animated.View
                 key={a.key}
+                pointerEvents={highlightedKey ? 'none' : 'auto'}
                 entering={FadeInDown.delay(i * 55).springify().damping(15).stiffness(220)}
                 exiting={FadeOutDown.duration(120)}
               >
@@ -107,6 +124,7 @@ export function DSQuickAdd({ visible, onClose, actions, fabBottom = 24, fabRight
                       backgroundColor: dark ? '#1C1C1C' : '#FFFFFF',
                       borderColor: dark ? '#2E2E2E' : colors.borderDefault,
                       transform: [{ scale: pressed ? 0.97 : 1 }],
+                      opacity: dimmed ? 0.3 : 1,
                     },
                   ]}
                 >
@@ -129,6 +147,8 @@ export function DSQuickAdd({ visible, onClose, actions, fabBottom = 24, fabRight
           })}
         </View>
 
+        {overlay}
+
         {/* the plus, now a close */}
         <Pressable
           onPress={onClose}
@@ -148,7 +168,7 @@ export function DSQuickAdd({ visible, onClose, actions, fabBottom = 24, fabRight
 const styles = StyleSheet.create({
   stack: { position: 'absolute', gap: 10, alignItems: 'flex-end' },
   item: {
-    width: 264,
+    width: QUICK_ADD_LAYOUT.ITEM_W,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

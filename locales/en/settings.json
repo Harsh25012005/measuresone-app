@@ -94,7 +94,7 @@
     "tryItNow": "Try it now",
     "welcome": {
       "title": "Let's take a quick tour",
-      "subtitle": "It'll only take a few seconds to show you around customers, orders, billing, and staff.",
+      "subtitle": "It'll only take a few seconds to show you around orders, clients, and staff work.",
       "cta": "Take a tour"
     },
     "steps": {
@@ -113,6 +113,10 @@
       "staff": {
         "title": "Add your staff",
         "description": "Add a tailor or helper, set their wage type, and assign them to orders so you can track who's doing what."
+      },
+      "work": {
+        "title": "Add staff work",
+        "description": "Log the pieces a staff member finished so their piece-rate pay is always up to date."
       }
     }
   }

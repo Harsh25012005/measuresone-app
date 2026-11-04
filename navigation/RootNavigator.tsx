@@ -22,9 +22,7 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="DesignSystem" screenOptions={{ headerShown: false }}>
-        {/* Redesign component page — opens first until the new screens are built. */}
-        <Stack.Screen name="DesignSystem" component={DesignSystemScreen} />
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         ) : passwordRecovery ? (
@@ -38,6 +36,8 @@ export function RootNavigator() {
         ) : (
           <Stack.Screen name="Main" component={MainNavigator} />
         )}
+        {/* Reference page for the redesign — reached from Settings in dev builds only. */}
+        {__DEV__ ? <Stack.Screen name="DesignSystem" component={DesignSystemScreen} /> : null}
       </Stack.Navigator>
     </NavigationContainer>
   );

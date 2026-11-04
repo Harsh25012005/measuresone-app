@@ -127,6 +127,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps<'Sett
         />
       </SectionCard>
 
+      {/* Dev-only shortcut to the redesign's component reference page */}
+      {__DEV__ ? (
+        <SectionCard title="Developer">
+          <MenuRow
+            icon="magic"
+            iconBg="bg-blue-50 dark:bg-blue-950"
+            iconColor="#2563EB"
+            label="Design system"
+            onPress={() => (navigation as unknown as { navigate: (name: string) => void }).navigate('DesignSystem')}
+            isLast
+          />
+        </SectionCard>
+      ) : null}
+
       {/* Appearance section */}
       <SectionCard title={t('appearance')}>
         <View className="flex-row gap-2 py-3">

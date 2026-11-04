@@ -4,14 +4,23 @@
     "customers": "ગ્રાહકો",
     "orders": "ઓર્ડર",
     "settings": "બિઝનેસ",
-    "add": "ઉમેરો"
+    "add": "ઉમેરો",
+    "more": "વધુ"
   },
   "quickAdd": {
     "newClient": "નવો ગ્રાહક",
     "addBill": "બિલ ઉમેરો",
     "addOrder": "ઓર્ડર ઉમેરો",
     "addStaff": "સ્ટાફ ઉમેરો",
-    "accessibilityLabel": "ઝડપી ક્રિયાઓ"
+    "accessibilityLabel": "ઝડપી ક્રિયાઓ",
+    "addWork": "કામ ઉમેરો",
+    "newClientHint": "નામ અને ફોન નંબર",
+    "addOrderHint": "કાપડ, માપ, ડિલિવરી",
+    "addWorkHint": "પીસ-રેટ કામની એન્ટ્રી",
+    "pickStaffTitle": "કામ કોણે કર્યું?",
+    "pickStaffEmpty": "હજી કોઈ પીસ-રેટ સ્ટાફ નથી",
+    "pickStaffEmptyHint": "તેમનું કામ નોંધવા માટે પ્રતિ પીસ વેતનવાળો સ્ટાફ ઉમેરો.",
+    "pickStaffAdd": "સ્ટાફ ઉમેરો"
   },
   "actions": {
     "save": "સેવ કરો",

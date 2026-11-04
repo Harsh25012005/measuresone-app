@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 /** One quick-add action, in the order the tour walks through them. */
-export const TOUR_STEPS = ['customers', 'billing', 'orders', 'staff'] as const;
+export const TOUR_STEPS = ['orders', 'customers', 'work'] as const;
 export type TourStep = (typeof TOUR_STEPS)[number];
 
 type ProductTourState = {

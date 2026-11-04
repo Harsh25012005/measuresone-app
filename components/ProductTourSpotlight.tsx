@@ -1,14 +1,15 @@
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { MENU_LAYOUT } from './QuickAddMenu';
+import { QUICK_ADD_LAYOUT } from './ds/QuickAdd';
 import { TOUR_STEPS, type TourStep } from '../context/ProductTourContext';
 
-const { H_MARGIN, HEADER_H, ROW_H, FOOT_H } = MENU_LAYOUT;
+const { ITEM_H, GAP, FAB, FAB_GAP } = QUICK_ADD_LAYOUT;
+const H_MARGIN = 12;
 
 export type ProductTourSpotlightProps = {
   step: TourStep;
   actionCount: number;
-  /** Distance from the screen bottom to the quick-add sheet's bottom edge. */
+  /** Distance from the screen bottom to the bottom of the round add button. */
   bottomOffset: number;
   onBack: () => void;
   onNext: () => void;
@@ -35,10 +36,11 @@ export function ProductTourSpotlight({
 
   const index = TOUR_STEPS.indexOf(step);
   const isLast = index === TOUR_STEPS.length - 1;
-  const cardH = HEADER_H + actionCount * ROW_H + FOOT_H;
-  const sheetTop = screenH - bottomOffset - cardH;
-  const rowTop = sheetTop + HEADER_H + index * ROW_H;
-  const rowCenterY = rowTop + ROW_H / 2;
+  // The menu stacks upward from the add button, so the first step (index 0) is the row nearest it.
+  const stackH = actionCount * ITEM_H + (actionCount - 1) * GAP;
+  const sheetTop = screenH - bottomOffset - FAB - FAB_GAP - stackH;
+  const rowFromTop = actionCount - 1 - index;
+  const rowCenterY = sheetTop + rowFromTop * (ITEM_H + GAP) + ITEM_H / 2;
 
   // Tooltip sits just above the row it's pointing at, right-aligned to the
   // sheet's inner edge, and never crowds above the status bar.

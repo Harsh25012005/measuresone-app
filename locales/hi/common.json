@@ -4,14 +4,23 @@
     "customers": "ग्राहक",
     "orders": "ऑर्डर",
     "settings": "बिज़नेस",
-    "add": "जोड़ें"
+    "add": "जोड़ें",
+    "more": "और"
   },
   "quickAdd": {
     "newClient": "नया ग्राहक",
     "addBill": "बिल जोड़ें",
     "addOrder": "ऑर्डर जोड़ें",
     "addStaff": "स्टाफ जोड़ें",
-    "accessibilityLabel": "त्वरित कार्य"
+    "accessibilityLabel": "त्वरित कार्य",
+    "addWork": "काम जोड़ें",
+    "newClientHint": "नाम और फ़ोन नंबर",
+    "addOrderHint": "कपड़ा, माप, डिलीवरी",
+    "addWorkHint": "पीस-रेट काम की एंट्री",
+    "pickStaffTitle": "काम किसने किया?",
+    "pickStaffEmpty": "अभी कोई पीस-रेट स्टाफ नहीं",
+    "pickStaffEmptyHint": "उनका काम दर्ज करने के लिए प्रति पीस वेतन वाला स्टाफ जोड़ें।",
+    "pickStaffAdd": "स्टाफ जोड़ें"
   },
   "actions": {
     "save": "सेव करें",

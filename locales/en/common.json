@@ -4,14 +4,23 @@
     "customers": "Clients",
     "orders": "Orders",
     "settings": "Business",
-    "add": "Add"
+    "add": "Add",
+    "more": "More"
   },
   "quickAdd": {
     "newClient": "New Client",
     "addBill": "Add Bill",
     "addOrder": "Add Order",
     "addStaff": "Add Staff",
-    "accessibilityLabel": "Quick actions"
+    "accessibilityLabel": "Quick actions",
+    "addWork": "Add Work",
+    "newClientHint": "Name and phone number",
+    "addOrderHint": "Cloth, measurements, delivery",
+    "addWorkHint": "Piece-rate work entry",
+    "pickStaffTitle": "Who did the work?",
+    "pickStaffEmpty": "No piece-rate staff yet",
+    "pickStaffEmptyHint": "Add a staff member paid per piece to log their work.",
+    "pickStaffAdd": "Add staff"
   },
   "actions": {
     "save": "Save",
