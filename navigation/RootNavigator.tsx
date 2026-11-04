@@ -7,7 +7,6 @@ import { AuthNavigator } from './AuthNavigator';
 import ShopSetupScreen from '../screens/onboarding/ShopSetupScreen';
 import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import { MainNavigator } from './MainNavigator';
-import { useStackScreenOptions } from './screenOptions';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -15,7 +14,6 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const { session, shop, loading, passwordRecovery } = useAuth();
   const { t } = useTranslation('common');
-  const screenOptions = useStackScreenOptions();
 
   if (loading) {
     return <LoadingSpinner fullScreen text={t('labels.loading')} />;
@@ -23,7 +21,7 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={screenOptions}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         ) : passwordRecovery ? (

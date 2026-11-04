@@ -1,50 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Alert, Image, Linking, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import * as ImagePicker from 'expo-image-picker';
-import {
-  Badge,
-  BottomSheet,
-  Button,
-  Card,
-  Header,
-  Icon,
-  IconButton,
-  ListRow,
-  RadioGroup,
-  RecordPaymentSheet,
-  Section,
-  SegmentedControl,
-  Skeleton,
-  Text,
-  useToast,
-} from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
-import { getDueInfo } from '../../lib/dueInfo';
+import { Badge, Card, Header, LoadingSpinner, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
-import {
-  billsRepo,
-  customerMeasurementsRepo,
-  customersRepo,
-  ordersRepo,
-  paymentsRepo,
-  staffRepo,
-} from '../../lib/data/repository';
-import { applyOrderStatus } from '../../lib/orderStatus';
+import { ordersRepo, billsRepo, paymentsRepo, customersRepo, staffRepo } from '../../lib/data/repository';
+import { sendPushNotification } from '../../lib/notify';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { haptics } from '../../lib/haptics';
-import { summarizePieces } from '../../lib/garments';
-import { useSendBill } from '../../lib/useSendBill';
 import { useShop } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
-import { garmentNameLabel, measurementFieldLabel } from '../../lib/measurementNames';
-import { loadMeasurementView, loadMeasurementViewForCloth, type MeasurementView } from '../../lib/measurementLayout';
 import type { AppScreenProps } from '../../navigation/types';
-import type { Customer, Order, OrderStatus, Staff } from '../../types';
-import type { Tables } from '../../lib/database.types';
+import type { Customer, Order, Staff } from '../../types';
 
 type OrderDetail = Order & {
   customers: Pick<Customer, 'name' | 'phone'> | null;
@@ -55,89 +23,71 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
   const { orderId } = route.params;
   const shop = useShop();
   const showToast = useToast();
-  const { colors } = useTheme();
-  const palette = usePalette();
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation('orders');
-  const { t: tDash } = useTranslation('dashboard');
+
+  /** Labels garment piece counts by type when the linked measurement says so. */
+  function clothPieceLabel(garmentType: string | null | undefined): string {
+    const normalized = (garmentType ?? '').trim().toLowerCase();
+    if (normalized === 'pant') return t('detail.pantPieces');
+    if (normalized === 'shirt') return t('detail.shirtPieces');
+    return t('detail.clothPieces');
+  }
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [items, setItems] = useState<Tables<'order_items'>[]>([]);
-  const [measurementView, setMeasurementView] = useState<MeasurementView[]>([]);
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [billPayments, setBillPayments] = useState<Tables<'payments'>[]>([]);
-  const [billId, setBillId] = useState<string | null>(null);
-  const [billAmounts, setBillAmounts] = useState<{ total: number; paid: number } | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
-  const [staffPickerVisible, setStaffPickerVisible] = useState(false);
-
-  const { send: sendBill, sending: sendingBill } = useSendBill(billId);
+  /**
+   * Live total/paid for the linked bill. orders.total_amount/paid_amount are
+   * only a snapshot taken at order creation — once a payment is recorded on
+   * the bill afterwards, those columns go stale, so whenever a bill exists we
+   * source the payment figures from it instead.
+   */
+  const [billAmounts, setBillAmounts] = useState<{ total: number; paid: number } | null>(null);
+  const [garmentType, setGarmentType] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const orderData = await ordersRepo.get(orderId);
-      if (!orderData) {
+      // Reads from the local-first mirror (same one order create/update/delete
+      // write through) rather than Supabase directly — querying Supabase here
+      // raced the background sync for freshly-created orders and made the
+      // detail page look like it "wouldn't open" right after creating one.
+      const order = await ordersRepo.get(orderId);
+      if (!order) {
+        // Order no longer exists (e.g. deleted elsewhere) — leave, but say
+        // why instead of silently bouncing back with no explanation.
         showToast(t('detail.loadOrderFailed'), 'error');
         navigation.goBack();
         return;
       }
 
-      const [customer, staffMember, orderItems, shopBills, shopPayments, allStaff, meas] =
-        await Promise.all([
-          customersRepo.get(orderData.customer_id),
-          orderData.assigned_staff_id ? staffRepo.get(orderData.assigned_staff_id) : Promise.resolve(null),
-          ordersRepo.itemsForOrder(orderId),
-          billsRepo.list(shop.id),
-          paymentsRepo.listForShop(shop.id),
-          staffRepo.list(shop.id, { activeOnly: true }),
-          customerMeasurementsRepo.getByCustomer(orderData.customer_id),
-        ]);
-
+      const [customer, staffMember, orderItems] = await Promise.all([
+        customersRepo.get(order.customer_id),
+        order.assigned_staff_id ? staffRepo.get(order.assigned_staff_id) : Promise.resolve(null),
+        ordersRepo.itemsForOrder(orderId),
+      ]);
       setOrder({
-        ...orderData,
+        ...order,
         customers: customer ? { name: customer.name, phone: customer.phone } : null,
         staff: staffMember ? { name: staffMember.name } : null,
       });
-      setItems(orderItems);
-      setStaffList(allStaff);
-      setMeasurementView(await loadMeasurementViewForCloth(shop.id, meas, orderData.cloth_type));
+      setGarmentType(orderItems[0]?.garment_type ?? null);
 
+      const [shopBills, shopPayments] = await Promise.all([
+        billsRepo.list(shop.id),
+        paymentsRepo.listForShop(shop.id),
+      ]);
       const bill = shopBills.find((b) => b.order_id === orderId) ?? null;
-      let currentBill = bill;
-      if (!currentBill && (orderData.total_amount ?? 0) > 0) {
-        try {
-          currentBill = await billsRepo.create({
-            shop_id: shop.id,
-            order_id: orderId,
-            customer_id: orderData.customer_id,
-            total_amount: orderData.total_amount,
-            payment_status:
-              (orderData.paid_amount ?? 0) >= (orderData.total_amount ?? 0)
-                ? 'paid'
-                : (orderData.paid_amount ?? 0) > 0
-                ? 'partial'
-                : 'unpaid',
-          });
-        } catch {
-          // fallback
-        }
-      }
-      setBillId(currentBill?.id ?? null);
-      if (currentBill) {
-        const linkedPayments = shopPayments.filter((p) => p.bill_id === currentBill.id);
-        const paid = linkedPayments.reduce((s, p) => s + Number(p.amount_paid ?? 0), 0);
-        setBillPayments(linkedPayments);
-        setBillAmounts({
-          total: Number(currentBill.total_amount ?? 0),
-          paid,
-        });
-      } else {
-        setBillPayments([]);
-        setBillAmounts(null);
-      }
+      setBillAmounts(
+        bill
+          ? {
+              total: Number(bill.total_amount ?? 0),
+              paid: shopPayments
+                .filter((p) => p.bill_id === bill.id)
+                .reduce((s, p) => s + Number(p.amount_paid ?? 0), 0),
+            }
+          : null
+      );
     } catch {
       showToast(t('detail.loadOrderFailed'), 'error');
       navigation.goBack();
@@ -152,26 +102,53 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     }, [load])
   );
 
-  const currentTotal = billAmounts ? billAmounts.total : Number(order?.total_amount ?? 0);
-  const currentPaid = billAmounts ? billAmounts.paid : Number(order?.paid_amount ?? 0);
-  const currentBalance = Math.max(currentTotal - currentPaid, 0);
-
-  const executeStatusChange = async (targetStatus: OrderStatus) => {
+  const markComplete = async () => {
     if (!order) return;
     setUpdating(true);
     try {
-      haptics.success();
-      await applyOrderStatus(shop.id, order, targetStatus, order.customers?.name ?? '');
+      await ordersRepo.update(orderId, shop.id, { status: 'delivered' });
 
-      setOrder({ ...order, status: targetStatus });
-      showToast(
-        targetStatus === 'ready'
-          ? t('detail.markReady') + ' ✓'
-          : targetStatus === 'delivered'
-          ? t('detail.orderDelivered')
-          : t('detail.statusReceived'),
-        'success'
-      );
+      // Records this order against the assigned staff member so their "N
+      // orders done" count (StaffListScreen) reflects real completions —
+      // staff_orders otherwise has nothing that ever writes to it.
+      if (order.assigned_staff_id) {
+        try {
+          const { data: existing } = await supabase
+            .from('staff_orders')
+            .select('id')
+            .eq('order_id', orderId)
+            .eq('staff_id', order.assigned_staff_id)
+            .maybeSingle();
+
+          if (existing) {
+            await supabase
+              .from('staff_orders')
+              .update({ completed_at: new Date().toISOString() })
+              .eq('id', existing.id);
+          } else {
+            await supabase.from('staff_orders').insert({
+              shop_id: shop.id,
+              order_id: orderId,
+              staff_id: order.assigned_staff_id,
+              completed_at: new Date().toISOString(),
+            });
+          }
+        } catch {
+          // Non-critical bookkeeping — the order status change itself
+          // already succeeded and shouldn't be reported as a failure.
+        }
+      }
+
+      void sendPushNotification({
+        shopId: shop.id,
+        type: 'order_ready',
+        customerId: order.customer_id,
+        title: t('detail.pushReadyTitle'),
+        body: t('detail.pushReadyBody', { number: order.order_number, customerName: order.customers?.name ?? '' }),
+      });
+
+      setOrder({ ...order, status: 'delivered' });
+      haptics.success();
     } catch (err) {
       haptics.error();
       showToast(err instanceof Error ? err.message : t('detail.updateStatusFailed'), 'error');
@@ -180,91 +157,7 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     }
   };
 
-  const setStatus = (targetStatus: OrderStatus) => {
-    if (!order || order.status === targetStatus) return;
-
-    if (order.status === 'delivered' && targetStatus !== 'delivered') {
-      Alert.alert(
-        t('detail.reopenOrderTitle'),
-        t('detail.reopenOrderDesc'),
-        [
-          { text: t('common:actions.cancel'), style: 'cancel' },
-          {
-            text: t('detail.reopen'),
-            onPress: () => void executeStatusChange(targetStatus),
-          },
-        ]
-      );
-      return;
-    }
-
-    if (targetStatus === 'delivered' && currentBalance > 0) {
-      Alert.alert(
-        t('detail.balancePendingTitle'),
-        t('detail.balancePendingDesc', {
-          amount: formatCurrency(currentBalance),
-          number: order.order_number,
-        }),
-        [
-          { text: t('common:actions.cancel'), style: 'cancel' },
-          {
-            text: t('detail.deliverWithoutPayment'),
-            style: 'destructive',
-            onPress: () => void executeStatusChange(targetStatus),
-          },
-          {
-            text: t('detail.collectAndDeliver'),
-            onPress: () => {
-              setPaymentSheetVisible(true);
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    void executeStatusChange(targetStatus);
-  };
-
-  const handleAssignStaff = async (staffId: string | null) => {
-    if (!order) return;
-    try {
-      haptics.tap();
-      await ordersRepo.update(orderId, shop.id, { assigned_staff_id: staffId });
-      const staffMember = staffId ? staffList.find((s) => s.id === staffId) : null;
-      setOrder({
-        ...order,
-        assigned_staff_id: staffId,
-        staff: staffMember ? { name: staffMember.name } : null,
-      });
-      setStaffPickerVisible(false);
-      showToast(t('detail.staffAssigned'), 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : t('detail.updateStatusFailed'), 'error');
-    }
-  };
-
-  const handleAddPhoto = async () => {
-    if (!order) return;
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.8,
-      });
-      if (!result.canceled && result.assets[0]?.uri) {
-        const newUri = result.assets[0].uri;
-        const currentUrls = order.design_photo_urls || [];
-        const updatedUrls = [...currentUrls, newUri];
-        await ordersRepo.update(orderId, shop.id, { design_photo_urls: updatedUrls });
-        setOrder({ ...order, design_photo_urls: updatedUrls });
-        showToast(t('detail.photoAdded'), 'success');
-      }
-    } catch {
-      showToast(t('form.photoUploadFailed', { defaultValue: 'Could not add photo' }), 'error');
-    }
-  };
-
+  /** Opens WhatsApp with a prefilled message; both action buttons funnel here. */
   const sendMessage = async (body: string) => {
     if (!order?.customers?.phone) {
       showToast(t('detail.whatsapp.noPhone'), 'error');
@@ -302,412 +195,237 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     );
   };
 
-  if (loading || !order) {
-    return (
-      <View className="flex-1 bg-bg">
-        <Header title={t('detail.loadingOrder')} />
-        <View className="gap-4 p-4">
-          <Skeleton height={150} />
-          <Skeleton height={64} />
-          <Skeleton height={180} />
-        </View>
-      </View>
-    );
-  }
+  if (loading || !order) return <LoadingSpinner fullScreen text={t('detail.loadingOrder')} />;
 
   const isDelivered = order.status === 'delivered';
-  const isReady = order.status === 'ready';
 
   const photos = order.design_photo_urls?.length
     ? order.design_photo_urls
     : order.design_photo_url
-    ? [order.design_photo_url]
-    : [];
+      ? [order.design_photo_url]
+      : [];
 
   const totalAmount = billAmounts ? billAmounts.total : Number(order.total_amount ?? 0);
   const paidAmount = billAmounts ? billAmounts.paid : Number(order.paid_amount ?? 0);
   const balanceDue = Math.max(totalAmount - paidAmount, 0);
-  const customerName = order.customers?.name ?? t('form.customer', { defaultValue: 'Unknown customer' });
-  const hasPhone = Boolean(order.customers?.phone);
-
-  const itemsSummaryText =
-    items.length > 0
-      ? items.map((i) => `${i.cloth_count} x ${i.garment_type}`).join(', ')
-      : order.cloth_type
-      ? `${order.cloth_type}${order.cloth_count ? ` (${order.cloth_count})` : ''}`
-      : t('form.defaultGarmentType', { defaultValue: 'Garment' });
-
-  const due = isDelivered ? null : getDueInfo(order.delivery_date, order.status, tDash);
-  const statusOptions = [
-    { value: 'order_taken', label: t('detail.statusReceived') },
-    { value: 'ready', label: t('detail.statusReady') },
-    { value: 'delivered', label: t('detail.statusDelivered') },
-  ];
-  const statusValue = order.status === 'cutting' || order.status === 'stitching' ? 'order_taken' : order.status;
-
-  const readyMessage = t('detail.readyWhatsAppBody', {
-    customerName,
-    orderNumber: order.order_number,
-    shopName: shop.shop_name,
-  });
-  const completionMessage = t('detail.whatsapp.completionBody', {
-    customerName,
-    orderNumber: order.order_number,
-    shopName: shop.shop_name,
-  });
+  const hasBilling = order.total_amount != null;
+  const customerName = order.customers?.name ?? '';
+  const hasPhone = !!order.customers?.phone;
 
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
       <Header
-        title={`${t('orders:order', { defaultValue: 'Order' })} #${order.order_number}`}
+        title={t('detail.orderNumber', { number: order.order_number })}
         onBack={() => navigation.goBack()}
         right={
-          <>
-            <IconButton
-              icon="edit"
-              variant="ghost"
-              accessibilityLabel={t('common:a11y.editOrder')}
+          <View className="flex-row items-center">
+            <Pressable
               onPress={() => navigation.navigate('OrderForm', { orderId })}
-            />
-            <IconButton
-              icon="trash"
-              variant="ghost"
-              color={palette.danger}
-              accessibilityLabel={t('common:a11y.deleteOrder')}
+              hitSlop={8}
+              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+            >
+              <FontAwesome5 name="pen" size={15} color="#1D4ED8" />
+            </Pressable>
+            <Pressable
               onPress={handleDelete}
-            />
-          </>
+              hitSlop={8}
+              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+            >
+              <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
+            </Pressable>
+          </View>
         }
       />
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 16 }}>
-        {/* Who, what, when, how much, with the contact shortcuts right there. */}
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 14 }}>
+        {/* Header card: order token + delivery date — the two things that
+            actually matter at a glance. The intermediate cutting/stitching/
+            ready pipeline stages aren't shown as a badge here anymore. */}
         <Card>
-          <View className="mb-2 flex-row flex-wrap items-center gap-2">
-            <Badge type="order_status" value={order.status} />
-            {due && due.text ? <Badge label={due.text} tone={due.tone} icon={due.late ? 'alert' : 'clock'} /> : null}
-            {order.is_rush && !isDelivered ? <Badge label={t('detail.urgent')} tone="danger" icon="flame" /> : null}
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-2">
+              <Text className="text-xl font-bold text-[#101828] dark:text-gray-50">#{order.order_number}</Text>
+              <Text className="font-sans mt-1 text-base text-gray-500 dark:text-gray-400">{order.customers?.name}</Text>
+            </View>
+            <View className="items-end gap-1.5">
+              <Badge label={t('detail.tokenBadge', { number: order.order_number })} bg="#EFF6FF" color="#1D4ED8" />
+              {order.delivery_date ? (
+                <Badge
+                  label={t('detail.deliveryBadge', { date: formatDate(order.delivery_date) })}
+                  bg="#F3F4F6"
+                  color="#374151"
+                />
+              ) : null}
+            </View>
           </View>
-
-          <Pressable
-            onPress={() =>
-              navigation.navigate('CustomersTab' as any, {
-                screen: 'CustomerDetail',
-                initial: false,
-                params: { customerId: order.customer_id },
-              })
-            }
-            accessibilityRole="button"
-            accessibilityLabel={customerName}
-            className="min-h-touch flex-row items-center justify-between"
-          >
-            <Text variant="headline" numberOfLines={2} className="flex-1">
-              {customerName}
-            </Text>
-            <Icon name="chev" size={20} color={colors.textFaint} />
-          </Pressable>
-
-          <Text variant="body" tone="muted" className="mt-0.5">
-            {itemsSummaryText} · <Text variant="body" tabular weight="semibold">{formatCurrency(totalAmount)}</Text>
-          </Text>
-
-          <View className="mt-3 flex-row items-center justify-between border-t border-line-2 pt-3">
-            <Text variant="caption" tone="muted" weight="regular">
-              {t('detail.orderedOn')} {formatDate(order.order_date)}
-            </Text>
-            {order.delivery_date ? (
-              <Text variant="caption" tone="muted" weight="regular">
-                {t('detail.deliveryDate')}: {formatDate(order.delivery_date)}
-              </Text>
-            ) : null}
-          </View>
-
-          {hasPhone ? (
-            <View className="mt-3 flex-row gap-2 border-t border-line-2 pt-3">
-              <Button
-                title={t('common:actions.call', { defaultValue: 'Call' })}
-                variant="secondary"
-                icon={<Icon name="phone" size={18} color={colors.textPrimary} />}
-                className="flex-1"
-                onPress={() => Linking.openURL(`tel:${order.customers?.phone}`)}
-              />
-              <Button
-                title="WhatsApp"
-                variant="tonal"
-                icon={<Icon name="chat" size={18} color={colors.primary} />}
-                className="flex-1"
-                onPress={() => sendMessage(isReady ? readyMessage : completionMessage)}
-              />
+          {order.priority === 'urgent' ? (
+            <View className="mt-3 flex-row items-center gap-2">
+              <View className="flex-row items-center gap-1.5 self-start rounded-full bg-red-50 px-2.5 py-1">
+                <FontAwesome5 name="bolt" size={10} color="#EF4444" solid />
+                <Text className="text-base font-semibold text-danger">{t('detail.urgent')}</Text>
+              </View>
             </View>
           ) : null}
         </Card>
 
-        {/* Status: any step can be set directly; the sticky button below does the usual next step. */}
-        <Section title={t('detail.status', { defaultValue: 'Status' })} padded>
-          <SegmentedControl options={statusOptions} value={statusValue} onChange={(v) => setStatus(v as OrderStatus)} />
-          {isDelivered ? (
-            <Text variant="label" tone="muted" weight="regular" className="mt-3 text-center">
-              {t('detail.orderDelivered')} · {formatDate(order.delivery_date)}
+        {/* Photos gallery */}
+        {photos.length > 0 ? (
+          <Card>
+            <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
+              {t('detail.designPhotos')} {photos.length > 1 ? `(${photos.length})` : ''}
             </Text>
-          ) : null}
-        </Section>
-
-        <Section
-          title={t('detail.clothes')}
-          action={
-            photos.length < 4 ? (
-              <Button
-                title={t('detail.addPhoto')}
-                variant="ghost"
-                size="sm"
-                fullWidth={false}
-                icon={<Icon name="camera" size={16} color={colors.primary} />}
-                onPress={handleAddPhoto}
-              />
-            ) : undefined
-          }
-        >
-          {items.map((it, idx) => (
-            <View key={it.id} className={`pb-3 ${idx < items.length - 1 ? 'mb-3 border-b border-line-2' : ''}`}>
-              <View className="flex-row items-center justify-between">
-                <Text variant="bodyLg" className="flex-1">
-                  {idx + 1}. {it.garment_type}{' '}
-                  <Text variant="label" tone="muted" tabular>× {it.cloth_count}</Text>
-                </Text>
-                <Text variant="label" tone="muted" weight="regular" tabular>
-                  {formatCurrency(Number(it.unit_price))} {t('detail.each')}
-                </Text>
-              </View>
-              {it.notes ? (
-                <Text variant="label" tone="muted" weight="regular" className="mt-1 italic">
-                  &ldquo;{it.notes}&rdquo;
-                </Text>
-              ) : null}
-            </View>
-          ))}
-
-          {photos.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-2">
+              <View className="flex-row gap-3">
                 {photos.map((url, index) => (
                   <Image
                     key={`${url}-${index}`}
                     source={{ uri: url }}
-                    accessibilityIgnoresInvertColors
-                    accessibilityLabel={`${t('detail.designPhotos')} ${index + 1}`}
-                    className="h-32 w-28 rounded border border-line"
+                    className="h-48 w-40 rounded-md"
                     resizeMode="cover"
                   />
                 ))}
               </View>
             </ScrollView>
-          ) : (
-            <Button
-              title={t('detail.addPhoto')}
-              variant="secondary"
-              icon={<Icon name="camera" size={18} color={colors.textPrimary} />}
-              onPress={handleAddPhoto}
-            />
-          )}
-        </Section>
+          </Card>
+        ) : null}
 
-        <Section title={t('detail.measurements')}>
-          {measurementView.length > 0 ? (
-            <View className="gap-3">
-              {measurementView.map((group) => (
-                <View key={group.title ?? 'all'} className="gap-1.5">
-                  {group.title ? (
-                    <Text variant="caption" tone="muted">
-                      {garmentNameLabel(group.title)}
-                    </Text>
-                  ) : null}
-                  <View className="flex-row flex-wrap gap-2">
-                    {group.entries.map(([k, v]) => (
-                      <View key={k} className="min-w-[88px] flex-1 rounded-md border border-line-2 bg-surface-2 px-3 py-2">
-                        <Text variant="caption" tone="muted" weight="regular" numberOfLines={1}>
-                          {measurementFieldLabel(k)}
-                        </Text>
-                        <Text variant="bodyLg" tabular>
-                          {v}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ))}
-              <Button
-                title={t('orders:form.measurementCard.viewEdit')}
-                variant="ghost"
-                size="sm"
-                fullWidth={false}
-                className="self-start"
-                icon={<Icon name="edit" size={16} color={colors.primary} />}
-                onPress={() => navigation.navigate('MeasurementForm', { customerId: order.customer_id })}
-              />
-            </View>
-          ) : (
+        {/* Details section */}
+        <Card>
+          <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
+            {t('detail.orderDetails')}
+          </Text>
+          <View className="gap-2.5">
+            {order.cloth_count != null ? (
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
+                  {clothPieceLabel(garmentType)}
+                </Text>
+                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">{order.cloth_count}</Text>
+              </View>
+            ) : null}
+            {order.bill_book_number ? (
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.billBookNumber')}</Text>
+                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                  {order.bill_book_number}
+                </Text>
+              </View>
+            ) : null}
             <View className="flex-row items-center justify-between">
-              <View className="mr-3 flex-1 flex-row items-center">
-                <Icon name="ruler" size={20} color={colors.textMuted} />
-                <Text variant="body" tone="muted" className="ml-2 flex-1">
-                  {t('detail.noMeasurement')}
-                </Text>
-              </View>
-              <Button
-                title={t('common:actions.add', { defaultValue: 'Add' })}
-                size="sm"
-                fullWidth={false}
-                onPress={() => navigation.navigate('MeasurementForm', { customerId: order.customer_id })}
-              />
-            </View>
-          )}
-        </Section>
-
-        <Section title={t('detail.work')} padded={false}>
-          <ListRow
-            title={t('detail.karigar')}
-            trailing={<Text variant="bodyLg">{order.staff?.name || t('detail.notAssigned')}</Text>}
-            onPress={() => setStaffPickerVisible(true)}
-            divider={!!order.bill_book_number}
-          />
-          {order.bill_book_number ? (
-            <ListRow
-              title={t('detail.billBookNumber')}
-              trailing={<Text variant="bodyLg" tabular>{order.bill_book_number}</Text>}
-              divider={false}
-            />
-          ) : null}
-        </Section>
-
-        <Section
-          title={t('detail.payment')}
-          action={
-            balanceDue > 0 ? (
-              <Button
-                title={t('detail.addPayment')}
-                size="sm"
-                fullWidth={false}
-                onPress={() => setPaymentSheetVisible(true)}
-              />
-            ) : undefined
-          }
-        >
-          <View className="mb-3 border-b border-line-2 pb-3">
-            <Text variant="display" tone={balanceDue > 0 ? 'danger' : 'success'} tabular>
-              {balanceDue > 0 ? formatCurrency(balanceDue) : t('detail.fullyPaid')}
-            </Text>
-            <Text variant="label" tone="muted" weight="regular">
-              {balanceDue > 0 ? t('detail.balance') : `${formatCurrency(totalAmount)} ${t('list.paidText')}`}
-            </Text>
-          </View>
-
-          <View className="gap-2">
-            {items.map((it) => (
-              <View key={it.id} className="flex-row items-center justify-between">
-                <Text variant="label" weight="regular">
-                  {it.cloth_count} × {it.garment_type}
-                </Text>
-                <Text variant="label" tabular>
-                  {formatCurrency(Number(it.cloth_count) * Number(it.unit_price))}
-                </Text>
-              </View>
-            ))}
-            <View className="flex-row items-center justify-between border-t border-line-2 pt-2">
-              <Text variant="bodyLg">{t('detail.totalAmount')}</Text>
-              <Text variant="bodyLg" tabular>
-                {formatCurrency(totalAmount)}
+              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.orderDate')}</Text>
+              <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                {formatDate(order.order_date)}
               </Text>
             </View>
+            <View className="flex-row items-center justify-between">
+              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.deliveryDate')}</Text>
+              <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                {formatDate(order.delivery_date)}
+              </Text>
+            </View>
+            {order.staff?.name ? (
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.assignedStaff')}</Text>
+                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">{order.staff.name}</Text>
+              </View>
+            ) : null}
           </View>
+        </Card>
 
-          {billPayments.length > 0 ? (
-            <View className="mt-3 gap-2 border-t border-line-2 pt-3">
-              {billPayments.map((p) => (
-                <View key={p.id} className="flex-row items-center justify-between">
-                  <Text variant="caption" tone="muted" weight="regular">
-                    {formatDate(p.payment_date)} ·{' '}
-                    {t(`billing:detail.paymentModes.${p.payment_mode || 'Cash'}`, { defaultValue: p.payment_mode || 'Cash' })}
-                  </Text>
-                  <Text variant="label" tone="success" tabular>
-                    +{formatCurrency(Number(p.amount_paid))}
+        {/* Payment / amount section */}
+        {hasBilling ? (
+          <Card>
+            <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
+              {t('detail.payment')}
+            </Text>
+            <View className="gap-2.5">
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.totalAmount')}</Text>
+                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                  {formatCurrency(totalAmount)}
+                </Text>
+              </View>
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.paidAmount')}</Text>
+                <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                  {formatCurrency(paidAmount)}
+                </Text>
+              </View>
+              <View className="flex-row items-center justify-between border-t border-gray-100 pt-2.5">
+                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.balanceDue')}</Text>
+                <Text
+                  className={`font-sans text-base font-bold ${
+                    balanceDue > 0 ? 'text-danger' : 'text-green-600'
+                  }`}
+                >
+                  {formatCurrency(balanceDue)}
+                </Text>
+              </View>
+              {order.payment_mode ? (
+                <View className="flex-row items-center justify-between">
+                  <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.paymentMode')}</Text>
+                  <Text className="font-sans text-base font-semibold text-[#101828] dark:text-gray-50">
+                    {order.payment_mode}
                   </Text>
                 </View>
-              ))}
+              ) : null}
             </View>
+          </Card>
+        ) : null}
+
+        {/* Customer messaging actions */}
+        <Card>
+          <Text className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-50">
+            {t('detail.whatsapp.sectionTitle')}
+          </Text>
+          {!hasPhone ? (
+            <Text className="font-sans mb-3 text-base text-gray-500 dark:text-gray-400">
+              {t('detail.whatsapp.noPhone')}
+            </Text>
           ) : null}
-
-          {billId && hasPhone ? (
-            <Button
-              title={t('detail.receipt')}
-              variant="secondary"
-              className="mt-3"
-              icon={<Icon name="receipt" size={18} color={colors.textPrimary} />}
-              loading={sendingBill}
-              onPress={sendBill}
-            />
-          ) : null}
-        </Section>
-
-        <Section padded={false}>
-          <ListRow
-            title={t('detail.repeatOrder')}
-            leading={<Icon name="copy" size={20} color={colors.textPrimary} />}
-            onPress={() => navigation.navigate('OrderForm', { customerId: order.customer_id })}
-            divider={false}
-          />
-        </Section>
-      </ScrollView>
-
-      {/* Sticky next step: Mark ready, then Mark delivered. */}
-      {!isDelivered ? (
-        <View style={{ paddingBottom: Math.max(insets.bottom, 12) }} className="flex-row gap-2 border-t border-line bg-surface px-4 pt-3">
-          {isReady && hasPhone ? (
-            <IconButton
-              icon="chat"
-              variant="tonal"
-              accessibilityLabel={t('detail.tellReadyWhatsApp')}
-              onPress={() => sendMessage(readyMessage)}
-            />
-          ) : null}
-          <View className="flex-1">
-            <Button
-              title={!isReady ? t('detail.markReady') : t('detail.markDelivered')}
-              icon={<Icon name="check" size={20} color={colors.onPrimary} />}
-              size="lg"
-              loading={updating}
-              onPress={() => setStatus(!isReady ? 'ready' : 'delivered')}
-            />
-          </View>
-        </View>
-      ) : null}
-
-      <BottomSheet visible={staffPickerVisible} onClose={() => setStaffPickerVisible(false)} title={t('detail.assignedStaff')}>
-        <RadioGroup
-          variant="cards"
-          value={order.assigned_staff_id ?? ''}
-          onChange={(v) => handleAssignStaff(v === '' ? null : v)}
-          options={[{ label: t('detail.notAssigned'), value: '' }, ...staffList.map((s) => ({ label: s.name, value: s.id }))]}
-        />
-      </BottomSheet>
-
-      <RecordPaymentSheet
-        visible={paymentSheetVisible}
-        bill={
-          billId && balanceDue > 0
-            ? {
-                id: billId,
-                customerId: order.customer_id,
-                customerName,
-                pending: balanceDue,
+          <View className="gap-2.5">
+            <Pressable
+              disabled={!hasPhone}
+              onPress={() =>
+                sendMessage(
+                  t('detail.whatsapp.completionBody', {
+                    customerName,
+                    orderNumber: order.order_number,
+                    shopName: shop.shop_name,
+                  })
+                )
               }
-            : null
-        }
-        onClose={() => setPaymentSheetVisible(false)}
-        onSaved={async () => {
-          setPaymentSheetVisible(false);
-          await load();
-        }}
-      />
+              className={`flex-row items-center justify-center gap-2 rounded-md bg-[#25D366] py-3 active:opacity-80 ${
+                hasPhone ? '' : 'opacity-40'
+              }`}
+            >
+              <FontAwesome5 name="whatsapp" size={16} color="#FFFFFF" />
+              <Text className="text-base font-semibold text-white">
+                {t('detail.whatsapp.sendCompletion')}
+              </Text>
+            </Pressable>
+
+          </View>
+        </Card>
+
+        {/* Status action */}
+        <Card>
+          {!isDelivered ? (
+            <Pressable
+              onPress={markComplete}
+              disabled={updating}
+              className={`items-center rounded-md bg-primary-600 py-3 active:bg-primary-700 ${
+                updating ? 'opacity-50' : ''
+              }`}
+            >
+              <Text className="text-base font-semibold text-white">{t('detail.markComplete')}</Text>
+            </Pressable>
+          ) : (
+            <View className="items-center rounded-md bg-gray-100 py-3 dark:bg-gray-800">
+              <Text className="text-base font-semibold text-gray-500 dark:text-gray-400">{t('detail.orderDelivered')}</Text>
+            </View>
+          )}
+        </Card>
+      </ScrollView>
     </View>
   );
 }

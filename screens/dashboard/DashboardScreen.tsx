@@ -1,64 +1,66 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import {
-  Badge,
-  Button,
-  Card,
-  Icon,
-  IconButton,
-  ListRow,
-  Skeleton,
-  SkeletonList,
-  SwipeRow,
-  SyncChip,
-  Text,
-  useToast,
-} from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
-import { sendWhatsAppMessage } from '../../lib/whatsapp';
-import { getDueInfo } from '../../lib/dueInfo';
-import { useSyncStatus } from '../../lib/data/useSyncStatus';
+import { Button, EmptyState, LoadingSpinner, useToast } from '../../components/ui';
 import { ordersRepo, customersRepo, billsRepo, paymentsRepo } from '../../lib/data/repository';
-import { formatCurrency, appLocale } from '../../lib/format';
+import { formatCurrency } from '../../lib/format';
 import { haptics } from '../../lib/haptics';
-import { useOrderStatusChange } from '../../lib/useOrderStatusChange';
 import { hasSeenProductTour, markProductTourSeen } from '../../lib/productTour';
 import { useShop } from '../../context/AuthContext';
 import { useProductTour } from '../../context/ProductTourContext';
 import { useTheme } from '../../context/ThemeContext';
-import type { DashboardScreenProps, OrderListFilter } from '../../navigation/types';
+import type { DashboardScreenProps } from '../../navigation/types';
 import type { OrderListItem } from '../../types';
 
-type DashboardStats = {
-  todayCollected: number;
-  todayNewOrdersCount: number;
-  todayDeliveredCount: number;
-  workOrders: OrderListItem[];
-  upcomingThisWeek: number;
-  readyToGiveCount: number;
-  pendingRemindersCount: number;
-  totalPendingBalance: number;
-  balanceByOrder: Record<string, number>;
+type ClientItem = {
+  id: string;
+  name: string;
+  phone: string | null;
 };
 
-/** Formats currency with K / L abbreviation matching truefit.html moneyK */
-function moneyK(amount: number): string {
-  if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
-  if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`;
-  return `₹${Math.round(amount)}`;
-}
+type RecentPaymentItem = {
+  id: string;
+  customerName: string;
+  amount: number;
+  mode: string;
+  date: string;
+};
+
+type Stats = {
+  todaysOrders: OrderListItem[];
+  todaysDeliveries: OrderListItem[];
+  recentOrders: OrderListItem[];
+  topClients: ClientItem[];
+  recentPayments: RecentPaymentItem[];
+  totalPendingBalance: number;
+  unpaidBillsCount: number;
+  thisMonthRevenue: number;
+};
+
+const AVATAR_COLORS = [
+  { bg: 'bg-blue-100', text: 'text-blue-700' },
+  { bg: 'bg-purple-100', text: 'text-purple-700' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  { bg: 'bg-amber-100', text: 'text-amber-700' },
+  { bg: 'bg-rose-100', text: 'text-rose-700' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+];
 
 /** Local-time day boundaries as ISO strings, plus the plain YYYY-MM-DD date. */
 function todayRange() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
   const localDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(
     start.getDate()
   ).padStart(2, '0')}`;
-  return { localDate };
+
+  return { start: start.toISOString(), end: end.toISOString(), localDate };
 }
 
 export default function DashboardScreen({ navigation }: DashboardScreenProps<'Dashboard'>) {
@@ -66,11 +68,9 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
   const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('dashboard');
-  const { colors } = useTheme();
-  const palette = usePalette();
-  const sync = useSyncStatus();
-
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const { scheme } = useTheme();
+  const amberIconColor = scheme === 'dark' ? '#FCD34D' : '#B45309';
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const tour = useProductTour();
@@ -88,71 +88,51 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
     return () => {
       cancelled = true;
     };
-  }, [shop.id, tour]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop.id]);
 
   const load = useCallback(async () => {
     try {
       const { localDate } = todayRange();
 
+      // Everything reads from the local-first mirror (same one every
+      // create/order/payment flow writes through) rather than Supabase
+      // directly, so the dashboard reflects the real current data instead of
+      // racing the background sync.
       const [allOrders, customers, allBills, allPayments] = await Promise.all([
         ordersRepo.listWithCustomer(shop.id),
         customersRepo.list(shop.id),
         billsRepo.list(shop.id),
         paymentsRepo.listForShop(shop.id),
       ]);
+      const customerById = new Map(customers.map((c) => [c.id, c]));
+      const billById = new Map(allBills.map((b) => [b.id, b]));
 
-      // 1. Today's collections
-      const todayCollected = allPayments.reduce((sum, p) => {
-        const day = p.payment_date ? String(p.payment_date).slice(0, 10) : '';
-        return day === localDate ? sum + Number(p.amount_paid ?? 0) : sum;
-      }, 0);
+      const todaysOrders = allOrders.filter((o) => o.order_date === localDate);
+      const todaysDeliveries = todaysOrders.filter((o) => o.status === 'delivered');
+      const recentOrders = [...allOrders]
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+        .slice(0, 6);
 
-      // 2. Today's new orders
-      const todayNewOrdersCount = allOrders.filter((o) => o.order_date === localDate).length;
-
-      // 3. Today's delivered orders
-      const todayDeliveredCount = allOrders.filter(
-        (o) =>
-          o.status === 'delivered' &&
-          (o.updated_at?.slice(0, 10) === localDate ||
-            o.delivery_date === localDate ||
-            o.order_date === localDate)
-      ).length;
-
-      // Active orders (not delivered)
-      const activeOrders = allOrders.filter((o) => o.status !== 'delivered');
-
-      // 4. Work queue: active orders due on or before today, sorted by due date then urgency
-      const workOrders = activeOrders
-        .filter((o) => o.delivery_date && o.delivery_date <= localDate)
-        .sort((a, b) => {
-          const dateA = a.delivery_date ?? '';
-          const dateB = b.delivery_date ?? '';
-          if (dateA !== dateB) return dateA.localeCompare(dateB);
-          if (a.is_rush !== b.is_rush) return a.is_rush ? -1 : 1;
-          return a.order_number.localeCompare(b.order_number);
+      // "Top clients" = best customers, ranked by how many orders they've
+      // placed (ties broken by total value billed to them). Customers with no
+      // orders at all are excluded — the row is meant to surface regulars.
+      const customerScores = new Map<string, { orders: number; value: number }>();
+      for (const o of allOrders) {
+        if (!o.customer_id) continue;
+        const prev = customerScores.get(o.customer_id) ?? { orders: 0, value: 0 };
+        customerScores.set(o.customer_id, {
+          orders: prev.orders + 1,
+          value: prev.value + Number(o.total_amount ?? 0),
         });
+      }
+      const topClients: ClientItem[] = [...customerScores.entries()]
+        .sort((a, b) => b[1].orders - a[1].orders || b[1].value - a[1].value)
+        .slice(0, 8)
+        .map(([id]) => customerById.get(id))
+        .filter((c): c is (typeof customers)[number] => !!c)
+        .map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
 
-      // 5. Coming up this week (active orders due in next 7 days after today)
-      const nextWeekDate = new Date();
-      nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-      const nextWeekStr = `${nextWeekDate.getFullYear()}-${String(nextWeekDate.getMonth() + 1).padStart(
-        2,
-        '0'
-      )}-${String(nextWeekDate.getDate()).padStart(2, '0')}`;
-      const upcomingThisWeek = activeOrders.filter(
-        (o) => o.delivery_date && o.delivery_date > localDate && o.delivery_date <= nextWeekStr
-      ).length;
-
-      // 6. Ready to give
-      const readyToGiveCount = activeOrders.filter((o) => o.status === 'ready').length;
-
-      // 7. Pending reminders count (overdue orders + ready orders)
-      const pendingRemindersCount = activeOrders.filter(
-        (o) => (o.delivery_date && o.delivery_date < localDate) || o.status === 'ready'
-      ).length;
-
-      // 8. Total pending balance to collect across all bills
       const paymentsByBill = new Map<string, number>();
       for (const p of allPayments) {
         paymentsByBill.set(p.bill_id, (paymentsByBill.get(p.bill_id) ?? 0) + Number(p.amount_paid));
@@ -161,47 +141,66 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
         const paid = paymentsByBill.get(bill.id) ?? 0;
         return sum + Math.max(Number(bill.total_amount ?? 0) - paid, 0);
       }, 0);
+      const unpaidBillsCount = allBills.filter((b) => b.payment_status !== 'paid').length;
 
-      const billByOrder = new Map(allBills.filter((b) => b.order_id).map((b) => [b.order_id as string, b]));
-      const balanceByOrder: Record<string, number> = {};
-      for (const o of workOrders) {
-        const bill = billByOrder.get(o.id);
-        const total = bill ? Number(bill.total_amount ?? 0) : Number(o.total_amount ?? 0);
-        const paid = bill ? paymentsByBill.get(bill.id) ?? 0 : Number(o.paid_amount ?? 0);
-        balanceByOrder[o.id] = Math.max(total - paid, 0);
-      }
+      // This month's revenue = payments received since the 1st of the
+      // current calendar month, in local time.
+      const monthKey = localDate.slice(0, 7);
+      const thisMonthRevenue = allPayments.reduce((sum, p) => {
+        const day = p.payment_date ? String(p.payment_date).slice(0, 10) : '';
+        return day.slice(0, 7) === monthKey ? sum + Number(p.amount_paid ?? 0) : sum;
+      }, 0);
+
+      // Latest payments received, regardless of which bill/order they're
+      // tied to — a fast "money coming in" pulse distinct from Transaction
+      // History below (which is orders, not payments).
+      const recentPayments: RecentPaymentItem[] = [...allPayments]
+        .sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1))
+        .slice(0, 5)
+        .map((p) => {
+          const bill = billById.get(p.bill_id);
+          const customer = bill?.customer_id ? customerById.get(bill.customer_id) : null;
+          return {
+            id: p.id,
+            customerName: customer?.name ?? t('customer'),
+            amount: Number(p.amount_paid ?? 0),
+            mode: p.payment_mode ?? '',
+            date: p.payment_date,
+          };
+        });
 
       setStats({
-        todayCollected,
-        todayNewOrdersCount,
-        todayDeliveredCount,
-        workOrders,
-        upcomingThisWeek,
-        readyToGiveCount,
-        pendingRemindersCount,
+        todaysOrders,
+        todaysDeliveries,
+        recentOrders,
+        topClients,
+        recentPayments,
         totalPendingBalance,
-        balanceByOrder,
+        unpaidBillsCount,
+        thisMonthRevenue,
       });
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('errorLoad'), 'error');
-      setStats((prev) =>
-        prev ?? {
-          todayCollected: 0,
-          todayNewOrdersCount: 0,
-          todayDeliveredCount: 0,
-          workOrders: [],
-          upcomingThisWeek: 0,
-          readyToGiveCount: 0,
-          pendingRemindersCount: 0,
-          totalPendingBalance: 0,
-          balanceByOrder: {},
-        }
+      // Fall back to an empty dashboard instead of an endless spinner.
+      setStats(
+        (prev) =>
+          prev ?? {
+            todaysOrders: [],
+            todaysDeliveries: [],
+            recentOrders: [],
+            topClients: [],
+            recentPayments: [],
+            totalPendingBalance: 0,
+            unpaidBillsCount: 0,
+            thisMonthRevenue: 0,
+          }
       );
     }
   }, [showToast, t, shop.id]);
 
   useFocusEffect(
     useCallback(() => {
+      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );
@@ -212,316 +211,253 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
     setRefreshing(false);
   };
 
-  const { change: handleStatusChange, updatingId } = useOrderStatusChange({
-    shopId: shop.id,
-    getBalance: (o) => stats?.balanceByOrder[o.id] ?? 0,
-    onChanged: load,
-  });
-
-  const openOrders = (filter: OrderListFilter) =>
-    (navigation as unknown as { navigate: (n: string, p?: object) => void }).navigate('OrdersTab', {
-      screen: 'OrderList',
-      params: { filter },
-    });
-
-  if (loading || !stats) {
-    return (
-      <View className="flex-1 bg-bg" style={{ paddingTop: insets.top + 8 }}>
-        <View className="px-4 pb-3">
-          <Skeleton width="55%" height={22} />
-          <View className="mt-2">
-            <Skeleton width="35%" height={14} />
-          </View>
-        </View>
-        <View className="flex-row flex-wrap gap-3 px-4">
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} className="w-[47%] flex-grow">
-              <Skeleton height={84} />
-            </View>
-          ))}
-        </View>
-        <View className="mt-6">
-          <SkeletonList count={4} />
-        </View>
-      </View>
-    );
-  }
-
-  const hr = new Date().getHours();
-  const greeting = t(hr < 12 ? 'goodMorning' : hr < 17 ? 'goodAfternoon' : 'goodEvening');
-  const ownerName = shop.shop_name ? shop.shop_name.split(' ')[0] : t('defaultUser');
-  const todayFormatted = new Date().toLocaleDateString(appLocale(), {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-
-  const today = todayRange().localDate;
-  const lateCount = stats.workOrders.filter((o) => (o.delivery_date ?? '') < today).length;
-  const dueTodayCount = stats.workOrders.length - lateCount;
-
-  const cards: { key: string; label: string; value: string; tone: 'danger' | 'warning' | 'success' | 'primary'; icon: string; onPress: () => void }[] = [
-    { key: 'late', label: t('cards.late'), value: String(lateCount), tone: 'danger', icon: 'alert', onPress: () => openOrders('Overdue') },
-    { key: 'today', label: t('cards.dueToday'), value: String(dueTodayCount), tone: 'warning', icon: 'clock', onPress: () => openOrders('Due today') },
-    { key: 'ready', label: t('cards.readyToGive'), value: String(stats.readyToGiveCount), tone: 'success', icon: 'circleCheck', onPress: () => openOrders('Ready') },
-    {
-      key: 'collect',
-      label: t('cards.toCollect'),
-      value: moneyK(stats.totalPendingBalance),
-      tone: 'primary',
-      icon: 'coin',
-      onPress: () => openOrders('Unpaid'),
-    },
-  ];
-  const toneText = { danger: 'danger', warning: 'warning', success: 'success', primary: 'primary' } as const;
-  const toneBg = {
-    danger: palette.dangerLight,
-    warning: palette.warningLight,
-    success: palette.successLight,
-    primary: palette.primaryLight,
-  } as const;
-  const toneFg = { danger: palette.danger, warning: palette.warning, success: palette.success, primary: palette.primaryDark } as const;
+  if (loading || !stats) return <LoadingSpinner fullScreen text={t('loading')} />;
 
   return (
-    <View className="flex-1 bg-bg">
-      <View style={{ paddingTop: insets.top + 8 }} className="border-b border-line-2 bg-surface px-4 pb-3">
-        <View className="min-h-touch flex-row items-center">
-          <View className="min-w-0 flex-1 pr-2">
-            <Text variant="title" numberOfLines={1} accessibilityRole="header">
-              {greeting}, {ownerName}
-            </Text>
-            <Text variant="caption" tone="muted" weight="regular" numberOfLines={1}>
-              {shop.shop_name || 'TrueFit'} · {todayFormatted}
-            </Text>
-            <View className="mt-1">
-              <SyncChip status={sync.status} pending={sync.pending} />
-            </View>
-          </View>
-          <View>
-            <IconButton
-              icon="bell"
-              variant="ghost"
-              accessibilityLabel={t('common:a11y.notifications')}
-              onPress={() => navigation.navigate('Notifications')}
-            />
-            {stats.pendingRemindersCount > 0 ? (
-              <View className="absolute right-1 top-1 h-[18px] min-w-[18px] items-center justify-center rounded-sm bg-danger px-1" pointerEvents="none">
-                <Text variant="caption" maxFontSizeMultiplier={1.3} style={{ color: palette.white, fontSize: 11, lineHeight: 14 }}>
-                  {stats.pendingRemindersCount > 9 ? '9+' : stats.pendingRemindersCount}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+    <ScrollView
+      className="flex-1 bg-white dark:bg-gray-950"
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 224 }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
+      }
+    >
+      {/* Topbar Header — every icon carries a visible text label, not just a
+          glyph, since a lone bell/calendar icon isn't self-explanatory. */}
+      <View className="flex-row items-center justify-between px-5 py-3">
+        <Text className="text-[18px] font-semibold text-[#101828] dark:text-gray-50">
+          {t('greeting', { name: shop.shop_name || t('defaultUser') })}
+        </Text>
+        <View className="flex-row items-center gap-1">
+          <Pressable
+            onPress={() => navigation.navigate('Calendar')}
+            className="min-h-[48px] flex-row items-center gap-1.5 rounded-full px-2.5 active:bg-gray-100 dark:active:bg-gray-800"
+          >
+            <Ionicons name="calendar-outline" size={20} color={scheme === 'dark' ? '#F3F4F6' : '#101828'} />
+            <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('calendarNavLabel')}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate('Notifications')}
+            className="min-h-[48px] flex-row items-center gap-1.5 rounded-full px-2.5 active:bg-gray-100 dark:active:bg-gray-800"
+          >
+            <Ionicons name="notifications-outline" size={20} color={scheme === 'dark' ? '#F3F4F6' : '#101828'} />
+            <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('alerts')}</Text>
+          </Pressable>
         </View>
+      </View>
 
-        {/* Search entry: opens the global search (customer, phone, order no., book no.). */}
+      {/* Tappable search field — opens the dedicated Search screen rather
+          than filtering in place, so it works the same way from anywhere
+          in the app the pattern gets reused. */}
+      <View className="mb-4 px-5">
         <Pressable
           onPress={() => navigation.navigate('Search')}
-          accessibilityRole="search"
-          accessibilityLabel={t('searchEntry')}
-          className="mt-2 h-12 flex-row items-center rounded-md border border-line bg-surface px-3 active:bg-surface-2"
+          className="h-[48px] flex-row items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 dark:border-gray-700 dark:bg-gray-800"
         >
-          <Icon name="search" size={20} color={colors.textMuted} />
-          <Text variant="body" tone="faint" numberOfLines={1} className="ml-2 flex-1">
-            {t('searchEntry')}
+          <Ionicons name="search-outline" size={18} color={scheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+          <Text className="font-sans text-base text-gray-400 dark:text-gray-500">{t('searchPlaceholder')}</Text>
+        </Pressable>
+      </View>
+
+      {/* The "3 questions, no scrolling" zone: what's due today, who owes me,
+          what needs attention — answered as two big glanceable tiles plus an
+          alert strip, each tappable straight into the filtered list. */}
+      <View className="mb-4 flex-row gap-3 px-5">
+        <Pressable
+          onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Revenue' })}
+          className="flex-1 rounded-lg border border-gray-200 bg-white p-4 active:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:active:bg-gray-800"
+        >
+          <View className="mb-2 h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950">
+            <FontAwesome5 name="chart-line" size={16} color="#1D4ED8" />
+          </View>
+          <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('thisMonthRevenue.title')}</Text>
+          <Text className="mt-0.5 text-[22px] font-bold text-[#101828] dark:text-gray-50">
+            {formatCurrency(stats.thisMonthRevenue)}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.navigate('SettingsTab' as any, { screen: 'Billing' })}
+          className="flex-1 rounded-lg border border-gray-200 bg-white p-4 active:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:active:bg-gray-800"
+        >
+          <View className="mb-2 h-10 w-10 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950">
+            <FontAwesome5 name="rupee-sign" size={16} color={amberIconColor} />
+          </View>
+          <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('owedToday.title')}</Text>
+          <Text className="mt-0.5 text-[22px] font-bold text-[#101828] dark:text-gray-50">
+            {formatCurrency(stats.totalPendingBalance)}
           </Text>
         </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 140 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-      >
-        {/* The four things to act on today. Each opens the matching Orders filter. */}
-        <View className="flex-row flex-wrap gap-3">
-          {cards.map((c) => (
-            <Pressable
-              key={c.key}
-              onPress={() => {
-                haptics.tap();
-                c.onPress();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`${c.label}: ${c.value}`}
-              className="min-h-[88px] flex-grow basis-[46%] justify-between rounded border border-line bg-surface p-3 active:bg-surface-2"
+
+      {/* One primary action, unambiguous but no longer the oversized 56px
+          hero button — medium size reads as "the main action" without
+          dominating the whole screen. Adding a client/bill/staff member
+          still lives one tap away in the Quick-Add FAB. */}
+      <View className="mb-6 px-5">
+        <Button
+          title={t('newOrder')}
+          icon={<Ionicons name="add" size={20} color="#FFFFFF" />}
+          size="md"
+          onPress={() => {
+            haptics.tap();
+            navigation.navigate('OrderForm', {});
+          }}
+        />
+      </View>
+
+      {/* Quick Send & Transactions Sheet Container */}
+      <View className="flex-1 bg-white dark:bg-gray-950">
+
+        {/* Top Clients — ranked by order count */}
+        <View className="mb-6 px-5">
+          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">{t('topClients')}</Text>
+          {stats.topClients.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              icon="user-friends"
+              title={t('emptyTopClients.title')}
+              description={t('emptyTopClients.description')}
+            />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 14 }}
             >
-              <View className="flex-row items-center">
-                <View className="mr-2 h-7 w-7 items-center justify-center rounded-sm" style={{ backgroundColor: toneBg[c.tone] }}>
-                  <Icon name={c.icon} size={16} color={toneFg[c.tone]} />
-                </View>
-                <Text variant="label" tone="muted" numberOfLines={2} className="flex-1">
-                  {c.label}
-                </Text>
-              </View>
-              <Text variant="headline" tone={toneText[c.tone]} tabular numberOfLines={1}>
-                {c.value}
-              </Text>
-            </Pressable>
-          ))}
+              {stats.topClients.map((client, idx) => {
+                const initial = client.name ? client.name.charAt(0).toUpperCase() : 'C';
+                const colorStyle = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                return (
+                  <Pressable
+                    key={client.id}
+                    onPress={() =>
+                      navigation.navigate('CustomersTab' as any, {
+                        screen: 'CustomerDetail',
+                        params: { customerId: client.id },
+                      })
+                    }
+                    className="w-[54px] items-center gap-1"
+                  >
+                    <View className={`h-[54px] w-[54px] items-center justify-center rounded-full ${colorStyle.bg}`}>
+                      <Text className={`text-[18px] font-semibold ${colorStyle.text}`}>{initial}</Text>
+                    </View>
+                    <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50 text-center" numberOfLines={1}>
+                      {client.name.split(' ')[0]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
 
-        <View className="mt-3 flex-row gap-2">
-          <Button
-            title={t('newOrder')}
-            icon={<Icon name="plus" size={20} color={colors.onPrimary} />}
-            onPress={() => {
-              haptics.tap();
-              navigation.navigate('OrderForm', {});
-            }}
-            className="flex-[1.4]"
-            testID="home-new-order"
-          />
-          <Button
-            title={t('measure')}
-            variant="secondary"
-            icon={<Icon name="ruler" size={20} color={colors.textPrimary} />}
-            onPress={() => {
-              haptics.tap();
-              navigation.navigate('CustomersTab' as any);
-            }}
-            className="flex-1"
-          />
-        </View>
+        {/* Total Today's Delivery — capped to 3 with a "view more" link into
+            the full Orders list, rather than an ever-growing scroll. */}
+        <View className="mb-6 px-5">
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">{t('todaysDelivery.title')}</Text>
+          </View>
 
-        {/* Do now: swipe right = next status, swipe left = Call / WhatsApp. */}
-        <View className="mb-2 mt-6 flex-row items-center">
-          <Text variant="label" tone="muted">
-            {t('doNow')}
-          </Text>
-          {stats.workOrders.length > 0 ? (
-            <Text variant="label" tone="faint" tabular className="ml-1.5">
-              {stats.workOrders.length}
-            </Text>
-          ) : null}
-        </View>
+          {stats.todaysDeliveries.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              icon="calendar-day"
+              title={t('emptyTransactionsTitle')}
+              description={t('emptyTransactionsDescription')}
+            />
+          ) : (
+            <>
+              <View className="gap-3">
+                {stats.todaysDeliveries.slice(0, 3).map((o) => {
+                  const dateStr = o.order_date
+                    ? new Date(o.order_date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                    : 'Recent';
 
-        {stats.workOrders.length === 0 ? (
-          <Card className="flex-row items-center">
-            <Icon name="circleCheck" size={28} color={palette.success} />
-            <View className="ml-3 flex-1">
-              <Text variant="bodyLg">{t('allCaughtUp')}</Text>
-              <Text variant="label" tone="muted" weight="regular">
-                {t('noDeliveriesToday')}
-              </Text>
-            </View>
-          </Card>
-        ) : (
-          <View className="overflow-hidden rounded border border-line">
-            {stats.workOrders.map((order, idx) => {
-              const customerName = order.customers?.name || t('customer');
-              const due = getDueInfo(order.delivery_date, order.status, t);
-              const isReady = order.status === 'ready';
-              const balance = stats.balanceByOrder[order.id] ?? 0;
-              const next: 'ready' | 'delivered' = isReady ? 'delivered' : 'ready';
-              const phone = order.customers?.phone;
-
-              const reveal = [
-                ...(phone
-                  ? [
-                      { key: 'call', label: t('common:actions.call'), icon: 'phone', onPress: () => void Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => showToast(t('common:call.failed'), 'error')) },
-                      {
-                        key: 'whatsapp',
-                        label: 'WhatsApp',
-                        icon: 'chat',
-                        onPress: () => void sendWhatsAppMessage(phone, '').catch((e) => showToast(e instanceof Error ? e.message : t('errorLoad'), 'error')),
-                      },
-                    ]
-                  : []),
-              ];
-
-              return (
-                <SwipeRow
-                  key={order.id}
-                  commitAction={{
-                    key: next,
-                    label: isReady ? t('deliver') : t('ready'),
-                    icon: isReady ? 'truck' : 'circleCheck',
-                    tone: isReady ? 'primary' : 'success',
-                    onPress: () => handleStatusChange(order, next),
-                  }}
-                  revealActions={reveal}
-                >
-                  <View className={`min-h-[72px] flex-row items-center bg-surface pl-4 pr-2 ${idx < stats.workOrders.length - 1 ? 'border-b border-line-2' : ''}`}>
+                  return (
                     <Pressable
-                      onPress={() => navigation.navigate('OrderDetail', { orderId: order.id })}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${customerName}, #${order.order_number}, ${due.text}`}
-                      className="min-w-0 flex-1 py-3 pr-2"
+                      key={o.id}
+                      onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })}
+                      className="flex-row items-center justify-between rounded-xl py-2"
                     >
-                      <Text variant="bodyLg" numberOfLines={1}>
-                        {customerName}{' '}
-                        <Text variant="label" tone="faint" tabular>
-                          #{order.order_number}
+                      <View className="flex-1 flex-row items-center gap-3">
+                        <View className="h-[48px] w-[48px] items-center justify-center rounded-full bg-[#F4F6F9] dark:bg-gray-800">
+                          <FontAwesome5 name="shopping-bag" size={18} color="#1D4ED8" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-base font-semibold text-[#101828] dark:text-gray-50" numberOfLines={1}>
+                            #{o.order_number} · {o.customers?.name || t('customer')}
+                          </Text>
+                          <Text className="font-sans text-base font-medium text-[#667085] dark:text-gray-400">
+                            {dateStr}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="items-end">
+                        <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">
+                          {o.cloth_type || t('garmentOrder')}
                         </Text>
-                      </Text>
-                      <Text variant="label" tone="muted" weight="regular" numberOfLines={1}>
-                        {order.cloth_type || t('garmentOrder')}
-                        {balance > 0 ? ` · ${formatCurrency(balance)}` : ''}
-                      </Text>
-                      <View className="mt-1 flex-row flex-wrap gap-1.5">
-                        <Badge
-                          size="sm"
-                          label={due.text}
-                          tone={due.tone}
-                          icon={due.tone === 'danger' ? 'alert' : 'clock'}
-                        />
-                        {order.is_rush ? <Badge size="sm" tone="danger" label={t('orders:form.rushOrder')} icon="flame" /> : null}
-                        {isReady ? <Badge size="sm" type="order_status" value="ready" /> : null}
+                        <Text className="text-base font-medium text-[#12B76A]">
+                          {o.status.replace('_', ' ')}
+                        </Text>
                       </View>
                     </Pressable>
+                  );
+                })}
+              </View>
+              {stats.todaysDeliveries.length > 3 ? (
+                <Pressable
+                  onPress={() => navigation.navigate('OrdersTab' as any)}
+                  className="mt-2 items-center rounded-md py-2.5 active:bg-gray-50 dark:active:bg-gray-800"
+                >
+                  <Text className="text-base font-medium text-[#1D4ED8] underline">{t('viewMore')}</Text>
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </View>
 
-                    <Button
-                      title={isReady ? t('deliver') : t('ready')}
-                      variant={isReady ? 'primary' : 'tonal'}
-                      size="sm"
-                      fullWidth={false}
-                      loading={updatingId === order.id}
-                      onPress={() => handleStatusChange(order, next)}
-                    />
+        {/* Recent Payments — a fast "money coming in" pulse, distinct from
+            Today's Delivery above (which lists orders, not payments). */}
+        <View className="px-5">
+          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">
+            {t('recentPayments.title')}
+          </Text>
+          {stats.recentPayments.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              icon="rupee-sign"
+              title={t('recentPayments.emptyTitle')}
+              description={t('recentPayments.emptyDescription')}
+            />
+          ) : (
+            <View className="gap-2.5">
+              {stats.recentPayments.map((payment) => (
+                <View
+                  key={payment.id}
+                  className="flex-row items-center justify-between rounded-md border border-gray-200 bg-[#F9FAFB] px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <View className="flex-1 pr-2">
+                    <Text className="text-base font-semibold text-[#101828] dark:text-gray-50" numberOfLines={1}>
+                      {payment.customerName}
+                    </Text>
+                    <Text className="font-sans text-base text-gray-500 dark:text-gray-400">
+                      {new Date(payment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {payment.mode ? ` · ${payment.mode}` : ''}
+                    </Text>
                   </View>
-                </SwipeRow>
-              );
-            })}
-          </View>
-        )}
-
-        <View className="mt-6 overflow-hidden rounded border border-line">
-          <ListRow
-            title={t('comingUpThisWeek')}
-            trailing={<Text variant="bodyLg" tabular>{stats.upcomingThisWeek}</Text>}
-            onPress={() => openOrders('Active')}
-            showChevron
-          />
-          <ListRow
-            title={t('whatsappReminders')}
-            trailing={<Text variant="bodyLg" tabular>{stats.pendingRemindersCount}</Text>}
-            onPress={() => navigation.navigate('Notifications')}
-            divider={false}
-          />
-        </View>
-
-        {/* Today's numbers (collected / new / delivered), quieter than the action cards. */}
-        <View className="mt-6 flex-row rounded border border-line bg-surface">
-          {[
-            { label: t('collected'), value: formatCurrency(stats.todayCollected) },
-            { label: t('newOrders'), value: String(stats.todayNewOrdersCount) },
-            { label: t('delivered'), value: String(stats.todayDeliveredCount) },
-          ].map((s, i) => (
-            <View key={s.label} className={`min-w-0 flex-1 px-3 py-3 ${i > 0 ? 'border-l border-line-2' : ''}`}>
-              <Text variant="bodyLg" tabular numberOfLines={1}>
-                {s.value}
-              </Text>
-              <Text variant="caption" tone="muted" weight="regular" numberOfLines={2}>
-                {s.label}
-              </Text>
+                  <Text className="text-base font-bold text-green-600">{formatCurrency(payment.amount)}</Text>
+                </View>
+              ))}
             </View>
-          ))}
+          )}
         </View>
-        <Text variant="caption" tone="faint" weight="regular" className="mt-1.5 px-1">
-          {t('today')}
-        </Text>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }

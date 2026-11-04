@@ -1,23 +1,51 @@
-import { useEffect, useState } from 'react';
-import { Animated, Modal, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
-import { Icon, type TablerIconName } from '../src/components/ui/Icon';
-import { IconButton } from '../src/components/ui/IconButton';
-import { Text } from '../src/components/ui/Text';
-import { usePalette } from '../src/theme/usePalette';
-import { useReducedMotion } from '../src/theme/useReducedMotion';
-import { transitions } from '../src/theme/tokens';
-import { useTheme } from '../context/ThemeContext';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 
-/** Row geometry shared with ProductTourSpotlight, which positions its tooltip from it. */
-export const MENU_LAYOUT = { H_MARGIN: 12, HEADER_H: 48, ROW_H: 64, FOOT_H: 34 } as const;
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * Shared geometry for the circular cut-out that the Add button nests into.
+ * The nav bar dips *down* into its top edge and this card dips *up* into its
+ * bottom edge using the same numbers, so the two curves meet cleanly around
+ * the same circle.
+ */
+export const NOTCH = {
+  /** Half-width where the curve rejoins the straight edge. */
+  flare: 52,
+  /** How far the curve travels from the edge. */
+  depth: 24,
+};
+
+/** Row layout constants, reused by callers that need to position tooltips
+ * over a specific action row (see the product tour spotlight). */
+export const MENU_LAYOUT = { H_MARGIN: 12, HEADER_H: 40, ROW_H: 64, FOOT_H: 34 } as const;
+
+/**
+ * Half of the notch, as a cubic. Control points are expressed as fractions of
+ * `flare` so the scoop stays smooth and symmetric at any size — hand-picked
+ * absolute control points made it read as an angular V rather than a cradle.
+ * `dir` is 1 going right / -1 going left, `sign` is 1 dipping down (nav bar)
+ * / -1 dipping up (menu card).
+ */
+export function notchCurve(cx: number, edgeY: number, dir: 1 | -1, sign: 1 | -1) {
+  const { flare, depth } = NOTCH;
+  const d = depth * sign;
+  return (
+    `C ${cx - dir * flare * 0.45},${edgeY} ${cx - dir * flare * 0.42},${edgeY + d} ${cx},${edgeY + d} ` +
+    `C ${cx + dir * flare * 0.42},${edgeY + d} ${cx + dir * flare * 0.45},${edgeY} ${cx + dir * flare},${edgeY}`
+  );
+}
 
 export type QuickAction = {
   key: string;
   label: string;
-  tablerIcon?: TablerIconName;
-  subtext?: string;
+  icon: IconName;
+  /** Pastel circle behind the icon. */
+  bg: string;
+  /** Icon tint, a deep shade of the same hue. */
+  fg: string;
   onPress: () => void;
 };
 
@@ -25,110 +53,223 @@ export type QuickAddMenuProps = {
   visible: boolean;
   onClose: () => void;
   actions: QuickAction[];
+  /** Height of the nav bar, i.e. where this card's bottom edge should sit. */
+  bottomOffset: number;
+  /** Matches the tab bar's own fill so the two read as one dock. */
+  cardFill?: string;
+  /** During the product tour, dims every row except this one. */
   highlightedKey?: string;
 };
 
-// `sub` is a common-namespace translation key.
-const ACTION_METADATA: Record<string, { icon: TablerIconName; sub: string }> = {
-  order: { icon: 'plus', sub: 'quickAdd.orderSub' },
-  client: { icon: 'userPlus', sub: 'quickAdd.clientSub' },
-  measurement: { icon: 'ruler', sub: 'quickAdd.measurementSub' },
-  staff: { icon: 'scissors', sub: 'quickAdd.staffSub' },
-};
+const OPEN_MS = 240;
+const CLOSE_MS = 160;
 
-/** "Create" sheet opened by the tab bar's + button: one row per action, 64dp each. */
-export function QuickAddMenu({ visible, onClose, actions, highlightedKey }: QuickAddMenuProps) {
-  const { t } = useTranslation('common');
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const palette = usePalette();
-  const reduced = useReducedMotion();
-  const [slideAnim] = useState(() => new Animated.Value(300));
-  const [fadeAnim] = useState(() => new Animated.Value(0));
+const { H_MARGIN, HEADER_H, ROW_H, FOOT_H } = MENU_LAYOUT;
+const CARD_RADIUS = 28;
+
+/** Rounded rect with a concave notch cut into the bottom-centre edge. */
+function cardPath(w: number, h: number) {
+  const cx = w / 2;
+  const r = CARD_RADIUS;
+  // Travelling right-to-left along the bottom edge, dipping upward.
+  return `
+    M ${r},0
+    L ${w - r},0
+    Q ${w},0 ${w},${r}
+    L ${w},${h - r}
+    Q ${w},${h} ${w - r},${h}
+    L ${cx + NOTCH.flare},${h}
+    ${notchCurve(cx, h, -1, -1)}
+    L ${r},${h}
+    Q 0,${h} 0,${h - r}
+    L 0,${r}
+    Q 0,0 ${r},0
+    Z
+  `;
+}
+
+/**
+ * The Add button's action sheet. Uses React Native's built-in Animated
+ * (never Reanimated) — Reanimated worklets segfault inside Expo Go, and this
+ * needs to stay usable there.
+ */
+export function QuickAddMenu({
+  visible,
+  onClose,
+  actions,
+  bottomOffset,
+  cardFill = '#050505',
+  highlightedKey,
+}: QuickAddMenuProps) {
+  // Kept mounted for the duration of the exit animation.
+  const [mounted, setMounted] = useState(visible);
+  const progress = useRef(new Animated.Value(0)).current;
+
+  // Reactive, unlike Dimensions.get('window') which is captured once at
+  // mount and goes stale if the viewport resizes (web resize, rotation).
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const cardW = screenW - H_MARGIN * 2;
+  // Derived rather than measured, so the SVG can be drawn on the first frame
+  // instead of flashing an unpainted card while onLayout resolves.
+  const cardH = HEADER_H + actions.length * ROW_H + FOOT_H;
 
   useEffect(() => {
-    const open = visible;
-    if (reduced) {
-      fadeAnim.setValue(open ? 1 : 0);
-      slideAnim.setValue(open ? 0 : 300);
-      return;
+    if (visible) {
+      setMounted(true);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: OPEN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: CLOSE_MS,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
     }
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: open ? 1 : 0, duration: transitions.fast, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: open ? 0 : 300, duration: transitions.normal, useNativeDriver: true }),
-    ]).start();
-  }, [visible, reduced, fadeAnim, slideAnim]);
+  }, [visible, progress]);
+
+  if (!mounted) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable
-        accessible={false}
-        className="flex-1 justify-end"
-        style={{ backgroundColor: palette.scrim }}
-        onPress={onClose}
+    <>
+      {/* This renders inside the tab bar's wrapper, which is anchored to the
+          screen bottom and has no height of its own — so absoluteFill would
+          collapse to nothing. An explicit window-height box anchored at
+          bottom:0 stretches back up over the whole screen instead. */}
+      <Animated.View style={[styles.scrim, { height: screenH, opacity: progress }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            left: H_MARGIN,
+            width: cardW,
+            height: cardH,
+            // Overlap the bar slightly so the two notch curves join up.
+            bottom: bottomOffset - 2,
+            opacity: progress,
+            transform: [
+              { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
+            ],
+          },
+        ]}
       >
-        {/* NativeWind does not apply className to Animated.View, so the sheet surface is the inner Pressable. */}
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          <Pressable
-            accessible={false}
-            accessibilityViewIsModal
-            onPress={() => {}}
-            style={{ paddingBottom: Math.max(insets.bottom, 16) }}
-            className="rounded-t border-t border-line bg-surface px-4 pt-3"
-          >
-            <View className="mb-1 items-center">
-              <View className="h-1 w-9 rounded-sm bg-line" />
-            </View>
+        <Svg width={cardW} height={cardH} style={StyleSheet.absoluteFill}>
+          <Path d={cardPath(cardW, cardH)} fill={cardFill} />
+        </Svg>
 
-            <View className="flex-row items-center justify-between border-b border-line-2" style={{ height: MENU_LAYOUT.HEADER_H }}>
-              <Text variant="title" accessibilityRole="header">
-                {t('actions.create', { defaultValue: 'Create' })}
-              </Text>
-              <IconButton icon="x" onPress={onClose} accessibilityLabel={t('actions.close')} variant="ghost" className="-mr-2" />
-            </View>
+        <View style={[styles.grabber, { top: 12 }]} />
 
-            <View>
-              {actions.map((act) => {
-                const meta = ACTION_METADATA[act.key] || { icon: 'plus' as TablerIconName, sub: '' };
-                const iconName: TablerIconName = act.tablerIcon || meta.icon;
-                const subtext = act.subtext || (meta.sub ? t(meta.sub) : '');
-                const isDimmed = highlightedKey && highlightedKey !== act.key;
+        <View style={{ marginTop: HEADER_H }}>
+          {actions.map((action, i) => {
+            // Single driver, offset per row, gives a staggered slide-in.
+            const start = i * 0.1;
+            const range = {
+              inputRange: [start, Math.min(start + 0.55, 1)],
+              extrapolate: 'clamp' as const,
+            };
 
-                return (
-                  <Pressable
-                    key={act.key}
-                    accessibilityRole="button"
-                    accessibilityLabel={subtext ? `${act.label}, ${subtext}` : act.label}
-                    onPress={() => {
-                      onClose();
-                      setTimeout(() => act.onPress(), 100);
-                    }}
-                    style={{ height: MENU_LAYOUT.ROW_H }}
-                    className={`flex-row items-center border-b border-line-2 px-1 active:bg-surface-2 ${isDimmed ? 'opacity-30' : ''}`}
-                  >
-                    <View className="mr-3 h-10 w-10 items-center justify-center rounded bg-primary-50">
-                      <Icon name={iconName} size={22} color={colors.primary} />
-                    </View>
+            const isDimmed = !!highlightedKey && highlightedKey !== action.key;
+            const isSpotlit = highlightedKey === action.key;
 
-                    <View className="flex-1">
-                      <Text variant="bodyLg" numberOfLines={1}>
-                        {act.label}
-                      </Text>
-                      {subtext ? (
-                        <Text variant="caption" tone="muted" weight="regular" numberOfLines={1}>
-                          {subtext}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <Icon name="chev" size={18} color={colors.textFaint} />
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+            return (
+              <Animated.View
+                key={action.key}
+                style={{
+                  opacity: Animated.multiply(
+                    progress.interpolate({ ...range, outputRange: [0, 1] }),
+                    isDimmed ? 0.35 : 1
+                  ),
+                  transform: [
+                    { translateY: progress.interpolate({ ...range, outputRange: [14, 0] }) },
+                  ],
+                }}
+              >
+                {/* Static style, not the `({ pressed }) => ...` function form:
+                    NativeWind wraps Pressable and drops function styles, which
+                    silently left the row with no flexDirection or padding. */}
+                <Pressable
+                  onPress={action.onPress}
+                  style={[styles.row, isSpotlit && styles.rowSpotlit]}
+                  android_ripple={{ color: 'rgba(255,255,255,0.10)' }}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: action.bg }]}>
+                    <Ionicons name={action.icon} size={20} color={action.fg} />
+                  </View>
+                  <Text style={styles.rowLabel} numberOfLines={1}>
+                    {action.label}
+                  </Text>
+                  <Ionicons name="add" size={20} color="rgba(255,255,255,0.22)" />
+                </Pressable>
+                {i < actions.length - 1 ? <View style={styles.divider} /> : null}
+              </Animated.View>
+            );
+          })}
+        </View>
+      </Animated.View>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheet: {
+    position: 'absolute',
+    zIndex: 50,
+  },
+  grabber: {
+    position: 'absolute',
+    alignSelf: 'center',
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  row: {
+    height: ROW_H,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    gap: 14,
+  },
+  rowSpotlit: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    marginHorizontal: 6,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    flex: 1,
+    fontFamily: 'GoogleSansFlex_500Medium',
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+    includeFontPadding: false,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(148,148,148,0.16)',
+  },
+});

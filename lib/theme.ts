@@ -10,44 +10,45 @@ const THEME_STORAGE_KEY = 'measuresone:themeMode';
 /**
  * Hex palette for places NativeWind's `dark:` className variant can't reach —
  * icon `color` props (FontAwesome5/Ionicons take a plain string, not a
- * className) and RN `StyleSheet.create` values.
+ * className) and RN `StyleSheet.create` values (the custom SVG tab bar).
  * Keyed by resolved scheme so callers just index with the current one.
- * Mirrors src/theme/tokens.ts ("Indigo Ink").
  */
 export const THEME_COLORS = {
   light: {
-    textPrimary: '#12141C',
-    textSecondary: '#565D70',
-    textMuted: '#565D70',
-    textFaint: '#6E7589',
-    iconDefault: '#12141C',
-    iconMuted: '#565D70',
-    bgPage: '#F7F8FB',
+    textPrimary: '#101828',
+    textSecondary: '#475467',
+    textMuted: '#667085',
+    textFaint: '#98A2B3',
+    iconDefault: '#101828',
+    iconMuted: '#6B7280',
+    bgPage: '#FFFFFF',
     bgSurface: '#FFFFFF',
-    bgSubtle: '#EFF1F6',
-    bgSunken: '#E9ECF2',
-    borderDefault: '#DDE1EA',
-    borderSubtle: '#E9ECF2',
-    primary: '#3340B8',
-    primaryTint: '#E8EAFB',
-    onPrimary: '#FFFFFF',
+    bgSubtle: '#F9FAFB',
+    bgSunken: '#F4F6F9',
+    borderDefault: '#E5E7EB',
+    borderSubtle: '#F3F4F6',
+    // Matches Tailwind's primary-600 (tailwind.config.js) — the same blue
+    // every button/link/badge uses via className — so icon `color` props
+    // (which can't take a className) land on the exact same hex instead of
+    // the slightly darker primary-700 this drifted to.
+    primary: '#2563EB',
+    primaryTint: '#EFF6FF',
   },
   dark: {
-    textPrimary: '#ECEEF4',
-    textSecondary: '#A3AABD',
-    textMuted: '#A3AABD',
-    textFaint: '#8089A0',
-    iconDefault: '#ECEEF4',
-    iconMuted: '#A3AABD',
-    bgPage: '#0D0F15',
-    bgSurface: '#151821',
-    bgSubtle: '#1C202B',
-    bgSunken: '#20242F',
-    borderDefault: '#2A2F3D',
-    borderSubtle: '#20242F',
-    primary: '#8E9BFF',
-    primaryTint: '#1C2142',
-    onPrimary: '#0D1033',
+    textPrimary: '#F9FAFB',
+    textSecondary: '#D0D5DD',
+    textMuted: '#98A2B3',
+    textFaint: '#667085',
+    iconDefault: '#F3F4F6',
+    iconMuted: '#9CA3AF',
+    bgPage: '#0B0F19',
+    bgSurface: '#151B28',
+    bgSubtle: '#1C2333',
+    bgSunken: '#111726',
+    borderDefault: '#293244',
+    borderSubtle: '#1F2636',
+    primary: '#60A5FA',
+    primaryTint: '#1E3A5F',
   },
 } as const;
 

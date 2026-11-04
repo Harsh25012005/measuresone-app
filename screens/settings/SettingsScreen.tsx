@@ -1,32 +1,46 @@
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Header, Icon, ListRow, LogoMark, SegmentedControl, Section, Text, useToast } from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
-import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { Avatar, Card, useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useProductTour } from '../../context/ProductTourContext';
 import { useTheme } from '../../context/ThemeContext';
 import { haptics } from '../../lib/haptics';
+import { setAppLanguage, SUPPORTED_LANGUAGES, type AppLanguage } from '../../lib/i18n';
 import { THEME_MODES, type ThemeMode } from '../../lib/theme';
 import type { SettingsScreenProps } from '../../navigation/types';
 
-/** Icon tile used as the leading element of every More-tab row. */
-function RowIcon({ name }: { name: string }) {
-  const { colors } = useTheme();
-  return (
-    <View className="h-10 w-10 items-center justify-center rounded bg-primary-50">
-      <Icon name={name} size={20} color={colors.primary} />
-    </View>
-  );
-}
+const LANGUAGE_LABEL_KEY: Record<AppLanguage, string> = {
+  en: 'language.english',
+  gu: 'language.gujarati',
+  hi: 'language.hindi',
+};
+
+const THEME_LABEL_KEY: Record<ThemeMode, string> = {
+  light: 'themeLight',
+  dark: 'themeDark',
+  system: 'themeSystem',
+};
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps<'SettingsHome'>) {
   const { shop, user, signOut } = useAuth();
   const { start: startTour } = useProductTour();
   const { mode, setMode } = useTheme();
-  const palette = usePalette();
   const showToast = useToast();
-  const { t } = useTranslation(['settings', 'common']);
+  const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation(['settings', 'common']);
+  const currentLanguage = (i18n.language as AppLanguage) || 'en';
+
+  const changeLanguage = async (language: AppLanguage) => {
+    haptics.tap();
+    try {
+      await setAppLanguage(language);
+    } catch {
+      showToast(t('errorChangeLanguage'), 'error');
+    }
+  };
 
   const changeTheme = (next: ThemeMode) => {
     haptics.tap();
@@ -52,91 +66,200 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps<'Sett
   };
 
   return (
-    <View className="flex-1 bg-bg">
-      <Header title={t('title')} showBack={false} />
+    <ScrollView
+      className="flex-1 bg-gray-50 dark:bg-gray-950"
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 8, paddingBottom: 224, gap: 20 }}
+    >
+      <View className="py-2">
+        <Text className="text-[18px] font-semibold text-[#101828] dark:text-gray-50">{t('title')}</Text>
+      </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 20 }}>
-        {/* Shop */}
-        <Card onPress={() => navigation.navigate('ShopEdit')} accessibilityLabel={`${shop?.shop_name ?? 'TrueFit'}, ${t('common:actions.edit')}`}>
-          <View className="flex-row items-center">
-            <View className="h-12 w-12 items-center justify-center rounded bg-primary-50">
-              <LogoMark size={28} color={palette.primary} />
-            </View>
-            <View className="ml-3 min-w-0 flex-1">
-              <Text variant="bodyLg" numberOfLines={1}>
-                {shop?.shop_name || 'TrueFit'}
-              </Text>
-              <Text variant="label" tone="muted" weight="regular" numberOfLines={1}>
-                {shop?.owner_name ? `${shop.owner_name} · ` : ''}
-                {shop?.phone ? `+91 ${shop.phone}` : user?.email || ''}
-              </Text>
-            </View>
-            <Icon name="edit" size={20} color={palette.textMuted} />
+      {/* Profile hero card */}
+      <View className="items-center rounded-xl bg-[#101828] px-5 py-7 dark:border dark:border-gray-700">
+        <Pressable
+          onPress={() => navigation.navigate('ShopEdit')}
+          hitSlop={8}
+          className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full bg-white/10 active:bg-white/20"
+        >
+          <FontAwesome5 name="pen" size={13} color="#FFFFFF" />
+        </Pressable>
+        {shop?.logo_url ? (
+          <Image
+            source={{ uri: shop.logo_url }}
+            className="h-20 w-20 rounded-full border-2 border-white/20"
+          />
+        ) : (
+          <Avatar name={shop?.shop_name} size="lg" />
+        )}
+        <Text className="mt-3 text-lg font-semibold text-white">{shop?.shop_name}</Text>
+        {shop?.owner_name ? (
+          <View className="mt-1.5 flex-row items-center gap-1.5 rounded-full bg-white/10 px-3 py-1">
+            <FontAwesome5 name="user" size={10} color="#98A2B3" />
+            <Text className="font-sans text-base font-medium text-[#D0D5DD]">{shop.owner_name}</Text>
           </View>
-        </Card>
+        ) : null}
+        <Text className="font-sans mt-2 text-base text-[#667085]">{user?.email}</Text>
+      </View>
 
-        {/* Staff and money */}
-        <Section title={t('business', { defaultValue: 'Business & Finances' })} padded={false}>
-          <ListRow
-            title={t('revenue:menuTitle', { defaultValue: 'Revenue & Reports' })}
-            subtitle={t('menuDesc.revenue')}
-            leading={<RowIcon name="chart" />}
-            onPress={() => navigation.navigate('Revenue')}
-          />
-          <ListRow
-            title={t('staffManagement', { defaultValue: 'Staff & karigars' })}
-            subtitle={t('menuDesc.staff')}
-            leading={<RowIcon name="users" />}
-            onPress={() => navigation.navigate('Staff')}
-          />
-          <ListRow
-            title={t('dashboard:calendar.title')}
-            subtitle={t('menuDesc.calendar')}
-            leading={<RowIcon name="calendar" />}
-            onPress={() => navigation.navigate('Calendar' as any)}
-            divider={false}
-          />
-        </Section>
+      {/* Business section */}
+      <SectionCard title={t('business')}>
+        <MenuRow
+          icon="chart-line"
+          iconBg="bg-emerald-50 dark:bg-emerald-950"
+          iconColor="#047857"
+          label={t('revenue:menuTitle')}
+          onPress={() => navigation.navigate('Revenue')}
+        />
+        <MenuRow
+          icon="user-friends"
+          iconBg="bg-purple-50 dark:bg-purple-950"
+          iconColor="#7C3AED"
+          label={t('staffManagement')}
+          onPress={() => navigation.navigate('Staff')}
+        />
+        <MenuRow
+          icon="ruler-combined"
+          iconBg="bg-blue-50 dark:bg-blue-950"
+          iconColor="#1D4ED8"
+          label={t('universalMeasurements.menuTitle')}
+          onPress={() => navigation.navigate('UniversalMeasurements')}
+          isLast
+        />
+      </SectionCard>
 
-        {/* Measurements */}
-        <Section title={t('shopManagement', { defaultValue: 'Shop Management' })} padded={false}>
-          <ListRow
-            title={t('universalMeasurements.menuTitle', { defaultValue: 'Cloth types' })}
-            subtitle={t('menuDesc.universalMeasurements')}
-            leading={<RowIcon name="scissors" />}
-            onPress={() => navigation.navigate('UniversalMeasurements')}
-            divider={false}
-          />
-        </Section>
-
-        {/* App */}
-        <Section title={t('appearance')}>
-          <LanguageSwitcher className="mb-4" />
-          <SegmentedControl
-            value={mode}
-            onChange={changeTheme}
-            options={THEME_MODES.map((m) => ({
-              value: m,
-              label: t(`theme${m.charAt(0).toUpperCase()}${m.slice(1)}`),
-            }))}
-          />
-        </Section>
-
-        <View className="gap-3">
-          <Button
-            title={t('productTour.replay', { defaultValue: 'Replay Product Tour' })}
-            variant="secondary"
-            icon={<Icon name="info" size={20} color={palette.text} />}
-            onPress={() => startTour()}
-          />
-          <Button
-            title={t('signOut')}
-            variant="danger"
-            icon={<Icon name="logout" size={20} color={palette.danger} />}
-            onPress={confirmSignOut}
-          />
+      {/* Appearance section */}
+      <SectionCard title={t('appearance')}>
+        <View className="flex-row gap-2 py-3">
+          {THEME_MODES.map((themeMode) => {
+            const active = themeMode === mode;
+            return (
+              <Pressable
+                key={themeMode}
+                onPress={() => changeTheme(themeMode)}
+                className={`flex-1 items-center rounded-md border py-2.5 ${
+                  active
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
+                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                }`}
+              >
+                <Text
+                  className={`font-sans text-base font-medium ${
+                    active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  {t(THEME_LABEL_KEY[themeMode])}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
-      </ScrollView>
+      </SectionCard>
+
+      {/* Language section */}
+      <SectionCard title={t('common:language.title')}>
+        <View className="flex-row gap-2 py-3">
+          {SUPPORTED_LANGUAGES.map((lang) => {
+            const active = lang === currentLanguage;
+            return (
+              <Pressable
+                key={lang}
+                onPress={() => changeLanguage(lang)}
+                className={`flex-1 items-center rounded-md border py-2.5 ${
+                  active
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
+                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                }`}
+              >
+                <Text
+                  className={`font-sans text-base font-medium ${
+                    active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  {t(`common:${LANGUAGE_LABEL_KEY[lang]}`)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </SectionCard>
+
+      {/* Help section */}
+      <SectionCard title={t('help')}>
+        <MenuRow
+          icon="compass"
+          iconBg="bg-emerald-50 dark:bg-emerald-950"
+          iconColor="#047857"
+          label={t('howToUse')}
+          onPress={startTour}
+          isLast
+        />
+      </SectionCard>
+
+      <Pressable
+        onPress={confirmSignOut}
+        className="flex-row items-center justify-center rounded-md border border-red-100 bg-red-50 py-3.5 active:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:active:bg-red-900"
+      >
+        <FontAwesome5 name="sign-out-alt" size={14} color="#DC2626" />
+        <Text className="ml-2 text-base font-semibold text-danger">{t('signOut')}</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View>
+      <Text className="mb-2 px-1 text-base font-semibold text-gray-500 dark:text-gray-400">
+        {title}
+      </Text>
+      <Card>{children}</Card>
     </View>
   );
+}
+
+function MenuRow({
+  icon,
+  iconBg = 'bg-gray-100 dark:bg-gray-800',
+  iconColor = '#6B7280',
+  label,
+  value,
+  onPress,
+  isLast = false,
+}: {
+  icon: React.ComponentProps<typeof FontAwesome5>['name'];
+  iconBg?: string;
+  iconColor?: string;
+  label: string;
+  value?: string;
+  onPress?: () => void;
+  isLast?: boolean;
+}) {
+  const className = `flex-row items-center justify-between py-3.5 ${
+    isLast ? '' : 'border-b border-gray-100 dark:border-gray-800'
+  }`;
+
+  const content: ReactNode = (
+    <>
+      <View className="flex-row items-center">
+        <View className={`h-9 w-9 items-center justify-center rounded-md ${iconBg}`}>
+          <FontAwesome5 name={icon} size={14} color={iconColor} />
+        </View>
+        <Text className="font-sans ml-3 text-base font-medium text-gray-800 dark:text-gray-200">{label}</Text>
+      </View>
+      {value ? (
+        <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{value}</Text>
+      ) : onPress ? (
+        <FontAwesome5 name="chevron-right" size={12} color="#9CA3AF" />
+      ) : null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} className={className}>
+        {content}
+      </Pressable>
+    );
+  }
+  return <View className={className}>{content}</View>;
 }

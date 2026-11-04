@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
-
+import { useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import {
   Avatar,
   Badge,
@@ -9,35 +9,24 @@ import {
   Card,
   CenterModal,
   Checkbox,
-  Chip,
   DatePickerField,
   Dropdown,
   EmptyState,
-  FilterNotice,
+  GoogleIcon,
   Header,
-  IconButton,
-  Icon,
+  ImagePickerField,
   InputField,
-  ListRow,
   LoadingSpinner,
-  NumberStepper,
   RadioGroup,
-  SegmentedControl,
-  Skeleton,
-  SkeletonList,
-  SwipeRow,
-  SyncChip,
-  Text,
   ToastProvider,
   Toggle,
   useToast,
 } from '../components/ui';
-import { useTheme } from '../context/ThemeContext';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mb-6 rounded border border-line bg-surface p-4">
-      <Text variant="bodyLg" className="mb-3 border-b border-line-2 pb-2">
+    <View className="mb-6 rounded-md border border-gray-200 bg-white p-4 shadow-sm">
+      <Text className="mb-3 text-base font-bold text-gray-900 border-b border-gray-100 pb-2">
         {title}
       </Text>
       <View className="gap-3">{children}</View>
@@ -45,232 +34,354 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Swatch({ cls, name }: { cls: string; name: string }) {
-  return (
-    <View className="mr-2 mb-2 items-center">
-      <View className={`h-10 w-14 rounded-sm border border-line ${cls}`} />
-      <Text variant="caption" tone="muted" weight="regular">
-        {name}
-      </Text>
-    </View>
-  );
-}
-
-function ShowcaseBody() {
+export default function ComponentShowcaseScreen() {
   const showToast = useToast();
-  const { scheme, setMode } = useTheme();
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('98');
-  const [pass, setPass] = useState('password123');
-  const [checked, setChecked] = useState(true);
-  const [toggle, setToggle] = useState(true);
-  const [pay, setPay] = useState<'upi' | 'cash' | 'card'>('upi');
-  const [seg, setSeg] = useState<'active' | 'late' | 'ready'>('active');
-  const [garment, setGarment] = useState<string>('shirt');
-  const [date, setDate] = useState<Date | null>(new Date());
-  const [chest, setChest] = useState<number | null>(38);
-  const [qty, setQty] = useState<number | null>(2);
-  const [chipOn, setChipOn] = useState(true);
-  const [sheet, setSheet] = useState(false);
-  const [dialog, setDialog] = useState(false);
-  const waist = useRef<TextInput>(null);
+  // State for interactive components
+  const [textVal, setTextVal] = useState('');
+  const [emailVal, setEmailVal] = useState('user@example.com');
+  const [passVal, setPassVal] = useState('password123');
+  const [checkboxVal, setCheckboxVal] = useState(true);
+  const [toggleVal, setToggleVal] = useState(true);
+  const [radioVal, setRadioVal] = useState<'upi' | 'cash' | 'card'>('upi');
+  const [dropdownVal, setDropdownVal] = useState<string>('shirt');
+  const [dateVal, setDateVal] = useState<Date | null>(new Date());
+  const [imageUri, setImageUri] = useState<string | null>(null);
+
+  // Modal states
+  const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+  const [centerModalVisible, setCenterModalVisible] = useState(false);
 
   return (
-    <View className="flex-1 bg-bg">
-      <Header
-        title="Component showcase"
-        showBack
-        right={
-          <IconButton
-            icon={scheme === 'dark' ? 'sun' : 'moon'}
-            accessibilityLabel="Toggle theme"
-            variant="ghost"
-            onPress={() => setMode(scheme === 'dark' ? 'light' : 'dark')}
-          />
-        }
-      />
+    <View className="flex-1 bg-gray-50">
+      <Header title="UI Component Showcase" showBack />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224 }} keyboardShouldPersistTaps="handled">
-        <Section title="Colour">
-          <View className="flex-row flex-wrap">
-            <Swatch cls="bg-primary" name="primary" />
-            <Swatch cls="bg-primary-50" name="tint" />
-            <Swatch cls="bg-bg" name="bg" />
-            <Swatch cls="bg-surface" name="surface" />
-            <Swatch cls="bg-surface-2" name="surface-2" />
-            <Swatch cls="bg-success" name="success" />
-            <Swatch cls="bg-accent" name="warning" />
-            <Swatch cls="bg-danger" name="danger" />
-          </View>
-        </Section>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224 }}>
+        <Text className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          All Design System & UI Components
+        </Text>
 
-        <Section title="Type scale">
-          <Text variant="display">Display ₹12,450</Text>
-          <Text variant="headline">Headline 24</Text>
-          <Text variant="title">Title 20</Text>
-          <Text variant="bodyLg">Body large 18</Text>
-          <Text variant="body">Body 16: the quick brown fox</Text>
-          <Text variant="label" tone="muted">Label 14 muted</Text>
-          <Text variant="caption" tone="faint">Caption 12 faint</Text>
-          <Text variant="body">ગુજરાતી ટેક્સ્ટ: ઓર્ડર તૈયાર છે</Text>
-          <Text variant="body">हिन्दी पाठ: ऑर्डर तैयार है</Text>
-        </Section>
-
-        <Section title="Buttons">
-          <Button title="Primary" onPress={() => showToast('Saved', 'success')} />
-          <Button title="Secondary" variant="secondary" onPress={() => {}} />
-          <Button title="Tonal" variant="tonal" onPress={() => {}} />
-          <Button title="Outline" variant="outline" onPress={() => {}} />
-          <Button title="Ghost" variant="ghost" onPress={() => {}} />
-          <Button title="Danger" variant="danger" onPress={() => {}} />
-          <Button title="Loading" loading onPress={() => {}} />
-          <Button title="Disabled" disabled onPress={() => {}} />
-          <Button title="Small" size="sm" fullWidth={false} onPress={() => {}} />
-          <Button title="Large" size="lg" onPress={() => {}} />
+        {/* 1. BUTTONS */}
+        <Section title="1. Buttons (Variants & Sizes)">
+          <Text className="text-xs font-medium text-gray-500 mb-1">Primary Buttons</Text>
+          <Button title="Primary Button (md)" onPress={() => showToast('Primary Pressed', 'info')} />
           <View className="flex-row gap-2">
-            <IconButton icon="phone" accessibilityLabel="Call" onPress={() => {}} />
-            <IconButton icon="chat" accessibilityLabel="WhatsApp" variant="tonal" onPress={() => {}} />
-            <IconButton icon="sliders" accessibilityLabel="Filter" selected onPress={() => {}} />
-            <IconButton icon="trash" accessibilityLabel="Delete" disabled onPress={() => {}} />
+            <View className="flex-1">
+              <Button
+                title="Small"
+                size="sm"
+                onPress={() => showToast('Small Button Pressed', 'info')}
+              />
+            </View>
+            <View className="flex-1">
+              <Button
+                title="Large"
+                size="lg"
+                onPress={() => showToast('Large Button Pressed', 'info')}
+              />
+            </View>
+          </View>
+
+          <Text className="text-xs font-medium text-gray-500 mt-2 mb-1">Secondary & Outline</Text>
+          <Button
+            title="Secondary Button"
+            variant="secondary"
+            onPress={() => showToast('Secondary Pressed', 'info')}
+          />
+          <Button
+            title="Outline Button"
+            variant="outline"
+            onPress={() => showToast('Outline Pressed', 'info')}
+          />
+
+          <Text className="text-xs font-medium text-gray-500 mt-2 mb-1">Danger, Google & Icon Buttons</Text>
+          <Button
+            title="Danger Button"
+            variant="danger"
+            onPress={() => showToast('Danger Pressed', 'error')}
+          />
+          <Button
+            title="Continue with Google"
+            variant="google"
+            icon={<GoogleIcon size={20} />}
+            onPress={() => showToast('Google Pressed', 'info')}
+          />
+          <Button
+            title="Button with Icon"
+            icon={<FontAwesome5 name="plus" size={16} color="#FFFFFF" />}
+            onPress={() => showToast('Icon Button Pressed', 'success')}
+          />
+
+          <Text className="text-xs font-medium text-gray-500 mt-2 mb-1">Loading & Disabled States</Text>
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <Button title="Loading" loading onPress={() => {}} />
+            </View>
+            <View className="flex-1">
+              <Button title="Disabled" disabled onPress={() => {}} />
+            </View>
           </View>
         </Section>
 
-        <Section title="Badges, chips, sync">
+        {/* 2. INPUT FIELDS */}
+        <Section title="2. Input Fields">
+          <InputField
+            label="Standard Input"
+            placeholder="Type something..."
+            value={textVal}
+            onChangeText={setTextVal}
+            helperText="This is a helper text"
+          />
+          <InputField
+            label="Email Input"
+            placeholder="Enter your email"
+            value={emailVal}
+            onChangeText={setEmailVal}
+          />
+          <InputField
+            label="Password Input (Toggle Hide/Show)"
+            placeholder="••••••••"
+            secureTextEntry
+            value={passVal}
+            onChangeText={setPassVal}
+          />
+          <InputField
+            label="Input with Error State"
+            placeholder="Invalid field"
+            value="Wrong Input"
+            onChangeText={() => {}}
+            error="Please enter a valid value"
+          />
+          <InputField
+            label="Multiline Textarea"
+            placeholder="Enter customer notes or measurements..."
+            multiline
+            value="Chest: 40 in, Waist: 34 in, Length: 28 in"
+            onChangeText={() => {}}
+          />
+        </Section>
+
+        {/* 3. BADGES */}
+        <Section title="3. Badges (Status & Custom)">
+          <Text className="text-xs font-medium text-gray-500 mb-1">Order Status Badges</Text>
           <View className="flex-row flex-wrap gap-2">
             <Badge type="order_status" value="order_taken" />
+            <Badge type="order_status" value="cutting" />
             <Badge type="order_status" value="stitching" />
             <Badge type="order_status" value="ready" />
             <Badge type="order_status" value="delivered" />
-            <Badge label="2 days late" tone="danger" icon="alert" />
-            <Badge label="Due today" tone="warning" icon="clock" />
+          </View>
+
+          <Text className="text-xs font-medium text-gray-500 mt-3 mb-1">Payment Status Badges</Text>
+          <View className="flex-row flex-wrap gap-2">
             <Badge type="payment_status" value="paid" />
             <Badge type="payment_status" value="partial" />
             <Badge type="payment_status" value="unpaid" />
           </View>
+
+          <Text className="text-xs font-medium text-gray-500 mt-3 mb-1">Custom Label Badges</Text>
           <View className="flex-row flex-wrap gap-2">
-            <Chip label="Late" count={3} selected={chipOn} onPress={() => setChipOn((v) => !v)} />
-            <Chip label="Due today" count={5} onPress={() => {}} />
-            <Chip label="Disabled" disabled />
+            <Badge label="New Customer" bg="#DBEAFE" color="#1E40AF" />
+            <Badge label="VIP" bg="#FEF3C7" color="#92400E" />
+            <Badge label="Urgent" bg="#FEE2E2" color="#991B1B" />
           </View>
-          <View className="flex-row flex-wrap gap-2">
-            <SyncChip status="synced" />
-            <SyncChip status="syncing" pending={2} />
-            <SyncChip status="offline" pending={4} />
-            <SyncChip status="error" pending={1} />
-          </View>
-          <SegmentedControl
-            options={[
-              { label: 'Active', value: 'active' },
-              { label: 'Late', value: 'late', count: 3 },
-              { label: 'Ready', value: 'ready' },
-            ]}
-            value={seg}
-            onChange={setSeg}
-          />
         </Section>
 
-        <Section title="Inputs">
-          <InputField label="Customer name" value={name} onChangeText={setName} placeholder="e.g. Ramesh Patel" required returnKeyType="next" onSubmitEditing={() => waist.current?.focus()} />
-          <InputField label="Phone" value={phone} onChangeText={setPhone} prefix="+91" keyboardType="phone-pad" error="Enter a 10 digit number" />
-          <InputField label="Password" value={pass} onChangeText={setPass} secureTextEntry leftIcon="lock" helperText="At least 8 characters" />
-          <InputField label="Notes" value="" onChangeText={() => {}} multiline optional placeholder="Optional notes" />
-          <InputField label="Disabled" value="Locked" onChangeText={() => {}} editable={false} />
-          <NumberStepper label="Quantity" value={qty} onChange={setQty} min={1} max={50} />
-          <NumberStepper label="Chest" value={chest} onChange={setChest} step={0.5} unit="in" previousValue={37.5} returnKeyType="next" />
-          <Dropdown
-            label="Garment"
-            value={garment}
-            onChange={setGarment}
-            searchable
-            options={[
-              { label: 'Shirt', value: 'shirt', subtext: 'Last used' },
-              { label: 'Pant', value: 'pant' },
-              { label: 'Kurta', value: 'kurta' },
-            ]}
-            onAddNew={() => {}}
-          />
-          <DatePickerField label="Delivery date" value={date} onChange={setDate} quickChips={[{ label: '+3 days', daysFromNow: 3 }, { label: '+7 days', daysFromNow: 7 }, { label: '+10 days', daysFromNow: 10 }]} />
-        </Section>
-
-        <Section title="Selection">
-          <Checkbox label="Rush order" checked={checked} onChange={setChecked} />
-          <Toggle label="WhatsApp reminders" description="Send when an order is ready" value={toggle} onChange={setToggle} />
-          <RadioGroup value={pay} onChange={setPay} options={[{ label: 'UPI', value: 'upi' }, { label: 'Cash', value: 'cash' }, { label: 'Card', value: 'card' }]} />
-          <RadioGroup variant="cards" value={pay} onChange={setPay} options={[{ label: 'UPI', value: 'upi', subtext: 'Instant' }, { label: 'Cash', value: 'cash' }]} />
-        </Section>
-
-        <Section title="Rows and cards">
+        {/* 4. CARDS */}
+        <Section title="4. Cards">
           <Card>
-            <Text variant="bodyLg">Plain card</Text>
-            <Text variant="label" tone="muted" weight="regular">Surface, 1px border, radius 4</Text>
+            <Text className="font-bold text-gray-900">Standard Card Container</Text>
+            <Text className="font-sans text-sm text-gray-500 mt-1">
+              Used across the app to group order info, customer details, and stats.
+            </Text>
           </Card>
-          <Card variant="selected" onPress={() => {}}>
-            <Text variant="bodyLg" tone="primary">Selected pressable card</Text>
+
+          <Card onPress={() => showToast('Clickable Card Pressed!', 'success')}>
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className="font-bold text-gray-900">Clickable Interactive Card</Text>
+                <Text className="font-sans text-xs text-gray-500">Tap to test press feedback</Text>
+              </View>
+              <FontAwesome5 name="chevron-right" size={14} color="#9CA3AF" />
+            </View>
           </Card>
-          <View className="overflow-hidden rounded border border-line">
-            <SwipeRow
-              commitAction={{ key: 'ready', label: 'Ready', icon: 'circleCheck', onPress: () => showToast('Marked ready', { type: 'success', undoAction: () => {} }) }}
-              revealActions={[
-                { key: 'call', label: 'Call', icon: 'phone', onPress: () => {} },
-                { key: 'wa', label: 'WhatsApp', icon: 'chat', onPress: () => {} },
-              ]}
-            >
-              <ListRow
-                title="Ramesh Patel"
-                subtitle="#1042 · Shirt × 2"
-                meta={<Badge label="2 days late" tone="danger" icon="alert" size="sm" />}
-                leading={<Avatar name="Ramesh Patel" />}
-                trailing={<Text variant="bodyLg" tone="danger" tabular>₹850</Text>}
-                onPress={() => {}}
-              />
-            </SwipeRow>
-            <ListRow title="Sunita Shah" subtitle="#1041 · Kurta × 1" leading={<Avatar name="Sunita Shah" />} onPress={() => {}} divider={false} />
-          </View>
-          <FilterNotice visible label="Showing late orders only" onClear={() => {}} />
         </Section>
 
-        <Section title="Feedback">
-          <Button title="Toast with Undo" variant="secondary" onPress={() => showToast('Order marked ready', { type: 'success', undoAction: () => showToast('Undone', 'info') })} />
-          <Button title="Error toast" variant="secondary" onPress={() => showToast('Could not save', 'error')} />
-          <Button title="Open bottom sheet" variant="secondary" onPress={() => setSheet(true)} />
-          <Button title="Open dialog" variant="secondary" onPress={() => setDialog(true)} />
-          <LoadingSpinner text="Loading…" />
-          <Skeleton height={20} width="60%" />
-          <SkeletonList count={2} />
-          <EmptyState variant="compact" icon="orders" title="No orders yet" description="Create your first order to see it here." actionLabel="New order" onAction={() => {}} />
-          <View className="flex-row items-center">
-            <Icon name="ruler" size={20} />
-            <Text variant="label" tone="muted" className="ml-2">Tabler icon, stroke 2</Text>
+        {/* 5. CHECKBOX & TOGGLE */}
+        <Section title="5. Selection Controls (Checkbox & Switch)">
+          <Text className="text-xs font-medium text-gray-500 mb-1">Checkbox</Text>
+          <Checkbox
+            label="Interactive Checkbox option"
+            checked={checkboxVal}
+            onChange={setCheckboxVal}
+          />
+          <Checkbox label="Disabled Checkbox" checked={false} onChange={() => {}} disabled />
+
+          <Text className="text-xs font-medium text-gray-500 mt-3 mb-1">Toggle Switch</Text>
+          <Toggle
+            label="Enable Notifications"
+            value={toggleVal}
+            onChange={setToggleVal}
+          />
+          <Toggle
+            label="Disabled Switch"
+            value={false}
+            onChange={() => {}}
+            disabled
+          />
+        </Section>
+
+        {/* 6. RADIO GROUP */}
+        <Section title="6. Radio Group">
+          <Text className="text-xs font-medium text-gray-500 mb-1">Select Payment Mode</Text>
+          <RadioGroup
+            direction="row"
+            options={[
+              { label: 'UPI / Online', value: 'upi' },
+              { label: 'Cash', value: 'cash' },
+              { label: 'Card', value: 'card' },
+            ]}
+            value={radioVal}
+            onChange={(val) => setRadioVal(val as 'upi' | 'cash' | 'card')}
+          />
+        </Section>
+
+        {/* 7. DROPDOWN */}
+        <Section title="7. Modal Dropdown Select">
+          <Dropdown
+            label="Select Garment Type"
+            value={dropdownVal}
+            onChange={(val) => setDropdownVal(val)}
+            options={[
+              { label: 'Shirt / Kurta', value: 'shirt' },
+              { label: 'Pant / Trouser', value: 'pant' },
+              { label: 'Suit / Blazer', value: 'suit' },
+              { label: 'Sherwani', value: 'sherwani' },
+              { label: 'Lehenga / Dress', value: 'dress' },
+            ]}
+          />
+        </Section>
+
+        {/* 8. AVATARS */}
+        <Section title="8. Avatars">
+          <Text className="text-xs font-medium text-gray-500 mb-1">Initials Fallback (sm, md, lg)</Text>
+          <View className="flex-row items-center gap-4">
+            <Avatar name="Harsh Parmar" size="sm" />
+            <Avatar name="Rahul Sharma" size="md" />
+            <Avatar name="MeasuresOne" size="lg" />
           </View>
         </Section>
+
+        {/* 9. DATE & IMAGE PICKERS */}
+        <Section title="9. Date & Image Pickers">
+          <DatePickerField
+            label="Delivery Date Picker"
+            value={dateVal}
+            onChange={setDateVal}
+          />
+          <ImagePickerField
+            label="Cloth / Pattern Sample Photo"
+            uri={imageUri}
+            onChange={setImageUri}
+          />
+        </Section>
+
+        {/* 10. LOADING SPINNERS */}
+        <Section title="10. Loading Indicators">
+          <LoadingSpinner text="Loading order details..." />
+        </Section>
+
+        {/* 11. EMPTY STATE */}
+        <Section title="11. Empty State (Compact Variant)">
+          <EmptyState
+            variant="compact"
+            icon="clipboard-list"
+            title="No Pending Orders"
+            description="All orders for today have been completed."
+            actionLabel="Create Order"
+            onAction={() => showToast('Create Order Action Tapped', 'info')}
+          />
+        </Section>
+
+        {/* 12. TOAST NOTIFICATIONS */}
+        <Section title="12. Toast Notifications">
+          <Button
+            title="Show Success Toast"
+            variant="primary"
+            onPress={() => showToast('Order saved successfully!', 'success')}
+          />
+          <Button
+            title="Show Error Toast"
+            variant="danger"
+            onPress={() => showToast('Failed to connect to server', 'error')}
+          />
+          <Button
+            title="Show Info Toast"
+            variant="secondary"
+            onPress={() => showToast('New update available', 'info')}
+          />
+        </Section>
+
+        {/* 13. MODALS */}
+        <Section title="13. Modals & Dialogs">
+          <Button
+            title="Open BottomSheet Modal"
+            variant="outline"
+            onPress={() => setBottomSheetVisible(true)}
+          />
+          <Button
+            title="Open Center Alert Modal"
+            variant="secondary"
+            onPress={() => setCenterModalVisible(true)}
+          />
+        </Section>
+
+        {/* BOTTOM SHEET DEMO */}
+        <BottomSheet
+          visible={bottomSheetVisible}
+          onClose={() => setBottomSheetVisible(false)}
+          title="Sample BottomSheet"
+        >
+          <View className="py-4">
+            <Text className="font-sans text-base text-gray-700 mb-4">
+              This is a bottom-sheet modal slide up. Great for filtering options, action sheets, or detailed forms.
+            </Text>
+            <Button title="Close Modal" onPress={() => setBottomSheetVisible(false)} />
+          </View>
+        </BottomSheet>
+
+        {/* CENTER MODAL DEMO */}
+        <CenterModal
+          visible={centerModalVisible}
+          onClose={() => setCenterModalVisible(false)}
+          title="Confirm Action"
+        >
+          <View className="py-2">
+            <Text className="font-sans text-sm text-gray-600 mb-4">
+              Are you sure you want to proceed with this demo operation?
+            </Text>
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Button
+                  title="Cancel"
+                  variant="outline"
+                  onPress={() => setCenterModalVisible(false)}
+                />
+              </View>
+              <View className="flex-1">
+                <Button
+                  title="Confirm"
+                  variant="primary"
+                  onPress={() => {
+                    setCenterModalVisible(false);
+                    showToast('Action confirmed!', 'success');
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        </CenterModal>
       </ScrollView>
-
-      <BottomSheet visible={sheet} onClose={() => setSheet(false)} title="Filter orders" footer={<Button title="Apply" onPress={() => setSheet(false)} />}>
-        <RadioGroup variant="cards" value={pay} onChange={setPay} options={[{ label: 'Due date', value: 'upi' }, { label: 'Newest', value: 'cash' }]} />
-      </BottomSheet>
-
-      <CenterModal
-        visible={dialog}
-        onClose={() => setDialog(false)}
-        title="Delete order?"
-        footer={
-          <View className="gap-2">
-            <Button title="Delete" variant="danger" onPress={() => setDialog(false)} />
-            <Button title="Cancel" variant="secondary" onPress={() => setDialog(false)} />
-          </View>
-        }
-      >
-        <Text variant="body" tone="muted">This cannot be undone.</Text>
-      </CenterModal>
     </View>
-  );
-}
-
-export default function ComponentShowcaseScreen() {
-  return (
-    <ToastProvider>
-      <ShowcaseBody />
-    </ToastProvider>
   );
 }

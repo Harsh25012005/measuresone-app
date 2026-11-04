@@ -1,14 +1,16 @@
-import { useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { useState } from 'react';
+import { Text, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Button, InputField, useToast } from '../../src/components/ui';
+import { Button, InputField, useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
-import { AuthLayout } from './AuthLayout';
 
 type ResetPasswordErrors = { password?: string; confirmPassword?: string };
 
 export default function ResetPasswordScreen() {
   const { completePasswordReset } = useAuth();
+  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('auth');
 
@@ -16,13 +18,12 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ResetPasswordErrors>({});
   const [loading, setLoading] = useState(false);
-  const confirmRef = useRef<TextInput>(null);
 
   const validate = () => {
     const next: ResetPasswordErrors = {};
-    if (!password) next.password = t('resetPassword.errorPasswordRequired', { defaultValue: 'Password is required' });
-    else if (password.length < 6) next.password = t('resetPassword.errorPasswordLength', { defaultValue: 'Password must be at least 6 characters' });
-    if (confirmPassword !== password) next.confirmPassword = t('resetPassword.errorPasswordMismatch', { defaultValue: 'Passwords do not match' });
+    if (!password) next.password = t('resetPassword.errorPasswordRequired');
+    else if (password.length < 6) next.password = t('resetPassword.errorPasswordLength');
+    if (confirmPassword !== password) next.confirmPassword = t('resetPassword.errorPasswordMismatch');
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -32,47 +33,51 @@ export default function ResetPasswordScreen() {
     setLoading(true);
     try {
       await completePasswordReset(password);
-      showToast(t('resetPassword.success', { defaultValue: 'Password updated successfully' }), 'success');
+      showToast(t('resetPassword.success'), 'success');
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('resetPassword.errorSave', { defaultValue: 'Could not reset password' }), 'error');
+      showToast(err instanceof Error ? err.message : t('resetPassword.errorSave'), 'error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthLayout
-      title={t('resetPassword.title', { defaultValue: 'Create new password' })}
-      subtitle={t('resetPassword.instructions', { defaultValue: 'Enter your new password below.' })}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-white dark:bg-gray-950"
     >
-      <InputField
-        label={t('resetPassword.password')}
-        value={password}
-        onChangeText={setPassword}
-        placeholder="••••••••"
-        secureTextEntry
-        autoCapitalize="none"
-        autoComplete="new-password"
-        returnKeyType="next"
-        onSubmitEditing={() => confirmRef.current?.focus()}
-        error={errors.password}
-      />
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 16 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="flex-1 justify-center px-6 py-10">
+          <View className="mb-6 h-14 w-14 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950">
+            <FontAwesome5 name="key" size={20} color="#1D4ED8" />
+          </View>
+          <Text className="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-50">{t('resetPassword.title')}</Text>
+          <Text className="font-sans mb-8 text-base text-gray-500 dark:text-gray-400">{t('resetPassword.instructions')}</Text>
 
-      <InputField
-        ref={confirmRef}
-        label={t('resetPassword.confirmPassword', { defaultValue: 'Confirm new password' })}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        placeholder="••••••••"
-        secureTextEntry
-        autoCapitalize="none"
-        autoComplete="new-password"
-        returnKeyType="done"
-        onSubmitEditing={handleSave}
-        error={errors.confirmPassword}
-      />
+          <InputField
+            label={t('resetPassword.password')}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry
+            error={errors.password}
+          />
 
-      <Button title={t('resetPassword.save')} onPress={handleSave} loading={loading} />
-    </AuthLayout>
+          <InputField
+            label={t('resetPassword.confirmPassword')}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="••••••••"
+            secureTextEntry
+            error={errors.confirmPassword}
+          />
+
+          <Button title={t('resetPassword.save')} onPress={handleSave} loading={loading} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

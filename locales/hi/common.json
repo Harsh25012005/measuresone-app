@@ -3,21 +3,15 @@
     "dashboard": "होम",
     "customers": "ग्राहक",
     "orders": "ऑर्डर",
-    "settings": "और",
-    "add": "जोड़ें",
-    "lateCount": "{{count}} देरी से"
+    "settings": "बिज़नेस",
+    "add": "जोड़ें"
   },
   "quickAdd": {
     "newClient": "नया ग्राहक",
+    "addBill": "बिल जोड़ें",
     "addOrder": "ऑर्डर जोड़ें",
-    "addMeasurement": "नाप जोड़ें",
     "addStaff": "स्टाफ जोड़ें",
-    "accessibilityLabel": "त्वरित कार्य",
-    "orderSub": "कपड़े, तारीख़ें और एडवांस",
-    "clientSub": "नाम, फ़ोन और बुक नं.",
-    "measurementSub": "शर्ट, पैंट या कोई भी कपड़ा",
-    "billSub": "बिल बनाएँ या दर्ज करें",
-    "staffSub": "काम की एंट्री और मज़दूरी"
+    "accessibilityLabel": "त्वरित कार्य"
   },
   "actions": {
     "save": "सेव करें",
@@ -31,9 +25,7 @@
     "view": "देखें",
     "close": "बंद करें",
     "retry": "फिर कोशिश करें",
-    "confirm": "पुष्टि करें",
-    "undo": "पूर्ववत करें",
-    "call": "कॉल"
+    "confirm": "पुष्टि करें"
   },
   "labels": {
     "name": "नाम",
@@ -77,11 +69,7 @@
     "dictationFailed": "सुनाई नहीं दिया, फिर से कोशिश करें",
     "microphonePermissionDenied": "बोलकर लिखने के लिए माइक्रोफ़ोन अनुमति ज़रूरी है",
     "listening": "सुन रहे हैं…",
-    "listeningHint": "अभी बोलें, या रोकने के लिए कहीं भी टैप करें",
-    "optional": "वैकल्पिक",
-    "microphonePermissionRequired": "माइक्रोफ़ोन की अनुमति ज़रूरी है",
-    "dictationStartFailed": "वॉइस सर्च शुरू नहीं हो सका",
-    "speakToSearch": "खोजने के लिए नाम बोलें"
+    "listeningHint": "अभी बोलें, या रोकने के लिए कहीं भी टैप करें"
   },
   "empty": {
     "title": "यहां अभी कुछ नहीं है"
@@ -105,99 +93,10 @@
     "bill": "नमस्ते {{customerName}}, {{shopName}} की ओर से आपके बिल का विवरण:\nकुल: ₹{{total}}\nभुगतान: ₹{{paid}}\nबाकी: ₹{{pending}}",
     "paymentDue": "नमस्ते {{customerName}}, {{shopName}} पर आपके ₹{{pending}} बाकी हैं। सुविधा अनुसार चुका दीजिएगा। धन्यवाद!",
     "errorNoPhone": "ग्राहक का फोन नंबर दर्ज नहीं है",
-    "errorNotAvailable": "इस फोन में व्हाट्सएप उपलब्ध नहीं है",
-    "billPdfOrder": " ऑर्डर #{{orderNumber}} के लिए",
-    "billPdf": "नमस्ते {{customerName}}, {{shopName}} से आपका बिल{{orderPart}}।\nकुल: {{total}}\nचुकाया: {{paid}}\nबाकी: {{pending}}\n\nबिल देखें / डाउनलोड करें (PDF): {{link}}",
-    "failed": "WhatsApp नहीं खुल सका"
+    "errorNotAvailable": "इस फोन में व्हाट्सएप उपलब्ध नहीं है"
   },
   "filters": {
     "clear": "हटाएं",
     "applied": "फ़िल्टर लगा है: {{what}}"
-  },
-  "call": {
-    "label": "{{phone}} पर कॉल करें",
-    "failed": "फ़ोन डायलर नहीं खुल सका"
-  },
-  "a11y": {
-    "notifications": "सूचनाएँ",
-    "addCustomer": "ग्राहक जोड़ें",
-    "newOrder": "नया ऑर्डर",
-    "editOrder": "ऑर्डर बदलें",
-    "deleteOrder": "ऑर्डर हटाएँ",
-    "editClient": "ग्राहक बदलें",
-    "addClothType": "कपड़े का प्रकार जोड़ें",
-    "deleteClothType": "कपड़े का प्रकार हटाएँ",
-    "removeField": "फ़ील्ड हटाएँ",
-    "clear": "साफ़ करें",
-    "increase": "बढ़ाएँ",
-    "decrease": "घटाएँ",
-    "showPassword": "पासवर्ड दिखाएँ",
-    "hidePassword": "पासवर्ड छिपाएँ",
-    "voiceSearch": "आवाज़ से खोजें",
-    "filter": "फ़िल्टर",
-    "loading": "लोड हो रहा है",
-    "removePhoto": "फ़ोटो हटाएँ",
-    "moreActions": "और कार्रवाइयाँ"
-  },
-  "measureFields": {
-    "chest": "छाती",
-    "shoulder": "कंधा",
-    "sleeve": "आस्तीन",
-    "length": "लंबाई",
-    "collar": "कॉलर",
-    "cuff": "कफ़",
-    "biceps": "बाजू",
-    "stomach": "पेट",
-    "waist": "कमर",
-    "hip": "हिप",
-    "seat": "सीट",
-    "thigh": "जांघ",
-    "knee": "घुटना",
-    "bottom": "मोहरी",
-    "crotch": "क्रॉच",
-    "shirtlength": "शर्ट लंबाई",
-    "pantlength": "पैंट लंबाई",
-    "frontlength": "आगे की लंबाई",
-    "backlength": "पीछे की लंबाई",
-    "armhole": "आर्म होल",
-    "pocket": "जेब",
-    "belt": "बेल्ट",
-    "flare": "घेरा",
-    "blousechest": "ब्लाउज़ छाती",
-    "blouselength": "ब्लाउज़ लंबाई",
-    "jacketlength": "जैकेट लंबाई",
-    "pantwaist": "पैंट कमर"
-  },
-  "garmentNames": {
-    "shirt": "शर्ट",
-    "pant": "पैंट",
-    "shirtpant": "शर्ट + पैंट",
-    "kurta": "कुर्ता",
-    "blazer": "ब्लेज़र",
-    "coat": "कोट",
-    "safari": "सफ़ारी",
-    "safarisuit": "सफ़ारी सूट",
-    "jacket": "जैकेट",
-    "lehenga": "लहंगा",
-    "sherwani": "शेरवानी",
-    "suit": "सूट",
-    "vest": "वेस्ट",
-    "pyjama": "पजामा",
-    "salwar": "सलवार",
-    "other": "अन्य"
-  },
-  "sync": {
-    "synced": "सिंक हो गया",
-    "syncing": "सिंक हो रहा है",
-    "offline": "ऑफ़लाइन",
-    "error": "सिंक विफल",
-    "pending": "{{count}} बाकी"
-  },
-  "stepper": {
-    "last": "पिछला: {{value}}"
-  },
-  "errors": {
-    "loadTitle": "लोड नहीं हो सका",
-    "loadDescription": "अपना कनेक्शन जाँचें और फिर कोशिश करें। आपका सहेजा डेटा सुरक्षित है।"
   }
 }

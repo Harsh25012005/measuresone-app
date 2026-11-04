@@ -5,23 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-} from '@expo-google-fonts/plus-jakarta-sans';
-import {
-  NotoSansGujarati_400Regular,
-  NotoSansGujarati_500Medium,
-  NotoSansGujarati_600SemiBold,
-  NotoSansGujarati_700Bold,
-} from '@expo-google-fonts/noto-sans-gujarati';
-import {
-  NotoSansDevanagari_400Regular,
-  NotoSansDevanagari_500Medium,
-  NotoSansDevanagari_600SemiBold,
-  NotoSansDevanagari_700Bold,
-} from '@expo-google-fonts/noto-sans-devanagari';
+  GoogleSansFlex_400Regular,
+  GoogleSansFlex_500Medium,
+  GoogleSansFlex_600SemiBold,
+  GoogleSansFlex_700Bold,
+} from '@expo-google-fonts/google-sans-flex';
 import { LoadingSpinner, ToastProvider } from './components/ui';
 import { AuthProvider } from './context/AuthContext';
 import { ProductTourProvider } from './context/ProductTourContext';
@@ -60,18 +48,10 @@ function ThemedStatusBar() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    NotoSansGujarati_400Regular,
-    NotoSansGujarati_500Medium,
-    NotoSansGujarati_600SemiBold,
-    NotoSansGujarati_700Bold,
-    NotoSansDevanagari_400Regular,
-    NotoSansDevanagari_500Medium,
-    NotoSansDevanagari_600SemiBold,
-    NotoSansDevanagari_700Bold,
+    GoogleSansFlex_400Regular,
+    GoogleSansFlex_500Medium,
+    GoogleSansFlex_600SemiBold,
+    GoogleSansFlex_700Bold,
   });
   const [i18nReady, setI18nReady] = useState(false);
   const [initialThemeMode, setInitialThemeMode] = useState<ThemeMode | null>(null);

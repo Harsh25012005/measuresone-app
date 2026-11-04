@@ -1,17 +1,13 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { BarChart } from 'react-native-gifted-charts';
-import { Card, Header, Icon, Section, Skeleton, Text, useToast } from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
-import { fonts, radius, typeScale } from '../../src/theme/tokens';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
-import { billsRepo, ordersRepo, paymentsRepo } from '../../lib/data/repository';
-import { formatCurrency, appLocale } from '../../lib/format';
+import { billsRepo, paymentsRepo } from '../../lib/data/repository';
+import { formatCurrency } from '../../lib/format';
 import { useShop } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import type { SettingsScreenProps } from '../../navigation/types';
 
 type MonthBucket = {
@@ -32,7 +28,7 @@ type RevenueData = {
 
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString(appLocale(), { month: 'short', year: 'numeric' });
+  return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }
 
 function localDayString(date: Date): string {
@@ -41,74 +37,44 @@ function localDayString(date: Date): string {
   ).padStart(2, '0')}`;
 }
 
+/**
+ * Plain flexbox bar chart — deliberately avoids SVG/viewBox math (which kept
+ * looking subtly off across devices) in favor of something that can't get
+ * the geometry wrong: each bar's height is just a CSS percentage.
+ */
 function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
-  const palette = usePalette();
-  const ordered = [...months].reverse();
-  const max = Math.max(...ordered.map((m) => m.amount), 0);
-  const maxValue = max > 0 ? Math.ceil(max * 1.25) : 1000;
-
-  const barData = ordered.map((m, i) => {
-    const isLast = i === ordered.length - 1;
-    return {
-      value: m.amount,
-      label: m.label.split(' ')[0],
-      frontColor: isLast ? palette.primary : palette.border,
-      topLabelComponent: () =>
-        m.amount > 0 ? (
-          <Text
-            variant="caption"
-            tone={isLast ? 'primary' : 'muted'}
-            tabular
-            numberOfLines={1}
-            maxFontSizeMultiplier={1.2}
-            className="mb-1 text-center"
-          >
-            {formatCurrency(m.amount)}
-          </Text>
-        ) : null,
-    };
-  });
+  const ordered = [...months].reverse(); // oldest -> newest, left to right
+  const max = Math.max(...ordered.map((m) => m.amount), 1);
 
   return (
-    <View
-      accessible
-      accessibilityLabel={ordered.map((m) => `${m.label}: ${formatCurrency(m.amount)}`).join(', ')}
-      className="mt-2 w-full items-center justify-center pt-2"
-    >
-      <BarChart
-        data={barData}
-        barWidth={24}
-        spacing={20}
-        initialSpacing={12}
-        endSpacing={12}
-        barBorderTopLeftRadius={radius.lg}
-        barBorderTopRightRadius={radius.lg}
-        hideRules={false}
-        rulesColor={palette.borderSubtle}
-        rulesType="dashed"
-        xAxisColor={palette.border}
-        yAxisColor={palette.border}
-        yAxisTextStyle={{ color: palette.textMuted, fontSize: typeScale.xs, fontFamily: fonts.regular }}
-        xAxisLabelTextStyle={{ color: palette.textMuted, fontSize: typeScale.xs, fontFamily: fonts.regular }}
-        noOfSections={4}
-        maxValue={maxValue}
-        height={160}
-        isAnimated={false}
-      />
+    <View className="mt-3 flex-row items-end justify-between" style={{ height: 160 }}>
+      {ordered.map((m, i) => {
+        const isLast = i === ordered.length - 1;
+        const heightPct = Math.max(4, (m.amount / max) * 100);
+        return (
+          <View key={m.key} className="flex-1 items-center">
+            <Text
+              className={`mb-1 text-base font-semibold ${
+                isLast ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+              }`}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatCurrency(m.amount)}
+            </Text>
+            <View className="w-full flex-1 justify-end px-1">
+              <View
+                className={`w-full rounded-t-md ${isLast ? 'bg-primary-600' : 'bg-primary-200 dark:bg-primary-900'}`}
+                style={{ height: `${heightPct}%` }}
+              />
+            </View>
+            <Text className="font-sans mt-2 text-base text-gray-500 dark:text-gray-400" numberOfLines={1}>
+              {m.label.split(' ')[0]}
+            </Text>
+          </View>
+        );
+      })}
     </View>
-  );
-}
-
-function Stat({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'primary' | 'danger' }) {
-  return (
-    <Card className="min-w-0 flex-1 p-3">
-      <Text variant="caption" tone="muted" weight="regular" numberOfLines={2}>
-        {label}
-      </Text>
-      <Text variant="bodyLg" tone={tone} tabular numberOfLines={1}>
-        {value}
-      </Text>
-    </Card>
   );
 }
 
@@ -116,20 +82,19 @@ export default function RevenueScreen({ navigation }: SettingsScreenProps<'Reven
   const { t } = useTranslation('revenue');
   const showToast = useToast();
   const shop = useShop();
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const palette = usePalette();
 
   const [data, setData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [payments, pendingByCustomer, workRes, allOrders] = await Promise.all([
+      // Payments and bills come from the local-first mirror (same one every
+      // create/record-payment flow writes through), so this reflects the
+      // real, current data instead of racing the background sync.
+      const [payments, pendingByCustomer, workRes] = await Promise.all([
         paymentsRepo.listForShop(shop.id),
         billsRepo.pendingBalanceByCustomer(shop.id),
         supabase.from('staff_work_entries').select('quantity, rate_applied'),
-        ordersRepo.list(shop.id),
       ]);
 
       const now = new Date();
@@ -152,21 +117,9 @@ export default function RevenueScreen({ navigation }: SettingsScreenProps<'Reven
         byMonth.set(mKey, (byMonth.get(mKey) ?? 0) + amount);
       }
 
-      // If no payments recorded in payments table, also count orders with paid_amount
-      if (payments.length === 0) {
-        for (const o of allOrders) {
-          const amount = Number(o.paid_amount) || 0;
-          if (amount > 0) {
-            const day = o.order_date || todayKey;
-            const mKey = day.slice(0, 7);
-            total += amount;
-            if (day === todayKey) today += amount;
-            if (mKey === monthKey) thisMonth += amount;
-            byMonth.set(mKey, (byMonth.get(mKey) ?? 0) + amount);
-          }
-        }
-      }
-
+      // Always the last 6 calendar months, in order, even ones with zero
+      // payments — filling gaps with 0 (instead of only listing months that
+      // happened to have a payment) keeps bar spacing an honest timeline.
       const months: MonthBucket[] = Array.from({ length: 6 }, (_, i) => {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -193,86 +146,87 @@ export default function RevenueScreen({ navigation }: SettingsScreenProps<'Reven
     }, [load])
   );
 
-  if (loading || !data) {
+  if (loading || !data) return <LoadingSpinner fullScreen text={t('loading')} />;
+
+  const net = data.total - data.staffCost;
+
+  if (data.total === 0) {
     return (
-      <View className="flex-1 bg-bg">
+      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
         <Header title={t('title')} onBack={() => navigation.goBack()} />
-        <View className="gap-4 p-4">
-          <Skeleton height={120} />
-          <Skeleton height={72} />
-          <Skeleton height={220} />
-        </View>
+        <EmptyState icon="chart-bar" title={t('emptyTitle')} description={t('emptyDescription')} />
       </View>
     );
   }
 
-  const net = data.total - data.staffCost;
-
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
       <Header title={t('title')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80, gap: 16 }}>
-        <Card>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
+        {/* Total revenue hero */}
+        <View className="rounded-md bg-[#101828] p-4 dark:border dark:border-gray-700">
           <View className="flex-row items-start justify-between">
-            <View>
-              <Text variant="caption" tone="muted">
-                {t('totalRevenue')}
-              </Text>
-              <Text variant="display" tabular>
+            <View className="gap-1">
+              <Text className="font-sans text-base font-medium text-[#98A2B3]">{t('totalRevenue')}</Text>
+              <Text className="text-[32px] font-medium tracking-tight text-white">
                 {formatCurrency(data.total)}
               </Text>
             </View>
-            <View className="h-11 w-11 items-center justify-center rounded bg-success-50">
-              <Icon name="rupee" size={22} color={palette.success} />
+            <View className="h-12 w-12 items-center justify-center rounded-md bg-[#1D4ED8]/20">
+              <FontAwesome5 name="rupee-sign" size={20} color="#1D4ED8" />
             </View>
           </View>
-          <Text variant="caption" tone="muted" weight="regular" className="mt-2">
-            {t('revenueNote')}
-          </Text>
-        </Card>
-
-        <View className="flex-row gap-3">
-          <Stat label={t('thisMonth')} value={formatCurrency(data.thisMonth)} />
-          <Stat label={t('today')} value={formatCurrency(data.today)} />
-          <Stat label={t('net')} value={formatCurrency(net)} tone="primary" />
+          <Text className="font-sans mt-2 text-base text-[#667085] dark:text-gray-400">{t('revenueNote')}</Text>
         </View>
 
-        <Section
-          title={t('byMonth')}
-          action={<Icon name="chart" size={18} color={colors.primary} />}
-        >
-          <MonthlyBarChart months={data.months} />
-        </Section>
+        {/* This month / today / net */}
+        <View className="flex-row gap-3">
+          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('thisMonth')}</Text>
+            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(data.thisMonth)}</Text>
+          </View>
+          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('today')}</Text>
+            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(data.today)}</Text>
+          </View>
+          <View className="flex-1 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <Text className="font-sans text-base font-medium text-gray-500 dark:text-gray-400">{t('net')}</Text>
+            <Text className="mt-1 text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(net)}</Text>
+          </View>
+        </View>
 
-        <Section title={t('summary')}>
+        {/* Monthly trend chart */}
+        <Card>
+          <View className="mb-1 flex-row items-center">
+            <FontAwesome5 name="chart-bar" size={13} color="#6B7280" />
+            <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('byMonth')}</Text>
+          </View>
+          <MonthlyBarChart months={data.months} />
+        </Card>
+
+        {/* Net summary */}
+        <Card>
+          <Text className="mb-3 text-base font-semibold text-[#101828] dark:text-gray-50">{t('summary')}</Text>
           <View className="gap-2">
-            <SummaryRow label={t('received')} value={formatCurrency(data.total)} tone="success" />
-            <SummaryRow label={t('staffCost')} value={`- ${formatCurrency(data.staffCost)}`} tone="danger" />
-            <SummaryRow label={t('net')} value={formatCurrency(net)} bold />
-            <View className="flex-row items-center justify-between rounded-md bg-danger-50 p-3">
-              <Text variant="label" tone="danger">
-                {t('outstanding')}
-              </Text>
-              <Text variant="bodyLg" tone="danger" tabular>
-                {formatCurrency(data.outstanding)}
-              </Text>
+            <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('received')}</Text>
+              <Text className="text-base font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(data.total)}</Text>
+            </View>
+            <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('staffCost')}</Text>
+              <Text className="text-base font-bold text-danger">- {formatCurrency(data.staffCost)}</Text>
+            </View>
+            <View className="flex-row items-center justify-between rounded-md bg-gray-100 p-3 dark:bg-gray-800">
+              <Text className="font-sans text-base font-medium text-[#101828] dark:text-gray-50">{t('net')}</Text>
+              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(net)}</Text>
+            </View>
+            <View className="flex-row items-center justify-between rounded-md bg-amber-50 p-3 dark:bg-amber-950">
+              <Text className="font-sans text-base text-amber-800 dark:text-amber-300">{t('outstanding')}</Text>
+              <Text className="text-base font-bold text-amber-800 dark:text-amber-300">{formatCurrency(data.outstanding)}</Text>
             </View>
           </View>
-        </Section>
+        </Card>
       </ScrollView>
-    </View>
-  );
-}
-
-function SummaryRow({ label, value, tone = 'default', bold = false }: { label: string; value: string; tone?: 'default' | 'success' | 'danger'; bold?: boolean }) {
-  return (
-    <View className="flex-row items-center justify-between rounded-md bg-surface-2 p-3">
-      <Text variant="label" weight={bold ? 'bold' : 'semibold'}>
-        {label}
-      </Text>
-      <Text variant="bodyLg" tone={tone} tabular>
-        {value}
-      </Text>
     </View>
   );
 }

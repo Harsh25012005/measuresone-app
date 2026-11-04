@@ -1,6 +1,3 @@
-// Theme-aware color backed by an RGB-triplet CSS variable from global.css.
-const tv = (name) => `rgb(var(--color-${name}) / <alpha-value>)`;
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -9,7 +6,6 @@ module.exports = {
     './screens/**/*.{js,jsx,ts,tsx}',
     './components/**/*.{js,jsx,ts,tsx}',
     './navigation/**/*.{js,jsx,ts,tsx}',
-    './src/**/*.{js,jsx,ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
   // Disabled: Tailwind's built-in fontWeight utilities use the exact same
@@ -26,80 +22,30 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: tv('primary'),
-          dark: tv('primary-dark'),
-          50: tv('primary-tint'),
-          100: '#D3D8F7',
-          200: '#A9B1EE',
-          300: '#7F8AE0',
-          400: '#5563CE',
-          500: '#4350C3',
-          600: '#3340B8',
-          700: '#28339A',
-          800: '#1F287A',
-          900: '#171E5A',
-          950: '#0D1033',
+          DEFAULT: '#2563EB',
+          50: '#EFF6FF',
+          100: '#DBEAFE',
+          200: '#BFDBFE',
+          300: '#93C5FD',
+          400: '#60A5FA',
+          500: '#3B82F6',
+          600: '#2563EB',
+          700: '#1D4ED8',
+          800: '#1E40AF',
+          900: '#1E3A8A',
+          950: '#172554',
         },
-        // Semantic tokens are CSS variables (defined in global.css for :root and
-        // .dark:root) so classes like text-ink / bg-surface follow dark mode
-        // without every call site needing its own dark: variant.
-        surface: {
-          DEFAULT: tv('surface'),
-          2: tv('surface-2'),
-        },
-        ink: {
-          DEFAULT: tv('ink'),
-          muted: tv('muted'),
-          faint: tv('faint'),
-        },
-        line: {
-          DEFAULT: tv('line'),
-          2: tv('line-2'),
-        },
-        success: {
-          DEFAULT: tv('success'),
-          50: tv('success-tint'),
-        },
-        warning: {
-          DEFAULT: tv('accent'),
-          50: tv('accent-tint'),
-        },
-        danger: {
-          DEFAULT: tv('danger'),
-          50: tv('danger-tint'),
-        },
-        accent: {
-          DEFAULT: tv('accent'),
-          50: tv('accent-tint'),
-        },
-        info: tv('primary'),
-        bg: tv('bg'),
-        muted: tv('muted'),
-        faint: tv('faint'),
-        'on-primary': tv('on-primary'),
-      },
-      // Only 2/3/4px are allowed (DESIGN.md). Legacy sizes clamp to 4px;
-      // `rounded-dot` is reserved for status dots.
-      borderRadius: {
-        none: '0',
-        sm: '2px',
-        DEFAULT: '4px',
-        md: '3px',
-        lg: '4px',
-        xl: '4px',
-        '2xl': '4px',
-        '3xl': '4px',
-        full: '4px',
-        dot: '9999px',
+        success: '#16A34A',
+        warning: '#D97706',
+        danger: '#DC2626',
+        info: '#0891B2',
       },
       fontFamily: {
-        sans: ['PlusJakartaSans_400Regular'],
-        medium: ['PlusJakartaSans_500Medium'],
-        semibold: ['PlusJakartaSans_600SemiBold'],
-        bold: ['PlusJakartaSans_700Bold'],
+        sans: ['GoogleSansFlex_400Regular'],
+        medium: ['GoogleSansFlex_500Medium'],
+        semibold: ['GoogleSansFlex_600SemiBold'],
+        bold: ['GoogleSansFlex_700Bold'],
       },
-      minHeight: { touch: '48px' },
-      minWidth: { touch: '48px' },
     },
   },
   plugins: [],

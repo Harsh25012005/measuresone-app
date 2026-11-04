@@ -60,29 +60,7 @@
     "deleteSuccess": "Template deleted",
     "fieldsHeader": "Fields in Template",
     "noFieldsTitle": "No fields in template",
-    "noFieldsDesc": "Tap 'Auto Suggest Fields' or add fields manually below.",
-    "fieldCount_one": "{{count}} measurement field",
-    "fieldCount_other": "{{count}} measurement fields",
-    "examples": "Examples: Blazer, Kurta, Safari Suit, Jacket, Sherwani, Lehenga, etc.",
-    "createFailed": "Failed to create template",
-    "detailTitle": "Measurement Template",
-    "templateNotFound": "Template not found",
-    "autoSuggestShort": "Auto-Suggest",
-    "suggested": "Fields suggested automatically",
-    "suggestFailed": "Failed to suggest fields",
-    "addFieldHeader": "Add Measurement Field",
-    "addFieldInputPlaceholder": "e.g. Length, Chest, Waist, Collar...",
-    "fieldExists": "Field already exists in template",
-    "fieldAdded": "Field added",
-    "addFieldFailed": "Could not add field",
-    "fieldRemoved": "Field removed",
-    "removeFieldFailed": "Failed to remove field",
-    "fieldsCount": "Fields ({{count}})",
-    "noFieldsYet": "No measurement fields added yet. Type a field name above or tap \"Auto-Suggest\".",
-    "deleteClothTypeTitle": "Delete cloth type?",
-    "deleteClothTypeMessage": "Are you sure you want to delete {{name}}? This cannot be undone.",
-    "clothTypeDeleted": "Cloth type deleted",
-    "deleteFailed": "Could not delete template"
+    "noFieldsDesc": "Tap 'Auto Suggest Fields' or add fields manually below."
   },
   "customMeasurementFields": {
     "menuTitle": "Custom Measurement Fields",
@@ -137,16 +115,5 @@
         "description": "Add a tailor or helper, set their wage type, and assign them to orders so you can track who's doing what."
       }
     }
-  },
-  "shopManagement": "Shop Management",
-  "menuDesc": {
-    "universalMeasurements": "Garments, standard fields & measurements",
-    "staff": "Track who is making what & piece rates",
-    "calendar": "Deliveries and trials scheduled by day",
-    "billing": "Bills, recorded cash/UPI payments & pending dues",
-    "revenue": "Monthly collections, revenue & order volume"
-  },
-  "productTour": {
-    "replay": "Replay Product Tour"
   }
 }

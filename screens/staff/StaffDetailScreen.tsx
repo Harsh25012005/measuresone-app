@@ -1,28 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-
-import {
-  Avatar,
-  Button,
-  Card,
-  Header,
-  Icon,
-  IconButton,
-  ListRow,
-  Section,
-  Skeleton,
-  Text,
-  useToast,
-} from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { Avatar, Button, Card, Header, LoadingSpinner, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { staffRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import type { SettingsScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 import type { Staff } from '../../types';
@@ -41,26 +27,11 @@ function isInMonth(dateStr: string, monthsAgo: number): boolean {
   return d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth();
 }
 
-function AmountRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <View className="min-h-[48px] flex-row items-center justify-between rounded-md bg-surface-2 px-3 py-2">
-      <Text variant="label" tone="muted" weight="regular" className="mr-2 flex-1">
-        {label}
-      </Text>
-      <Text variant="bodyLg" tabular>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 export default function StaffDetailScreen({ navigation, route }: SettingsScreenProps<'StaffDetail'>) {
   const { t } = useTranslation('staff');
   const { staffId } = route.params;
   const showToast = useToast();
   const shop = useShop();
-  const { colors } = useTheme();
-  const palette = usePalette();
 
   const WAGE_LABELS: Record<Staff['wage_type'], string> = {
     daily: t('wageUnit.daily'),
@@ -165,101 +136,108 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
     }
   };
 
-  if (loading || !staff) {
-    return (
-      <View className="flex-1 bg-bg">
-        <Header title={t('detail.loading')} onBack={() => navigation.goBack()} />
-        <View className="gap-4 p-4">
-          <Skeleton height={200} />
-          <Skeleton height={180} />
-        </View>
-      </View>
-    );
-  }
-
-  const workTotal = workEntries.reduce((s, w) => s + entryEarning(w), 0);
+  if (loading || !staff) return <LoadingSpinner fullScreen text={t('detail.loading')} />;
 
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
       <Header
         title={staff.name}
         onBack={() => navigation.goBack()}
         right={
-          <>
-            <IconButton
-              icon="edit"
-              variant="ghost"
-              accessibilityLabel={t('form.titleEdit')}
+          <View className="flex-row items-center">
+            <Pressable
               onPress={() => navigation.navigate('StaffForm', { staffId: staff.id })}
-            />
-            <IconButton icon="trash" variant="ghost" color={palette.danger} accessibilityLabel={t('detail.delete')} onPress={handleDelete} />
-          </>
+              hitSlop={8}
+              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+            >
+              <FontAwesome5 name="pen" size={15} color="#1D4ED8" />
+            </Pressable>
+            <Pressable
+              onPress={handleDelete}
+              hitSlop={8}
+              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+            >
+              <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
+            </Pressable>
+          </View>
         }
       />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
         <Card>
           <View className="flex-row items-center">
             <Avatar name={staff.name} size="lg" />
             <View className="ml-4 flex-1">
-              <Text variant="headline" numberOfLines={1}>
-                {staff.name}
-              </Text>
-              <Text variant="label" tone="muted" weight="regular">
-                {staff.role ?? t('detail.defaultRole')}
-              </Text>
+              <Text className="text-lg font-semibold text-[#101828] dark:text-gray-50">{staff.name}</Text>
+              <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">{staff.role ?? t('detail.defaultRole')}</Text>
               {staff.phone ? (
                 <View className="mt-1 flex-row items-center">
-                  <Icon name="phone" size={14} color={colors.textMuted} />
-                  <Text variant="label" tone="muted" weight="regular" tabular className="ml-1.5">
-                    {staff.phone}
-                  </Text>
+                  <FontAwesome5 name="phone-alt" size={11} color="#9CA3AF" />
+                  <Text className="font-sans ml-1.5 text-base text-gray-500 dark:text-gray-400">{staff.phone}</Text>
                 </View>
               ) : (
-                <Text variant="label" tone="faint" weight="regular" className="mt-1">
-                  {t('detail.noPhone')}
-                </Text>
+                <Text className="font-sans mt-1 text-base text-gray-400 dark:text-gray-500">{t('detail.noPhone')}</Text>
               )}
             </View>
           </View>
 
-          {/* Per-piece staff have a rate per garment, not one flat wage. */}
+          {/* Per-piece staff have a rate per garment, not one flat wage —
+              showing the single `wage_amount` displayed ₹0 for them. */}
           <View className="mt-4 gap-2">
             {staff.wage_type === 'per_piece' ? (
               <>
-                <AmountRow label={t('detail.amountPerPant')} value={formatCurrency(staff.wage_amount_pant ?? 0)} />
-                <AmountRow label={t('detail.amountPerShirt')} value={formatCurrency(staff.wage_amount_shirt ?? 0)} />
-                <AmountRow
-                  label={t('detail.amountPerPair')}
-                  value={formatCurrency(Number(staff.wage_amount_pant ?? 0) + Number(staff.wage_amount_shirt ?? 0))}
-                />
+                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerPant')}</Text>
+                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
+                    {formatCurrency(staff.wage_amount_pant ?? 0)}
+                  </Text>
+                </View>
+                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerShirt')}</Text>
+                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
+                    {formatCurrency(staff.wage_amount_shirt ?? 0)}
+                  </Text>
+                </View>
+                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerPair')}</Text>
+                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
+                    {formatCurrency(Number(staff.wage_amount_pant ?? 0) + Number(staff.wage_amount_shirt ?? 0))}
+                  </Text>
+                </View>
               </>
             ) : (
-              <AmountRow label={t('detail.wageAmount')} value={`${formatCurrency(staff.wage_amount)} / ${WAGE_LABELS[staff.wage_type]}`} />
+              <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.wageAmount')}</Text>
+                <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
+                  {formatCurrency(staff.wage_amount)}
+                  <Text className="font-sans text-base text-gray-500 dark:text-gray-400">/{WAGE_LABELS[staff.wage_type]}</Text>
+                </Text>
+              </View>
             )}
           </View>
         </Card>
 
-        <Section title={t('detail.performanceReport')}>
+        <Card>
+          <View className="mb-3 flex-row items-center">
+            <FontAwesome5 name="chart-line" size={13} color="#6B7280" />
+            <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('detail.performanceReport')}</Text>
+          </View>
           <View className="flex-row gap-3">
-            <View className="min-w-0 flex-1 rounded-md bg-primary-50 p-3">
-              <Text variant="caption" tone="primary">
-                {t('detail.thisMonth')}
-              </Text>
-              <Text variant="bodyLg" tone="primary" tabular numberOfLines={1}>
+            <View className="flex-1 rounded-md bg-emerald-50 p-3 dark:bg-emerald-950">
+              <Text className="font-sans text-base text-emerald-700 dark:text-emerald-400">{t('detail.thisMonth')}</Text>
+              <Text className="mt-1 text-lg font-bold text-emerald-800 dark:text-emerald-300">
                 {formatCurrency(thisMonthEarnings)}
               </Text>
             </View>
-            <View className="min-w-0 flex-1 rounded-md bg-surface-2 p-3">
-              <Text variant="caption" tone="muted">
-                {t('detail.lastMonth')}
-              </Text>
-              <Text variant="bodyLg" tabular numberOfLines={1}>
+            <View className="flex-1 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.lastMonth')}</Text>
+              <Text className="mt-1 text-lg font-bold text-[#101828] dark:text-gray-50">
                 {formatCurrency(lastMonthEarnings)}
               </Text>
             </View>
           </View>
-          <View className="mt-2">
-            <AmountRow label={t('detail.allTimeEarnings')} value={formatCurrency(totalEarnings)} />
+          <View className="mt-2 flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+            <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.allTimeEarnings')}</Text>
+            <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(totalEarnings)}</Text>
           </View>
 
           <Button
@@ -268,56 +246,66 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
             loading={sendingReport}
             disabled={!staff.phone}
             variant="secondary"
-            icon={<Icon name="chat" size={18} color={colors.textPrimary} />}
             className="mt-4"
           />
-        </Section>
+        </Card>
 
         {/* Work entries only make sense for per-piece staff — monthly/daily
             staff are paid a fixed wage regardless of how much they stitch,
             so there's nothing to log. */}
         {staff.wage_type === 'per_piece' ? (
           workEntries.length > 0 ? (
-            <Section
-              title={t('detail.workEntries')}
-              padded={false}
-              action={
-                <Button
-                  title={t('detail.addWorkEntry')}
-                  variant="ghost"
-                  size="sm"
-                  fullWidth={false}
-                  onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })}
-                />
-              }
-            >
-              <View className="flex-row items-center justify-between bg-primary-50 px-4 py-3">
-                <Text variant="label" tone="primary">
-                  {t('detail.workTotal')}
-                </Text>
-                <Text variant="bodyLg" tone="primary" tabular>
-                  {formatCurrency(workTotal)}
-                </Text>
+            <View>
+              <View className="mb-2 flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <FontAwesome5 name="clipboard-list" size={13} color="#6B7280" />
+                  <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('detail.workEntries')}</Text>
+                </View>
+                <Pressable onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })}>
+                  <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('detail.addWorkEntry')}</Text>
+                </Pressable>
               </View>
-              {workEntries.map((w, index) => (
-                <ListRow
-                  key={w.id}
-                  title={`${WORK_TYPE_LABELS[w.work_type]} × ${w.quantity}`}
-                  subtitle={`${formatDate(w.work_date)} · ${formatCurrency(w.rate_applied)}${t('detail.perPieceSuffix')}`}
-                  leading={
-                    <View className="h-10 w-10 items-center justify-center rounded bg-primary-50">
-                      <Icon name="scissors" size={20} color={colors.primary} />
+
+              <Card>
+                <View className="mb-3 flex-row items-center justify-between rounded-md bg-emerald-50 p-3 dark:bg-emerald-950">
+                  <Text className="font-sans text-base font-medium text-emerald-800 dark:text-emerald-300">
+                    {t('detail.workTotal')}
+                  </Text>
+                  <Text className="text-base font-bold text-emerald-800 dark:text-emerald-300">
+                    {formatCurrency(
+                      workEntries.reduce((s, w) => s + Number(w.quantity) * Number(w.rate_applied), 0)
+                    )}
+                  </Text>
+                </View>
+
+                <View className="gap-3">
+                  {workEntries.map((w, index) => (
+                    <View
+                      key={w.id}
+                      className={`flex-row items-center ${
+                        index < workEntries.length - 1 ? 'border-b border-gray-100 pb-3 dark:border-gray-800' : ''
+                      }`}
+                    >
+                      <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
+                        <FontAwesome5 name="tshirt" size={14} color="#1D4ED8" />
+                      </View>
+                      <View className="ml-3 flex-1">
+                        <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">
+                          {WORK_TYPE_LABELS[w.work_type]} × {w.quantity}
+                        </Text>
+                        <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">
+                          {formatDate(w.work_date)} · {formatCurrency(w.rate_applied)}
+                          {t('detail.perPieceSuffix')}
+                        </Text>
+                      </View>
+                      <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
+                        {formatCurrency(Number(w.quantity) * Number(w.rate_applied))}
+                      </Text>
                     </View>
-                  }
-                  trailing={
-                    <Text variant="bodyLg" tabular>
-                      {formatCurrency(entryEarning(w))}
-                    </Text>
-                  }
-                  divider={index < workEntries.length - 1}
-                />
-              ))}
-            </Section>
+                  ))}
+                </View>
+              </Card>
+            </View>
           ) : (
             <Button
               title={t('detail.addWorkEntry')}

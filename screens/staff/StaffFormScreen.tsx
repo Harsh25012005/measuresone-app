@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, Header, InputField, RadioGroup, Text, useToast } from '../../src/components/ui';
+import { Button, Header, InputField, RadioGroup, useToast } from '../../components/ui';
 import { staffRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import type { SettingsScreenProps } from '../../navigation/types';
@@ -10,7 +9,6 @@ import type { WageType } from '../../types';
 
 export default function StaffFormScreen({ navigation, route }: SettingsScreenProps<'StaffForm'>) {
   const { t } = useTranslation('staff');
-  const insets = useSafeAreaInsets();
   const staffId = route.params?.staffId;
   const shop = useShop();
   const showToast = useToast();
@@ -29,8 +27,6 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
   const [wageAmountShirt, setWageAmountShirt] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const phoneRef = useRef<TextInput>(null);
-  const shirtRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!staffId) return;
@@ -85,37 +81,45 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
   };
 
   return (
-    <View className="flex-1 bg-bg">
+    <>
       <Header title={staffId ? t('form.titleEdit') : t('form.titleAdd')} onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView
+          className="flex-1 bg-white dark:bg-gray-950"
+          contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <InputField
             label={t('form.nameLabel')}
             value={name}
             onChangeText={setName}
             placeholder={t('form.namePlaceholder')}
-            autoCapitalize="words"
-            returnKeyType="next"
-            onSubmitEditing={() => phoneRef.current?.focus()}
             error={error}
             required
           />
           <InputField
-            ref={phoneRef}
             label={t('form.phoneLabel')}
             value={phone}
             onChangeText={setPhone}
             placeholder={t('form.phonePlaceholder')}
             keyboardType="phone-pad"
-            autoComplete="tel"
-            prefix="+91"
-            maxLength={10}
-            optional
           />
-          <Text variant="label" className="mb-1.5">
-            {t('form.wageTypeLabel')}
-          </Text>
-          <RadioGroup<WageType> variant="cards" direction="column" value={wageType} onChange={setWageType} options={WAGE_TYPES} className="mb-4" />
+          <View className="mb-4">
+            <Text className="mb-1.5 text-base font-semibold text-gray-600 dark:text-gray-400">
+              {t('form.wageTypeLabel')}
+            </Text>
+            <RadioGroup<WageType>
+              variant="cards"
+              direction="column"
+              value={wageType}
+              onChange={setWageType}
+              options={WAGE_TYPES}
+            />
+          </View>
           {wageType === 'per_piece' ? (
             <>
               <InputField
@@ -124,20 +128,13 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
                 onChangeText={setWageAmountPant}
                 placeholder={t('form.amountPerPantPlaceholder')}
                 keyboardType="number-pad"
-                prefix="₹"
-                returnKeyType="next"
-                onSubmitEditing={() => shirtRef.current?.focus()}
               />
               <InputField
-                ref={shirtRef}
                 label={t('form.amountPerShirtLabel')}
                 value={wageAmountShirt}
                 onChangeText={setWageAmountShirt}
                 placeholder={t('form.amountPerShirtPlaceholder')}
                 keyboardType="number-pad"
-                prefix="₹"
-                returnKeyType="done"
-                onSubmitEditing={handleSave}
               />
             </>
           ) : (
@@ -147,16 +144,16 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
               onChangeText={setWageAmount}
               placeholder={t('form.wageAmountPlaceholder')}
               keyboardType="number-pad"
-              prefix="₹"
-              returnKeyType="done"
-              onSubmitEditing={handleSave}
             />
           )}
+          <Button
+            title={staffId ? t('form.updateStaff') : t('form.saveStaff')}
+            size="lg"
+            onPress={handleSave}
+            loading={loading}
+          />
         </ScrollView>
-        <View style={{ paddingBottom: Math.max(insets.bottom, 12) }} className="border-t border-line bg-surface px-4 pt-3">
-          <Button title={staffId ? t('form.updateStaff') : t('form.saveStaff')} size="lg" onPress={handleSave} loading={loading} />
-        </View>
       </KeyboardAvoidingView>
-    </View>
+    </>
   );
 }

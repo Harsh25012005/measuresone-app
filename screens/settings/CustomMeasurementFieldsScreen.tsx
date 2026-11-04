@@ -1,28 +1,11 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Header,
-  Icon,
-  IconButton,
-  InputField,
-  ListRow,
-  SegmentedControl,
-  Section,
-  SkeletonList,
-  Text,
-  useToast,
-} from '../../src/components/ui';
-import { usePalette } from '../../src/theme/usePalette';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { Button, Card, EmptyState, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { useShop } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { DEFAULT_SHIRT_FIELDS, DEFAULT_PANT_FIELDS, DEFAULT_ALL_FIELDS } from '../../lib/defaultMeasurementFields';
 import type { SettingsScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
@@ -44,8 +27,6 @@ export default function CustomMeasurementFieldsScreen({ navigation }: SettingsSc
   const { t } = useTranslation('settings');
   const shop = useShop();
   const showToast = useToast();
-  const { colors } = useTheme();
-  const palette = usePalette();
 
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,21 +129,14 @@ export default function CustomMeasurementFieldsScreen({ navigation }: SettingsSc
     }
   };
 
-  if (loading && fields.length === 0) {
-    return (
-      <View className="flex-1 bg-bg">
-        <Header title={t('customMeasurementFields.title')} onBack={() => navigation.goBack()} />
-        <SkeletonList count={5} />
-      </View>
-    );
-  }
+  if (loading) return <LoadingSpinner fullScreen text={t('customMeasurementFields.loading')} />;
 
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
       <Header title={t('customMeasurementFields.title')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
         <Card>
-          <Text variant="bodyLg" className="mb-3">
+          <Text className="mb-3 text-base font-semibold text-gray-900 dark:text-gray-50">
             {t('customMeasurementFields.addFieldTitle')}
           </Text>
           <InputField
@@ -170,18 +144,35 @@ export default function CustomMeasurementFieldsScreen({ navigation }: SettingsSc
             value={newLabel}
             onChangeText={setNewLabel}
             placeholder={t('customMeasurementFields.fieldNamePlaceholder')}
-            returnKeyType="done"
-            onSubmitEditing={handleAdd}
           />
 
-          <Text variant="label" className="mb-1.5">
+          <Text className="mb-1.5 mt-1 text-base font-medium text-gray-700 dark:text-gray-300">
             {t('customMeasurementFields.garmentScopeLabel')}
           </Text>
-          <SegmentedControl
-            value={newGarmentScope}
-            onChange={setNewGarmentScope}
-            options={GARMENT_SCOPES.map((scope) => ({ value: scope, label: t(`customMeasurementFields.garmentScope.${scope}`) }))}
-          />
+          <View className="flex-row gap-2">
+            {GARMENT_SCOPES.map((scope) => {
+              const active = scope === newGarmentScope;
+              return (
+                <Pressable
+                  key={scope}
+                  onPress={() => setNewGarmentScope(scope)}
+                  className={`flex-1 items-center rounded-md border py-2.5 ${
+                    active
+                      ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
+                      : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                  }`}
+                >
+                  <Text
+                    className={`font-sans text-base font-medium ${
+                      active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    {t(`customMeasurementFields.garmentScope.${scope}`)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <Button
             title={t('customMeasurementFields.save')}
@@ -190,45 +181,60 @@ export default function CustomMeasurementFieldsScreen({ navigation }: SettingsSc
             disabled={!newLabel.trim()}
             className="mt-3"
           />
-          <Button
-            title={t('customMeasurementFields.addDefaultFields')}
-            variant="tonal"
+          <Pressable
             onPress={handleAddDefaults}
-            loading={addingDefaults}
-            icon={<Icon name="sparkle" size={18} color={colors.primary} />}
-            className="mt-3"
-          />
+            disabled={addingDefaults}
+            className="mt-3 flex-row items-center justify-center rounded-md bg-primary-50 py-2.5 active:bg-primary-100 dark:bg-primary-950"
+          >
+            <FontAwesome5 name="magic" size={12} color="#1D4ED8" />
+            <Text className="ml-2 text-base font-semibold text-primary-600 dark:text-primary-400">
+              {t('customMeasurementFields.addDefaultFields')}
+            </Text>
+          </Pressable>
         </Card>
 
-        <Section title={t('customMeasurementFields.listTitle')} padded={fields.length === 0}>
+        <View>
+          <Text className="mb-2 px-1 text-base font-semibold text-gray-500 dark:text-gray-400">
+            {t('customMeasurementFields.listTitle')}
+          </Text>
           {fields.length === 0 ? (
             <EmptyState
               variant="compact"
-              icon="ruler"
+              icon="ruler-combined"
               title={t('customMeasurementFields.emptyTitle')}
               description={t('customMeasurementFields.emptyDescription')}
             />
           ) : (
-            fields.map((field, index) => (
-              <ListRow
-                key={field.id}
-                title={field.label}
-                meta={<Badge size="sm" label={t(`customMeasurementFields.garmentScope.${(field.garment_type as GarmentScope) || 'Both'}`)} />}
-                trailing={
-                  <IconButton
-                    icon="trash"
-                    variant="ghost"
-                    size="sm"
-                    color={palette.danger}
-                    accessibilityLabel={`${t('common:actions.delete')} ${field.label}`}
+            <Card>
+              {fields.map((field, index) => (
+                <View
+                  key={field.id}
+                  className={`flex-row items-center justify-between py-3.5 ${
+                    index === fields.length - 1 ? '' : 'border-b border-gray-100 dark:border-gray-800'
+                  }`}
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Text className="font-sans text-base font-medium text-gray-800 dark:text-gray-200">
+                      {field.label}
+                    </Text>
+                    <View className="rounded-full bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                      <Text className="font-sans text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {t(`customMeasurementFields.garmentScope.${(field.garment_type as GarmentScope) || 'Both'}`)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
                     onPress={() => handleRemove(field.id)}
-                  />
-                }
-                divider={index < fields.length - 1}
-              />
-            ))
+                    hitSlop={10}
+                    className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+                  >
+                    <FontAwesome5 name="trash-alt" size={14} color="#DC2626" />
+                  </Pressable>
+                </View>
+              ))}
+            </Card>
           )}
-        </Section>
+        </View>
       </ScrollView>
     </View>
   );

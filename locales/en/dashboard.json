@@ -82,11 +82,11 @@
   },
   "search": {
     "title": "Search",
-    "placeholder": "Name, phone, order # or book no.",
-    "emptyPromptTitle": "Find anything",
-    "emptyPromptDescription": "Type a name, phone, order number or book number, or tap the mic.",
-    "noResultsTitle": "Nothing found",
-    "noResultsDescription": "Try another word, or add them as a new client.",
+    "placeholder": "Search by client name or phone",
+    "emptyPromptTitle": "Search for a client",
+    "emptyPromptDescription": "Type a name or phone number, or tap the mic to search by voice.",
+    "noResultsTitle": "No client found",
+    "noResultsDescription": "Add them as a new client to continue.",
     "addClient": "Add Client",
     "noPhone": "No phone",
     "createOrder": "Create Order",
@@ -94,14 +94,7 @@
     "dictationFailed": "Could not hear that — try again",
     "microphonePermissionDenied": "Microphone permission is required for voice search",
     "listening": "Listening…",
-    "listeningHint": "Say a client's name, or tap anywhere to stop",
-    "micPermissionRequired": "Microphone permission required",
-    "takeMeasurements": "Take measurements",
-    "viewDetails": "View details",
-    "recent": "Recent clients",
-    "orders": "Orders",
-    "clients": "Clients",
-    "book": "Book {{number}}"
+    "listeningHint": "Say a client's name, or tap anywhere to stop"
   },
   "notifications": {
     "title": "Notifications",
@@ -118,37 +111,5 @@
       "order_ready": "Order ready",
       "payment_due": "Payment due"
     }
-  },
-  "goodMorning": "Good morning",
-  "goodAfternoon": "Good afternoon",
-  "goodEvening": "Good evening",
-  "today": "Today",
-  "collected": "Collected",
-  "newOrders": "New orders",
-  "delivered": "Delivered",
-  "measure": "Measure",
-  "todaysWork": "Today's work",
-  "allCaughtUp": "All caught up",
-  "noDeliveriesToday": "No deliveries or late orders today.",
-  "ready": "Ready",
-  "deliver": "Deliver",
-  "dueTodayLabel": "Due today",
-  "dueTomorrowLabel": "Due tomorrow",
-  "dayLate_one": "{{count}} day late",
-  "dayLate_other": "{{count}} days late",
-  "dueOnLabel": "Due {{date}}",
-  "comingUpThisWeek": "Coming up this week",
-  "readyToGive": "Ready to give",
-  "whatsappReminders": "WhatsApp reminders",
-  "toCollect": "To collect",
-  "orderMarkedReady": "Order #{{number}} marked Ready",
-  "orderMarkedDelivered": "Order #{{number}} marked Delivered",
-  "cards": {
-    "late": "Late",
-    "dueToday": "Due today",
-    "readyToGive": "Ready to give",
-    "toCollect": "To collect"
-  },
-  "doNow": "Do now",
-  "searchEntry": "Search customer, phone, order or book no."
+  }
 }

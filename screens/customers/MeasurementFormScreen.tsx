@@ -1,80 +1,37 @@
-import { useCallback, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Chip, Header, IconButton, InputField, Section, SkeletonList, Text, useToast } from '../../src/components/ui';
-import { haptics } from '../../lib/haptics';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { Button, Card, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
 import { useShop } from '../../context/AuthContext';
-import { universalTemplatesRepo, customerMeasurementsRepo } from '../../lib/data/repository';
 import {
-  FLAT_SECTION_KEY,
-  buildMeasurementsJson,
-  extractClothTypes,
-  loadMeasurementSections,
-  readSectionValues,
-  saveCustomerClothMeasurement,
-  sectionTitle,
-  type MeasurementSection,
-  type SectionValues,
-} from '../../lib/measurementLayout';
-import { garmentNameLabel, measurementFieldLabel } from '../../lib/measurementNames';
+  universalTemplatesRepo,
+  universalFieldsRepo,
+  customerMeasurementsRepo,
+} from '../../lib/data/repository';
 import type { AppScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 
 type Template = Tables<'universal_measurement_templates'>;
-
-/** Half-inch step for the − / + buttons; keeps 1 decimal at most (10, 10.5, 11). */
-function stepValue(current: string, dir: 1 | -1): string {
-  const n = Number(current);
-  const base = Number.isFinite(n) && current !== '' ? n : 0;
-  const next = Math.max(0, Math.round((base + dir * 0.5) * 1000) / 1000);
-  return String(next);
-}
-
-/** Every entered value keyed by field name, so switching templates keeps them. */
-function flattenValues(values: SectionValues<string>): Record<string, string> {
-  const flat: Record<string, string> = {};
-  for (const section of Object.values(values)) {
-    for (const [k, v] of Object.entries(section)) if (v !== '' && !(k in flat)) flat[k] = v;
-  }
-  return flat;
-}
+type Field = Tables<'universal_measurement_fields'>;
 
 export default function MeasurementFormScreen({
   navigation,
   route,
 }: AppScreenProps<'MeasurementForm'>) {
   const { customerId } = route.params;
+  const { t } = useTranslation('customers');
   const shop = useShop();
   const showToast = useToast();
-  const insets = useSafeAreaInsets();
-  const { t } = useTranslation('customers');
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  // One card per section: a single card for most templates, separate Shirt
-  // and Pant cards for "Shirt + Pant" so shared fields (Length) stay apart.
-  const [sections, setSections] = useState<MeasurementSection[]>([]);
-  const [values, setValues] = useState<SectionValues<string>>({});
-  // What was saved last time, shown under each field so the tailor can compare while typing.
-  const [previous, setPrevious] = useState<SectionValues<string>>({});
+  const [fields, setFields] = useState<Field[]>([]);
+  const [values, setValues] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // One ref per field in on-screen order, so "next" on the keypad moves down the list.
-  const inputRefs = useRef<Record<string, TextInput | null>>({});
-
-  const applyTemplate = useCallback(
-    async (templateId: string, source: unknown) => {
-      const layout = await loadMeasurementSections(shop.id, templateId);
-      const read = readSectionValues(source, layout);
-      setSections(read.sections);
-      setValues(read.values);
-      return read.values;
-    },
-    [shop.id]
-  );
 
   const loadData = useCallback(async () => {
     try {
@@ -82,31 +39,25 @@ export default function MeasurementFormScreen({
       setTemplates(tmplList);
 
       const profile = await customerMeasurementsRepo.getByCustomer(customerId);
-      const targetTemplateId =
-        route.params?.templateId ||
-        (route.params?.clothType
-          ? tmplList.find((t) => t.template_name.toLowerCase() === route.params?.clothType?.toLowerCase())?.id
-          : null) ||
-        profile?.template_id ||
-        (tmplList.length > 0 ? tmplList[0].id : null);
 
-      if (targetTemplateId) {
-        setSelectedTemplateId(targetTemplateId);
-        const clothTypes = extractClothTypes(profile, tmplList);
-        const tmpl = tmplList.find((t) => t.id === targetTemplateId);
-        const match = clothTypes.find(
-          (c) =>
-            c.templateId === targetTemplateId ||
-            (tmpl && c.clothType.toLowerCase() === tmpl.template_name.toLowerCase())
-        );
-        const sourceData = match ? match.values : profile?.measurements ?? {};
-        const loadedVals = await applyTemplate(targetTemplateId, sourceData);
-        setPrevious(loadedVals ?? {});
+      if (profile) {
+        setSelectedTemplateId(profile.template_id);
+        const parsedVals: Record<string, string> = {};
+        const raw = typeof profile.measurements === 'object' && profile.measurements ? (profile.measurements as Record<string, unknown>) : {};
+        for (const [k, v] of Object.entries(raw)) {
+          parsedVals[k] = v !== null && v !== undefined ? String(v) : '';
+        }
+        setValues(parsedVals);
+
+        if (profile.template_id) {
+          const fList = await universalFieldsRepo.listForTemplate(profile.template_id);
+          setFields(fList);
+        }
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('measurementProfile.loadFailed'), 'error');
+      showToast(err instanceof Error ? err.message : 'Failed to load measurements', 'error');
     }
-  }, [applyTemplate, customerId, route.params?.clothType, route.params?.templateId, shop.id, showToast, t]);
+  }, [customerId, shop.id, showToast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -118,59 +69,49 @@ export default function MeasurementFormScreen({
   const handleSelectTemplate = async (templateId: string) => {
     setSelectedTemplateId(templateId);
     try {
-      const profile = await customerMeasurementsRepo.getByCustomer(customerId);
-      const clothTypes = extractClothTypes(profile, templates);
-      const tmpl = templates.find((t) => t.id === templateId);
-      const match = clothTypes.find(
-        (c) =>
-          c.templateId === templateId ||
-          (tmpl && c.clothType.toLowerCase() === tmpl.template_name.toLowerCase())
-      );
-      if (match && Object.keys(match.values).length > 0) {
-        const loadedVals = await applyTemplate(templateId, match.values);
-        setPrevious(loadedVals ?? {});
-      } else {
-        await applyTemplate(templateId, flattenValues(values));
-      }
+      const fList = await universalFieldsRepo.listForTemplate(templateId);
+      setFields(fList);
     } catch {
-      showToast(t('measurementProfile.templateLoadFailed'), 'error');
+      showToast('Could not load fields for template', 'error');
     }
   };
 
-  const handleValueChange = (sectionKey: string, fieldName: string, text: string) => {
+  const handleValueChange = (fieldName: string, text: string) => {
     // Digits plus a single decimal point, at most 3 decimal places (e.g. 10.000).
     const [whole, ...rest] = text.replace(/[^0-9.]/g, '').split('.');
     const numericOnly = rest.length > 0 ? `${whole}.${rest.join('').slice(0, 3)}` : whole;
     setValues((prev) => ({
       ...prev,
-      [sectionKey]: { ...prev[sectionKey], [fieldName]: numericOnly },
+      [fieldName]: numericOnly,
     }));
   };
 
   const handleSave = async () => {
     if (!selectedTemplateId) {
-      showToast(t('measurementProfile.selectTemplate'), 'error');
+      showToast('Please select a measurement template', 'error');
       return;
     }
 
-    const template = templates.find((t) => t.id === selectedTemplateId);
-    const templateName = template?.template_name || 'Standard';
-
     setSaving(true);
     try {
-      const numbers = buildMeasurementsJson(sections, values);
-      await saveCustomerClothMeasurement(
-        shop.id,
-        customerId,
-        selectedTemplateId,
-        templateName,
-        numbers
-      );
+      const numericMeasurements: Record<string, number> = {};
+      for (const [k, v] of Object.entries(values)) {
+        const parsed = parseFloat(v);
+        if (!isNaN(parsed)) {
+          numericMeasurements[k] = parsed;
+        }
+      }
 
-      showToast(t('measurementProfile.saved'), 'success');
+      await customerMeasurementsRepo.save(shop.id, {
+        customer_id: customerId,
+        template_id: selectedTemplateId,
+        measurements: numericMeasurements,
+      });
+
+      showToast('Measurement profile saved', 'success');
       navigation.goBack();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('measurementProfile.saveFailed'), 'error');
+      showToast(err instanceof Error ? err.message : 'Could not save measurements', 'error');
     } finally {
       setSaving(false);
     }
@@ -178,120 +119,92 @@ export default function MeasurementFormScreen({
 
   if (loading) {
     return (
-      <View className="flex-1 bg-bg">
-        <Header title={t('measurementProfile.title')} onBack={() => navigation.goBack()} />
-        <SkeletonList count={6} />
+      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
+        <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
+        <LoadingSpinner />
       </View>
     );
   }
 
-  const visibleSections = sections.filter((s) => s.fields.length > 0);
-  const hasFields = visibleSections.length > 0;
-  // Flat ordered key list, used to chain "next" between fields across sections.
-  const orderedKeys = visibleSections.flatMap((s) => s.fields.map((f) => `${s.key ?? FLAT_SECTION_KEY}::${f}`));
-
   return (
-    <View className="flex-1 bg-bg">
-      <Header title={t('measurementProfile.title')} onBack={() => navigation.goBack()} />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="bg-gray-50 dark:bg-gray-950"
+    >
+      <Header title="Customer Measurements" onBack={() => navigation.goBack()} />
 
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, gap: 16 }} keyboardShouldPersistTaps="handled">
-          <Section title={t('measurementProfile.whichTemplate')}>
-            <View className="flex-row flex-wrap gap-2">
-              {templates.map((tmpl) => (
-                <Chip
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 224, gap: 20 }}>
+        {/* Template Selector */}
+        <View className="gap-2">
+          <Text className="text-sm font-semibold text-gray-900 dark:text-white">
+            Which template?
+          </Text>
+
+          <View className="flex-row flex-wrap gap-2">
+            {templates.map((tmpl) => {
+              const active = tmpl.id === selectedTemplateId;
+              return (
+                <Pressable
                   key={tmpl.id}
-                  label={garmentNameLabel(tmpl.template_name)}
-                  selected={tmpl.id === selectedTemplateId}
                   onPress={() => handleSelectTemplate(tmpl.id)}
-                />
-              ))}
-            </View>
-          </Section>
+                  className={`rounded-xl border px-4 py-3 ${
+                    active
+                      ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
+                      : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-semibold ${
+                      active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {tmpl.template_name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
-          {selectedTemplateId ? (
-            !hasFields ? (
-              <Card className="items-center">
-                <Text variant="body" tone="muted">
-                  {t('measurementProfile.noFields')}
+        {/* Fields list */}
+        {selectedTemplateId && (
+          <View className="gap-3">
+            <Text className="text-sm font-semibold text-gray-900 dark:text-white">
+              Measurement Values (Numeric)
+            </Text>
+
+            {fields.length === 0 ? (
+              <Card className="p-4 items-center">
+                <Text className="text-sm text-gray-500">
+                  No fields defined for this template. Add fields in Settings → Universal Measurements.
                 </Text>
               </Card>
             ) : (
-              visibleSections.map((section) => {
-                const sectionKey = section.key ?? FLAT_SECTION_KEY;
-                const title = sectionTitle(section.key);
-                return (
-                  <Section key={sectionKey || 'flat'} title={title ?? t('measurementProfile.valuesHeader')}>
-                    {section.fields.map((field) => {
-                      const refKey = `${sectionKey}::${field}`;
-                      const idx = orderedKeys.indexOf(refKey);
-                      const nextKey = orderedKeys[idx + 1];
-                      const isLast = idx === orderedKeys.length - 1;
-                      const current = values[sectionKey]?.[field] ?? '';
-                      const last = previous[sectionKey]?.[field];
-                      const label = measurementFieldLabel(field);
-                      return (
-                        <View key={field} className="min-h-[64px] justify-center py-1">
-                          <View className="flex-row items-center">
-                            <Text variant="bodyLg" className="mr-2 flex-1" weight="regular">
-                              {label}
-                            </Text>
-                            <IconButton
-                              icon="minus"
-                              size="sm"
-                              accessibilityLabel={`${t('measurementProfile.decrease')}, ${label}`}
-                              onPress={() => {
-                                haptics.tap();
-                                handleValueChange(sectionKey, field, stepValue(current, -1));
-                              }}
-                            />
-                            <View className="mx-1.5 w-24">
-                              <InputField
-                                ref={(el) => {
-                                  inputRefs.current[refKey] = el;
-                                }}
-                                placeholder="0"
-                                keyboardType="decimal-pad"
-                                selectTextOnFocus
-                                returnKeyType={isLast ? 'done' : 'next'}
-                                onSubmitEditing={() => (nextKey ? inputRefs.current[nextKey]?.focus() : handleSave())}
-                                value={current}
-                                onChangeText={(text) => handleValueChange(sectionKey, field, text)}
-                                accessibilityLabel={label}
-                                compact
-                              />
-                            </View>
-                            <IconButton
-                              icon="plus"
-                              size="sm"
-                              accessibilityLabel={`${t('measurementProfile.increase')}, ${label}`}
-                              onPress={() => {
-                                haptics.tap();
-                                handleValueChange(sectionKey, field, stepValue(current, 1));
-                              }}
-                            />
-                          </View>
-                          {last ? (
-                            <Text variant="caption" tone="muted" weight="regular" tabular>
-                              {t('measurementProfile.last', { value: last })}
-                            </Text>
-                          ) : null}
-                        </View>
-                      );
-                    })}
-                  </Section>
-                );
-              })
-            )
-          ) : null}
-        </ScrollView>
+              <Card className="p-4 gap-3">
+                {fields.map((f) => (
+                  <View key={f.id} className="flex-row items-center justify-between">
+                    <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-1 mr-3">
+                      {f.field_name}
+                    </Text>
 
-        {selectedTemplateId ? (
-          <View style={{ paddingBottom: Math.max(insets.bottom, 12) }} className="border-t border-line bg-surface px-4 pt-3">
-            <Button title={t('measurementProfile.save')} size="lg" loading={saving} onPress={handleSave} />
+                    <View className="w-32">
+                      <InputField
+                        placeholder="0"
+                        keyboardType="decimal-pad"
+                        value={values[f.field_name] ?? ''}
+                        onChangeText={(text) => handleValueChange(f.field_name, text)}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            )}
+
+            <Button title="Save Measurements" loading={saving} onPress={handleSave} className="mt-4" />
           </View>
-        ) : null}
-      </KeyboardAvoidingView>
-    </View>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
