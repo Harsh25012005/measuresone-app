@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
+import type { TablerIcon } from './icons';
 import { DSPopup } from './Popup';
 
 export type ConfirmOptions = {
@@ -6,6 +7,8 @@ export type ConfirmOptions = {
   description?: string;
   confirmLabel: string;
   cancelLabel: string;
+  /** Replaces the default trash icon (e.g. a logout icon for sign-out). */
+  icon?: TablerIcon;
   /** Runs after the popup closes; throw to let the caller handle the failure. */
   onConfirm: () => void | Promise<void>;
 };
@@ -31,6 +34,7 @@ export function useConfirmDelete(): { confirm: (o: ConfirmOptions) => void; popu
       visible={open}
       onClose={() => setOpen(false)}
       tone="danger"
+      icon={o.icon}
       title={o.title}
       description={o.description}
       primaryLabel={o.confirmLabel}

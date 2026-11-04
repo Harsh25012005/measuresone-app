@@ -18,20 +18,16 @@ export const DEFAULT_NAV_ITEMS: DSNavItem[] = [
   { key: 'more', label: 'More', icon: IconLayoutGrid },
 ];
 
-type Box = { x: number; w: number };
-
 function NavTab({
   item,
   active,
   inactiveColor,
   onPress,
-  onLayout,
 }: {
   item: DSNavItem;
   active: boolean;
   inactiveColor: string;
   onPress: () => void;
-  onLayout: (e: LayoutChangeEvent) => void;
 }) {
   const pop = useSharedValue(active ? 1 : 0);
   useEffect(() => {
@@ -45,7 +41,6 @@ function NavTab({
   return (
     <Pressable
       onPress={onPress}
-      onLayout={onLayout}
       accessibilityRole="tab"
       accessibilityLabel={item.label}
       accessibilityState={{ selected: active }}
@@ -102,24 +97,25 @@ export function DSBottomNav({
 }: DSBottomNavProps) {
   const { colors, scheme } = useTheme();
   const dark = scheme === 'dark';
-  const [boxes, setBoxes] = useState<Record<string, Box>>({});
+  const [innerW, setInnerW] = useState(0);
   const x = useSharedValue(0);
   const w = useSharedValue(0);
   const ready = useSharedValue(0);
   const fab = useSharedValue(0);
 
-  const active = boxes[value];
+  const slot = items.length > 0 ? innerW / items.length : 0;
+  const index = Math.max(0, items.findIndex((it) => it.key === value));
   useEffect(() => {
-    if (!active) return;
+    if (slot <= 0) return;
     if (ready.value === 0) {
-      x.value = active.x;
-      w.value = active.w;
+      x.value = index * slot;
+      w.value = slot;
       ready.value = 1;
     } else {
-      x.value = withSpring(active.x, { damping: 20, stiffness: 260, mass: 0.8 });
-      w.value = withSpring(active.w, { damping: 20, stiffness: 260, mass: 0.8 });
+      x.value = withSpring(index * slot, { damping: 20, stiffness: 260, mass: 0.8 });
+      w.value = withSpring(slot, { damping: 20, stiffness: 260, mass: 0.8 });
     }
-  }, [active, x, w, ready]);
+  }, [index, slot, x, w, ready]);
 
   const thumb = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }],
@@ -129,11 +125,6 @@ export function DSBottomNav({
   const fabStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - 0.06 * fab.value }, { rotate: `${fab.value * 90}deg` }],
   }));
-
-  const onLayout = (key: string) => (e: LayoutChangeEvent) => {
-    const { x: lx, width } = e.nativeEvent.layout;
-    setBoxes((b) => (b[key]?.x === lx && b[key]?.w === width ? b : { ...b, [key]: { x: lx, w: width } }));
-  };
 
   return (
     <View style={styles.row}>
@@ -145,17 +136,18 @@ export function DSBottomNav({
         ]}
       >
         <Glass tint={dark ? 'dark' : 'light'} wash={dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.45)'} />
-        <Animated.View style={[styles.thumb, thumb]} />
-        {items.map((it) => (
-          <NavTab
-            key={it.key}
-            item={it}
-            active={it.key === value}
-            inactiveColor={colors.textPrimary}
-            onPress={() => onChange(it.key)}
-            onLayout={onLayout(it.key)}
-          />
-        ))}
+        <View style={{ flex: 1, flexDirection: 'row' }} onLayout={(e: LayoutChangeEvent) => setInnerW(e.nativeEvent.layout.width)}>
+          <Animated.View style={[styles.thumb, thumb]} />
+          {items.map((it) => (
+            <NavTab
+              key={it.key}
+              item={it}
+              active={it.key === value}
+              inactiveColor={colors.textPrimary}
+              onPress={() => onChange(it.key)}
+            />
+          ))}
+        </View>
       </View>
 
       {onFabPress ? (
@@ -195,7 +187,7 @@ const styles = StyleSheet.create({
     padding: 2,
     overflow: 'hidden',
   },
-  thumb: { position: 'absolute', top: 2, bottom: 2, left: 0, borderRadius: 9999, backgroundColor: primary[600] },
+  thumb: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRadius: 9999, backgroundColor: primary[600] },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 8 },
   fab: {
     width: 58,

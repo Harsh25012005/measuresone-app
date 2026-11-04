@@ -486,10 +486,10 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   const quantityField =
     !isEditing && garmentType === 'both' ? (
       <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <DSQuantity label={t('form.shirtQuantity')} value={shirtCountNum} onChange={(n) => setShirtCount(String(n))} />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <DSQuantity label={t('form.pantQuantity')} value={pantCountNum} onChange={(n) => setPantCount(String(n))} />
         </View>
       </View>

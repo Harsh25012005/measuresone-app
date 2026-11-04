@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, Header, InputField, RadioGroup, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSInput } from '../../components/ds/Input';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { DSTabs } from '../../components/ds/Tabs';
+import { useToast } from '../../components/ui';
 import { staffRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { typography } from '../../constants/tokens';
 import type { SettingsScreenProps } from '../../navigation/types';
 import type { WageType } from '../../types';
 
@@ -12,6 +18,7 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
   const staffId = route.params?.staffId;
   const shop = useShop();
   const showToast = useToast();
+  const { colors } = useTheme();
 
   const WAGE_TYPES: { label: string; value: WageType }[] = [
     { label: t('form.wageTypes.daily'), value: 'daily' },
@@ -81,79 +88,36 @@ export default function StaffFormScreen({ navigation, route }: SettingsScreenPro
   };
 
   return (
-    <>
-      <Header title={staffId ? t('form.titleEdit') : t('form.titleAdd')} onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView
-          className="flex-1 bg-white dark:bg-gray-950"
-          contentContainerStyle={{ padding: 20, paddingBottom: 224 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <InputField
-            label={t('form.nameLabel')}
-            value={name}
-            onChangeText={setName}
-            placeholder={t('form.namePlaceholder')}
-            error={error}
-            required
-          />
-          <InputField
-            label={t('form.phoneLabel')}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder={t('form.phonePlaceholder')}
-            keyboardType="phone-pad"
-          />
-          <View className="mb-4">
-            <Text className="mb-1.5 text-base font-semibold text-gray-600 dark:text-gray-400">
-              {t('form.wageTypeLabel')}
-            </Text>
-            <RadioGroup<WageType>
-              variant="cards"
-              direction="column"
-              value={wageType}
-              onChange={setWageType}
-              options={WAGE_TYPES}
-            />
-          </View>
-          {wageType === 'per_piece' ? (
-            <>
-              <InputField
-                label={t('form.amountPerPantLabel')}
-                value={wageAmountPant}
-                onChangeText={setWageAmountPant}
-                placeholder={t('form.amountPerPantPlaceholder')}
-                keyboardType="number-pad"
-              />
-              <InputField
-                label={t('form.amountPerShirtLabel')}
-                value={wageAmountShirt}
-                onChangeText={setWageAmountShirt}
-                placeholder={t('form.amountPerShirtPlaceholder')}
-                keyboardType="number-pad"
-              />
-            </>
-          ) : (
-            <InputField
-              label={t('form.wageAmountLabel')}
-              value={wageAmount}
-              onChangeText={setWageAmount}
-              placeholder={t('form.wageAmountPlaceholder')}
-              keyboardType="number-pad"
-            />
-          )}
-          <Button
-            title={staffId ? t('form.updateStaff') : t('form.saveStaff')}
-            size="lg"
-            onPress={handleSave}
-            loading={loading}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+    <DSFormScreen
+      title={staffId ? t('form.titleEdit') : t('form.titleAdd')}
+      onBack={() => navigation.goBack()}
+      footer={<DSButton title={staffId ? t('form.updateStaff') : t('form.saveStaff')} size="lg" fullWidth onPress={handleSave} loading={loading} />}
+    >
+      <DSInput
+        label={`${t('form.nameLabel')} *`}
+        value={name}
+        onChangeText={(v) => {
+          setName(v);
+          setError('');
+        }}
+        placeholder={t('form.namePlaceholder')}
+        error={error || undefined}
+      />
+      <DSInput label={t('form.phoneLabel')} value={phone} onChangeText={setPhone} placeholder={t('form.phonePlaceholder')} keyboardType="phone-pad" />
+
+      <View style={{ gap: 10 }}>
+        <Text style={{ fontFamily: typography.family.semibold, fontSize: 13, color: colors.textSecondary }}>{t('form.wageTypeLabel')}</Text>
+        <DSTabs variant="pill" value={wageType} onChange={(k) => setWageType(k as WageType)} items={WAGE_TYPES.map((w) => ({ key: w.value, label: w.label }))} />
+      </View>
+
+      {wageType === 'per_piece' ? (
+        <>
+          <DSInput label={t('form.amountPerPantLabel')} value={wageAmountPant} onChangeText={setWageAmountPant} placeholder={t('form.amountPerPantPlaceholder')} keyboardType="number-pad" />
+          <DSInput label={t('form.amountPerShirtLabel')} value={wageAmountShirt} onChangeText={setWageAmountShirt} placeholder={t('form.amountPerShirtPlaceholder')} keyboardType="number-pad" />
+        </>
+      ) : (
+        <DSInput label={t('form.wageAmountLabel')} value={wageAmount} onChangeText={setWageAmount} placeholder={t('form.wageAmountPlaceholder')} keyboardType="number-pad" />
+      )}
+    </DSFormScreen>
   );
 }

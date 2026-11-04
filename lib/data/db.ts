@@ -158,13 +158,58 @@ async function runColumnMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   }
 }
 
+async function ensureSchema(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.execAsync(SCHEMA_SQL);
+  await runColumnMigrations(db);
+}
+
+const HEALED_METHODS = new Set(['getAllAsync', 'getFirstAsync', 'runAsync', 'execAsync']);
+
+/**
+ * On web the database file can be reset underneath a running page (a second tab
+ * or a reload racing the first open), which surfaces as "no such table: orders"
+ * on every screen. When that happens, recreate the schema once and retry the
+ * statement instead of failing — the sync engine then refills the empty tables.
+ */
+function selfHealing(db: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
+  let healing: Promise<void> | null = null;
+  const heal = () => {
+    healing ??= ensureSchema(db).finally(() => {
+      healing = null;
+    });
+    return healing;
+  };
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      if (typeof prop === 'string' && HEALED_METHODS.has(prop)) {
+        return async (...args: unknown[]) => {
+          try {
+            return await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+          } catch (err) {
+            if (!/no such table/i.test(err instanceof Error ? err.message : String(err))) throw err;
+            await heal();
+            return (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+          }
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
-    dbPromise = SQLite.openDatabaseAsync('measuresone_offline.db').then(async (db) => {
+    dbPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync('measuresone_offline.db');
       await db.execAsync('PRAGMA journal_mode = WAL;');
-      await db.execAsync(SCHEMA_SQL);
-      await runColumnMigrations(db);
-      return db;
+      await ensureSchema(db);
+      return selfHealing(db);
+    })().catch((err) => {
+      // don't cache a failed open — the next call should try again
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;

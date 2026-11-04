@@ -53,6 +53,9 @@
     "defaultRole": "Staff",
     "noPhone": "No phone",
     "wageAmount": "Wage Amount",
+    "amountPerPant": "Price per pant",
+    "amountPerShirt": "Price per shirt",
+    "amountPerPair": "Price per pant + shirt",
     "editStaff": "Edit Staff",
     "performanceReport": "Performance Report",
     "thisMonth": "This month",
@@ -94,6 +97,8 @@
       "pant": "Pant",
       "shirt": "Shirt",
       "pant_shirt": "Pant + Shirt"
-    }
+    },
+    "shirtQuantity": "Shirt quantity",
+    "pantQuantity": "Pant quantity"
   }
 }

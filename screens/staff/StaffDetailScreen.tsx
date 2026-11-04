@@ -1,19 +1,29 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Avatar, Button, Card, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSAvatar } from '../../components/ds/Avatar';
+import { DSButton } from '../../components/ds/Button';
+import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconBrandWhatsapp, IconPencil, IconPhone, IconPlus, IconShirt, IconTrash } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { staffRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, status, typography } from '../../constants/tokens';
 import type { SettingsScreenProps } from '../../navigation/types';
 import type { Tables } from '../../lib/database.types';
 import type { Staff } from '../../types';
 
 type WorkEntry = Tables<'staff_work_entries'>;
+
+const f = typography.family;
 
 /** Sums up a work entry's earnings — quantity × the rate applied when it was logged. */
 function entryEarning(entry: WorkEntry): number {
@@ -32,6 +42,10 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
   const { staffId } = route.params;
   const showToast = useToast();
   const shop = useShop();
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
+  const border = dark ? '#262626' : colors.borderDefault;
+  const { confirm, popup } = useConfirmDelete();
 
   const WAGE_LABELS: Record<Staff['wage_type'], string> = {
     daily: t('wageUnit.daily'),
@@ -99,22 +113,21 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
 
   const handleDelete = () => {
     if (!staff) return;
-    Alert.alert(t('detail.deleteConfirmTitle'), t('detail.deleteConfirmMessage', { name: staff.name }), [
-      { text: t('detail.cancel'), style: 'cancel' },
-      {
-        text: t('detail.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await staffRepo.remove(staff.id, shop.id);
-            showToast(t('detail.deleteSuccess'), 'success');
-            navigation.goBack();
-          } catch (err) {
-            showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
-          }
-        },
+    confirm({
+      title: t('detail.deleteConfirmTitle'),
+      description: t('detail.deleteConfirmMessage', { name: staff.name }),
+      confirmLabel: t('detail.delete'),
+      cancelLabel: t('detail.cancel'),
+      onConfirm: async () => {
+        try {
+          await staffRepo.remove(staff.id, shop.id);
+          showToast(t('detail.deleteSuccess'), 'success');
+          navigation.goBack();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : t('detail.deleteFailed'), 'error');
+        }
       },
-    ]);
+    });
   };
 
   const handleSendReport = async () => {
@@ -136,185 +149,164 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
     }
   };
 
-  if (loading || !staff) return <LoadingSpinner fullScreen text={t('detail.loading')} />;
+  const card = [styles.card, { backgroundColor: colors.bgSurface, borderColor: border }];
+
+  const Line = ({ label, value, last, strong }: { label: string; value: string; last?: boolean; strong?: boolean }) => (
+    <View>
+      <View style={styles.line}>
+        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{label}</Text>
+        <Text style={{ fontFamily: strong ? f.bold : f.semibold, fontSize: 14, color: colors.textPrimary }}>{value}</Text>
+      </View>
+      {last ? null : <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />}
+    </View>
+  );
 
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header
-        title={staff.name}
-        onBack={() => navigation.goBack()}
-        right={
-          <View className="flex-row items-center">
-            <Pressable
-              onPress={() => navigation.navigate('StaffForm', { staffId: staff.id })}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="pen" size={15} color="#1D4ED8" />
-            </Pressable>
-            <Pressable
-              onPress={handleDelete}
-              hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-gray-800"
-            >
-              <FontAwesome5 name="trash-alt" size={15} color="#DC2626" />
-            </Pressable>
-          </View>
-        }
-      />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 16 }}>
-        <Card>
-          <View className="flex-row items-center">
-            <Avatar name={staff.name} size="lg" />
-            <View className="ml-4 flex-1">
-              <Text className="text-lg font-semibold text-[#101828] dark:text-gray-50">{staff.name}</Text>
-              <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">{staff.role ?? t('detail.defaultRole')}</Text>
-              {staff.phone ? (
-                <View className="mt-1 flex-row items-center">
-                  <FontAwesome5 name="phone-alt" size={11} color="#9CA3AF" />
-                  <Text className="font-sans ml-1.5 text-base text-gray-500 dark:text-gray-400">{staff.phone}</Text>
-                </View>
-              ) : (
-                <Text className="font-sans mt-1 text-base text-gray-400 dark:text-gray-500">{t('detail.noPhone')}</Text>
-              )}
+    <DSScreen
+      title={staff?.name ?? ''}
+      onBack={() => navigation.goBack()}
+      actions={
+        staff
+          ? [
+              { icon: IconPencil, label: t('detail.editStaff'), onPress: () => navigation.navigate('StaffForm', { staffId: staff.id }) },
+              { icon: IconTrash, label: t('detail.delete'), onPress: handleDelete },
+            ]
+          : []
+      }
+    >
+      {loading || !staff ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={4} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 20 }} showsVerticalScrollIndicator={false}>
+          {/* who this is */}
+          <Animated.View entering={FadeInDown.duration(300)} style={{ alignItems: 'center', gap: 10, paddingTop: 4 }}>
+            <DSAvatar name={staff.name} size="xl" />
+            <Text style={{ fontFamily: f.bold, fontSize: 24, lineHeight: 30, color: colors.textPrimary, textAlign: 'center' }} numberOfLines={2}>
+              {staff.name}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+              <View style={[styles.chip, { backgroundColor: colors.primaryTint }]}>
+                <Text style={{ fontFamily: f.bold, fontSize: 12, color: primary[600] }}>{staff.role ?? t('detail.defaultRole')}</Text>
+              </View>
+              <View style={[styles.chip, { backgroundColor: colors.bgSubtle }]}>
+                <IconPhone size={14} color={colors.textMuted} />
+                <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textSecondary }}>{staff.phone ?? t('detail.noPhone')}</Text>
+              </View>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* Per-piece staff have a rate per garment, not one flat wage —
-              showing the single `wage_amount` displayed ₹0 for them. */}
-          <View className="mt-4 gap-2">
+          {/* pay — per-piece staff have a rate per garment, not one flat wage */}
+          <Animated.View entering={FadeInDown.delay(60).duration(300)} style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
             {staff.wage_type === 'per_piece' ? (
               <>
-                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerPant')}</Text>
-                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
-                    {formatCurrency(staff.wage_amount_pant ?? 0)}
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerShirt')}</Text>
-                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
-                    {formatCurrency(staff.wage_amount_shirt ?? 0)}
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-                  <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.amountPerPair')}</Text>
-                  <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
-                    {formatCurrency(Number(staff.wage_amount_pant ?? 0) + Number(staff.wage_amount_shirt ?? 0))}
-                  </Text>
-                </View>
+                <Line label={t('detail.amountPerPant')} value={formatCurrency(staff.wage_amount_pant ?? 0)} />
+                <Line label={t('detail.amountPerShirt')} value={formatCurrency(staff.wage_amount_shirt ?? 0)} />
+                <Line
+                  label={t('detail.amountPerPair')}
+                  value={formatCurrency(Number(staff.wage_amount_pant ?? 0) + Number(staff.wage_amount_shirt ?? 0))}
+                  last
+                />
               </>
             ) : (
-              <View className="flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-                <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.wageAmount')}</Text>
-                <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
-                  {formatCurrency(staff.wage_amount)}
-                  <Text className="font-sans text-base text-gray-500 dark:text-gray-400">/{WAGE_LABELS[staff.wage_type]}</Text>
-                </Text>
-              </View>
+              <Line label={t('detail.wageAmount')} value={`${formatCurrency(staff.wage_amount)}/${WAGE_LABELS[staff.wage_type]}`} last />
             )}
-          </View>
-        </Card>
+          </Animated.View>
 
-        <Card>
-          <View className="mb-3 flex-row items-center">
-            <FontAwesome5 name="chart-line" size={13} color="#6B7280" />
-            <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('detail.performanceReport')}</Text>
-          </View>
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-md bg-emerald-50 p-3 dark:bg-emerald-950">
-              <Text className="font-sans text-base text-emerald-700 dark:text-emerald-400">{t('detail.thisMonth')}</Text>
-              <Text className="mt-1 text-lg font-bold text-emerald-800 dark:text-emerald-300">
-                {formatCurrency(thisMonthEarnings)}
-              </Text>
+          {/* earnings */}
+          <Animated.View entering={FadeInDown.delay(120).duration(300)} style={{ gap: 10 }}>
+            <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.performanceReport')}</Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={[card, { flex: 1, gap: 4, backgroundColor: dark ? '#0F2E1C' : status.success[50], borderColor: 'transparent' }]}>
+                <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textSecondary }}>{t('detail.thisMonth')}</Text>
+                <Text style={{ fontFamily: f.bold, fontSize: 20, color: status.success[600] }}>{formatCurrency(thisMonthEarnings)}</Text>
+              </View>
+              <View style={[card, { flex: 1, gap: 4 }]}>
+                <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textMuted }}>{t('detail.lastMonth')}</Text>
+                <Text style={{ fontFamily: f.bold, fontSize: 20, color: colors.textPrimary }}>{formatCurrency(lastMonthEarnings)}</Text>
+              </View>
             </View>
-            <View className="flex-1 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-              <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{t('detail.lastMonth')}</Text>
-              <Text className="mt-1 text-lg font-bold text-[#101828] dark:text-gray-50">
-                {formatCurrency(lastMonthEarnings)}
-              </Text>
+            <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+              <Line label={t('detail.allTimeEarnings')} value={formatCurrency(totalEarnings)} strong last />
             </View>
-          </View>
-          <View className="mt-2 flex-row items-center justify-between rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-            <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('detail.allTimeEarnings')}</Text>
-            <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(totalEarnings)}</Text>
-          </View>
+            <DSButton
+              title={t('detail.sendReport')}
+              variant="line"
+              size="rg"
+              fullWidth
+              leftIcon={IconBrandWhatsapp}
+              loading={sendingReport}
+              disabled={!staff.phone}
+              onPress={handleSendReport}
+            />
+          </Animated.View>
 
-          <Button
-            title={t('detail.sendReport')}
-            onPress={handleSendReport}
-            loading={sendingReport}
-            disabled={!staff.phone}
-            variant="secondary"
-            className="mt-4"
-          />
-        </Card>
-
-        {/* Work entries only make sense for per-piece staff — monthly/daily
-            staff are paid a fixed wage regardless of how much they stitch,
-            so there's nothing to log. */}
-        {staff.wage_type === 'per_piece' ? (
-          workEntries.length > 0 ? (
-            <View>
-              <View className="mb-2 flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <FontAwesome5 name="clipboard-list" size={13} color="#6B7280" />
-                  <Text className="ml-2 text-base font-semibold text-[#101828] dark:text-gray-50">{t('detail.workEntries')}</Text>
-                </View>
-                <Pressable onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })}>
-                  <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('detail.addWorkEntry')}</Text>
-                </Pressable>
+          {/* Work entries only make sense for per-piece staff — monthly/daily
+              staff are paid a fixed wage regardless of how much they stitch,
+              so there's nothing to log. */}
+          {staff.wage_type === 'per_piece' ? (
+            <Animated.View entering={FadeInDown.delay(180).duration(300)} style={{ gap: 10 }}>
+              <View style={styles.between}>
+                <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.workEntries')}</Text>
+                {workEntries.length > 0 ? (
+                  <DSButton title={t('detail.addWorkEntry')} variant="link" size="sm" onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })} />
+                ) : null}
               </View>
 
-              <Card>
-                <View className="mb-3 flex-row items-center justify-between rounded-md bg-emerald-50 p-3 dark:bg-emerald-950">
-                  <Text className="font-sans text-base font-medium text-emerald-800 dark:text-emerald-300">
-                    {t('detail.workTotal')}
-                  </Text>
-                  <Text className="text-base font-bold text-emerald-800 dark:text-emerald-300">
-                    {formatCurrency(
-                      workEntries.reduce((s, w) => s + Number(w.quantity) * Number(w.rate_applied), 0)
-                    )}
-                  </Text>
-                </View>
-
-                <View className="gap-3">
-                  {workEntries.map((w, index) => (
-                    <View
-                      key={w.id}
-                      className={`flex-row items-center ${
-                        index < workEntries.length - 1 ? 'border-b border-gray-100 pb-3 dark:border-gray-800' : ''
-                      }`}
-                    >
-                      <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
-                        <FontAwesome5 name="tshirt" size={14} color="#1D4ED8" />
+              {workEntries.length > 0 ? (
+                <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
+                  <View style={[styles.line, { backgroundColor: dark ? '#0F2E1C' : status.success[50] }]}>
+                    <Text style={{ fontFamily: f.medium, fontSize: 14, color: colors.textSecondary }}>{t('detail.workTotal')}</Text>
+                    <Text style={{ fontFamily: f.bold, fontSize: 15, color: status.success[600] }}>{formatCurrency(totalEarnings)}</Text>
+                  </View>
+                  {workEntries.map((w, i) => (
+                    <View key={w.id}>
+                      <View style={[styles.line, { gap: 12 }]}>
+                        <View style={[styles.dot, { backgroundColor: colors.primaryTint }]}>
+                          <IconShirt size={18} color={primary[600]} strokeWidth={2} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>
+                            {WORK_TYPE_LABELS[w.work_type]} × {w.quantity}
+                          </Text>
+                          <Text style={{ fontFamily: f.regular, fontSize: 12, color: colors.textMuted }}>
+                            {formatDate(w.work_date)} · {formatCurrency(w.rate_applied)}
+                            {t('detail.perPieceSuffix')}
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: f.bold, fontSize: 15, color: colors.textPrimary }}>{formatCurrency(entryEarning(w))}</Text>
                       </View>
-                      <View className="ml-3 flex-1">
-                        <Text className="text-base font-semibold text-[#101828] dark:text-gray-50">
-                          {WORK_TYPE_LABELS[w.work_type]} × {w.quantity}
-                        </Text>
-                        <Text className="font-sans mt-0.5 text-base text-gray-500 dark:text-gray-400">
-                          {formatDate(w.work_date)} · {formatCurrency(w.rate_applied)}
-                          {t('detail.perPieceSuffix')}
-                        </Text>
-                      </View>
-                      <Text className="text-base font-bold text-[#101828] dark:text-gray-50">
-                        {formatCurrency(Number(w.quantity) * Number(w.rate_applied))}
-                      </Text>
+                      {i === workEntries.length - 1 ? null : (
+                        <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />
+                      )}
                     </View>
                   ))}
                 </View>
-              </Card>
-            </View>
-          ) : (
-            <Button
-              title={t('detail.addWorkEntry')}
-              onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })}
-              variant="secondary"
-            />
-          )
-        ) : null}
-      </ScrollView>
-    </View>
+              ) : (
+                <DSButton
+                  title={t('detail.addWorkEntry')}
+                  variant="line"
+                  size="rg"
+                  fullWidth
+                  leftIcon={IconPlus}
+                  onPress={() => navigation.navigate('StaffWorkEntryForm', { staffId: staff.id })}
+                />
+              )}
+            </Animated.View>
+          ) : null}
+        </ScrollView>
+      )}
+      {popup}
+    </DSScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 24, padding: 16 },
+  list: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  line: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 9999 },
+  dot: { width: 38, height: 38, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

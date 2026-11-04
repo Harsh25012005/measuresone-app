@@ -60,7 +60,30 @@
     "deleteSuccess": "Template deleted",
     "fieldsHeader": "Fields in Template",
     "noFieldsTitle": "No fields in template",
-    "noFieldsDesc": "Tap 'Auto Suggest Fields' or add fields manually below."
+    "noFieldsDesc": "Tap 'Auto Suggest Fields' or add fields manually below.",
+    "standard": "Standard",
+    "custom": "Custom",
+    "field": "field",
+    "fields": "fields",
+    "examples": "Examples: Blazer, Kurta, Safari Suit, Jacket, Sherwani, Lehenga, etc.",
+    "createError": "Could not create template",
+    "notFound": "Template not found",
+    "suggested": "Fields suggested automatically",
+    "suggestError": "Could not suggest fields",
+    "fieldExists": "Field already exists in template",
+    "fieldAdded": "Field added",
+    "fieldAddError": "Could not add field",
+    "fieldRemoved": "Field removed",
+    "fieldRemoveError": "Could not remove field",
+    "renameError": "Could not rename field",
+    "deleteError": "Could not delete template",
+    "addFieldButton": "Add",
+    "templateTitle": "Template",
+    "delete": "Delete",
+    "cancelShort": "Cancel",
+    "removeFieldTitle": "Remove this field?",
+    "removeFieldMessage": "Many clients may already have a \"{{name}}\" measurement saved. Removing it stops it showing in the measurement form for this template. This cannot be undone.",
+    "remove": "Remove"
   },
   "customMeasurementFields": {
     "menuTitle": "Custom Measurement Fields",
@@ -119,5 +142,26 @@
         "description": "Log the pieces a staff member finished so their piece-rate pay is always up to date."
       }
     }
+  },
+  "account": "Account",
+  "preferences": "Preferences",
+  "session": "Session",
+  "version": "MeasuresOne v{{version}}",
+  "security": {
+    "title": "Security",
+    "signedInAs": "Signed in as",
+    "changePassword": "Change password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "updatePassword": "Update password",
+    "session": "Session",
+    "sessionHint": "Signing out ends this session on this device. You can sign back in with your email and password.",
+    "errorPasswordRequired": "Enter a new password",
+    "errorPasswordLength": "Use at least 6 characters",
+    "errorMismatch": "Passwords do not match",
+    "passwordUpdated": "Password updated",
+    "passwordError": "Could not update password",
+    "menu": "Security",
+    "menuHint": "Password and sign out"
   }
 }

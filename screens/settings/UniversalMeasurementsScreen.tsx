@@ -1,10 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
-import { Button, CenterModal, EmptyState, Header, InputField, LoadingSpinner, useToast } from '../../components/ui';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSInput } from '../../components/ds/Input';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen } from '../../components/ds/Screen';
+import { IconChevronRight, IconPlus, IconRuler2, IconShirt } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, typography } from '../../constants/tokens';
 import { universalTemplatesRepo, universalFieldsRepo } from '../../lib/data/repository';
 import { getAutoSuggestedFields } from '../../lib/autoSuggestFields';
 import type { SettingsScreenProps } from '../../navigation/types';
@@ -12,29 +20,20 @@ import type { Tables } from '../../lib/database.types';
 
 type Template = Tables<'universal_measurement_templates'>;
 
-const DEFAULT_TEMPLATES = [
-  { name: 'Shirt', icon: 'tshirt' },
-  { name: 'Pant', icon: 'user-alt' },
-  { name: 'Shirt + Pant', icon: 'user-tie' },
-];
+const f = typography.family;
 
-function iconForTemplate(name: string): React.ComponentProps<typeof FontAwesome5>['name'] {
-  const lower = name.toLowerCase();
-  if (lower.includes('shirt') && lower.includes('pant')) return 'user-tie';
-  if (lower.includes('shirt')) return 'tshirt';
-  if (lower.includes('pant')) return 'user-alt';
-  return 'cut';
-}
+const DEFAULT_TEMPLATES = ['Shirt', 'Pant', 'Shirt + Pant'];
 
 export default function UniversalMeasurementsScreen({ navigation }: SettingsScreenProps<'UniversalMeasurements'>) {
   const { t } = useTranslation('settings');
   const shop = useShop();
   const showToast = useToast();
+  const { colors } = useTheme();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [fieldCounts, setFieldCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);
   const [customName, setCustomName] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -45,15 +44,15 @@ export default function UniversalMeasurementsScreen({ navigation }: SettingsScre
       // Initialize default templates if shop has no templates yet
       if (data.length === 0) {
         let order = 0;
-        for (const tmpl of DEFAULT_TEMPLATES) {
+        for (const name of DEFAULT_TEMPLATES) {
           const created = await universalTemplatesRepo.create({
             shop_id: shop.id,
-            template_name: tmpl.name,
+            template_name: name,
             sort_order: order++,
           });
 
           // Seed default auto-suggested fields
-          const suggested = getAutoSuggestedFields(tmpl.name);
+          const suggested = getAutoSuggestedFields(name);
           await universalFieldsRepo.replaceFields(
             created.id,
             shop.id,
@@ -91,7 +90,7 @@ export default function UniversalMeasurementsScreen({ navigation }: SettingsScre
 
     setCreating(true);
     try {
-      const nextSortOrder = templates.length > 0 ? Math.max(...templates.map((t) => t.sort_order)) + 1 : 0;
+      const nextSortOrder = templates.length > 0 ? Math.max(...templates.map((tm) => tm.sort_order)) + 1 : 0;
       const created = await universalTemplatesRepo.create({
         shop_id: shop.id,
         template_name: name,
@@ -109,110 +108,93 @@ export default function UniversalMeasurementsScreen({ navigation }: SettingsScre
       }
 
       setCustomName('');
-      setShowModal(false);
+      setShowSheet(false);
       showToast(t('universalMeasurements.saveSuccess'), 'success');
 
       // Navigate to detail to customize
       navigation.navigate('UniversalTemplateDetail', { templateId: created.id });
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to create template', 'error');
+      showToast(err instanceof Error ? err.message : t('universalMeasurements.createError'), 'error');
     } finally {
       setCreating(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-        <Header title={t('universalMeasurements.title')} onBack={() => navigation.goBack()} />
-        <LoadingSpinner />
-      </View>
-    );
-  }
-
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-gray-950">
-      <Header title={t('universalMeasurements.title')} onBack={() => navigation.goBack()} />
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 224, gap: 12 }}>
-        {templates.length === 0 ? (
-          <EmptyState
-            icon="ruler-combined"
-            title={t('universalMeasurements.title')}
-            description={t('universalMeasurements.templatesSubtitle')}
-          />
-        ) : (
-          <View className="overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-            {templates.map((template, idx) => {
-              const isStandard = DEFAULT_TEMPLATES.some(
-                (d) => d.name.toLowerCase() === template.template_name.toLowerCase()
-              );
+    <DSScreen
+      title={t('universalMeasurements.title')}
+      onBack={() => navigation.goBack()}
+      actions={[{ icon: IconPlus, label: t('universalMeasurements.addTemplate'), onPress: () => setShowSheet(true) }]}
+    >
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={4} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ paddingTop: 8, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+          {templates.length === 0 ? (
+            <DSEmptyState icon={IconRuler2} title={t('universalMeasurements.title')} description={t('universalMeasurements.templatesSubtitle')} />
+          ) : (
+            templates.map((template, idx) => {
+              const isStandard = DEFAULT_TEMPLATES.some((d) => d.toLowerCase() === template.template_name.toLowerCase());
               const count = fieldCounts[template.id] ?? 0;
-
               return (
-                <Pressable
-                  key={template.id}
-                  onPress={() => navigation.navigate('UniversalTemplateDetail', { templateId: template.id })}
-                  className={`flex-row items-center justify-between px-4 py-3 active:bg-gray-50 dark:active:bg-gray-800 ${
-                    idx > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''
-                  }`}
-                >
-                  <View className="flex-row items-center gap-3 flex-1">
-                    <FontAwesome5 name={iconForTemplate(template.template_name)} size={14} color="#4F46E5" />
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium text-gray-900 dark:text-white" numberOfLines={1}>
+                <Animated.View key={template.id} entering={FadeInDown.delay(Math.min(idx, 8) * 45).duration(260)}>
+                  <Pressable
+                    onPress={() => navigation.navigate('UniversalTemplateDetail', { templateId: template.id })}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.bgSubtle : 'transparent' }]}
+                  >
+                    <View style={[styles.icon, { backgroundColor: colors.primaryTint }]}>
+                      {template.template_name.toLowerCase().includes('shirt') ? (
+                        <IconShirt size={20} color={primary[600]} strokeWidth={2} />
+                      ) : (
+                        <IconRuler2 size={20} color={primary[600]} strokeWidth={2} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }} numberOfLines={1}>
                         {template.template_name}
                       </Text>
-                      <Text className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {isStandard ? 'Standard' : 'Custom'} · {count} {count === 1 ? 'field' : 'fields'}
+                      <Text style={{ fontFamily: f.regular, fontSize: 12, color: colors.textMuted }}>
+                        {isStandard ? t('universalMeasurements.standard') : t('universalMeasurements.custom')} · {count}{' '}
+                        {count === 1 ? t('universalMeasurements.field') : t('universalMeasurements.fields')}
                       </Text>
                     </View>
-                  </View>
-
-                  <FontAwesome5 name="chevron-right" size={12} color="#D1D5DB" />
-                </Pressable>
+                    <IconChevronRight size={16} color={colors.textFaint} />
+                  </Pressable>
+                  {idx === templates.length - 1 ? null : (
+                    <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 20, backgroundColor: colors.borderSubtle }} />
+                  )}
+                </Animated.View>
               );
-            })}
-          </View>
-        )}
+            })
+          )}
+        </ScrollView>
+      )}
 
-        <Pressable
-          onPress={() => setShowModal(true)}
-          className="flex-row items-center justify-center gap-2 py-3 active:opacity-60"
-        >
-          <FontAwesome5 name="plus" size={12} color="#4F46E5" />
-          <Text className="text-sm font-semibold text-primary-600 dark:text-primary-400">
-            {t('universalMeasurements.addTemplate')}
-          </Text>
-        </Pressable>
-      </ScrollView>
-
-      {/* Custom Template Modal */}
-      <CenterModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
+      <DSBottomSheet
+        visible={showSheet}
+        onClose={() => setShowSheet(false)}
         title={t('universalMeasurements.createModalTitle')}
+        actionLabel={t('universalMeasurements.create')}
+        onAction={handleCreateCustom}
       >
-        <Text className="text-xs text-gray-500 dark:text-gray-400 -mt-1 mb-4">
-          Examples: Blazer, Kurta, Safari Suit, Jacket, Sherwani, Lehenga, etc.
-        </Text>
-
-        <InputField
-          label={t('universalMeasurements.templateNameLabel')}
-          placeholder={t('universalMeasurements.templateNamePlaceholder')}
-          value={customName}
-          onChangeText={setCustomName}
-        />
-
-        <View className="mt-2 flex-row gap-3">
-          <View className="flex-1">
-            <Button title={t('universalMeasurements.cancel')} variant="secondary" onPress={() => setShowModal(false)} />
-          </View>
-          <View className="flex-1">
-            <Button title={t('universalMeasurements.create')} loading={creating} onPress={handleCreateCustom} />
-          </View>
+        <View style={{ gap: 14, paddingTop: 12, paddingBottom: 12 }}>
+          <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{t('universalMeasurements.examples')}</Text>
+          <DSInput
+            label={t('universalMeasurements.templateNameLabel')}
+            placeholder={t('universalMeasurements.templateNamePlaceholder')}
+            value={customName}
+            onChangeText={setCustomName}
+          />
         </View>
-      </CenterModal>
-    </View>
+      </DSBottomSheet>
+    </DSScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 14 },
+  icon: { width: 44, height: 44, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

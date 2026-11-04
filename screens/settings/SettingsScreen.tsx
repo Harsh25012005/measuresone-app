@@ -1,16 +1,38 @@
-import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
-import type { ReactNode } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '../../components/ds/legacyIcons';
+import { memo, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Card, useToast } from '../../components/ui';
+import { DSAvatar } from '../../components/ds/Avatar';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSScreen } from '../../components/ds/Screen';
+import { DSRadioGroup } from '../../components/ds/Selection';
+import {
+  IconBuildingStore,
+  IconChartBar,
+  IconChevronRight,
+  IconCompass,
+  IconLanguage,
+  IconMail,
+  IconPalette,
+  IconReceipt,
+  IconRuler2,
+  IconShieldLock,
+  IconUsers,
+  IconWand,
+  type TablerIcon,
+} from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useProductTour } from '../../context/ProductTourContext';
 import { useTheme } from '../../context/ThemeContext';
 import { haptics } from '../../lib/haptics';
 import { setAppLanguage, SUPPORTED_LANGUAGES, type AppLanguage } from '../../lib/i18n';
 import { THEME_MODES, type ThemeMode } from '../../lib/theme';
+import { primary, status, typography } from '../../constants/tokens';
 import type { SettingsScreenProps } from '../../navigation/types';
+
+const f = typography.family;
 
 const LANGUAGE_LABEL_KEY: Record<AppLanguage, string> = {
   en: 'language.english',
@@ -24,17 +46,83 @@ const THEME_LABEL_KEY: Record<ThemeMode, string> = {
   system: 'themeSystem',
 };
 
+type Kind = 'blue' | 'green' | 'purple' | 'amber';
+
+/*
+ * Row and Group live at module level on purpose. When they were declared inside
+ * the screen, every state change (opening the Appearance or Language sheet) made
+ * React treat them as brand-new components, remounting the whole list and
+ * replaying its entrance animation — the page looked like it refreshed.
+ */
+const Row = memo(function Row({
+  icon: Icon,
+  kind,
+  label,
+  value,
+  onPress,
+  last,
+}: {
+  icon: TablerIcon;
+  kind: Kind;
+  label: string;
+  value?: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  const { colors, scheme } = useTheme();
+  const dark = scheme === 'dark';
+  const tone = {
+    blue: { tint: colors.primaryTint, fg: primary[600] },
+    green: { tint: dark ? '#0F2E1C' : status.success[100], fg: status.success[600] },
+    purple: { tint: dark ? '#2A1A4A' : '#EDE9FE', fg: '#7C3AED' },
+    amber: { tint: dark ? '#33240A' : status.warning[100], fg: status.warning[600] },
+  }[kind];
+  return (
+    <View>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.bgSubtle : 'transparent' }]}
+      >
+        <View style={[styles.rowIcon, { backgroundColor: tone.tint }]}>
+          <Icon size={18} color={tone.fg} strokeWidth={2} />
+        </View>
+        <Text style={{ flex: 1, fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>{label}</Text>
+        {value ? <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textMuted }}>{value}</Text> : null}
+        <IconChevronRight size={16} color={colors.textFaint} />
+      </Pressable>
+      {last ? null : <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 70, backgroundColor: colors.borderSubtle }} />}
+    </View>
+  );
+});
+
+const Group = memo(function Group({ title, children, delay }: { title: string; children: React.ReactNode; delay: number }) {
+  const { colors, scheme } = useTheme();
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).duration(300)} style={{ gap: 8 }}>
+      <Text style={{ fontFamily: f.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textMuted, paddingHorizontal: 4 }}>
+        {title}
+      </Text>
+      <View style={[styles.group, { backgroundColor: colors.bgSurface, borderColor: scheme === 'dark' ? '#262626' : colors.borderDefault }]}>
+        {children}
+      </View>
+    </Animated.View>
+  );
+});
+
 export default function SettingsScreen({ navigation }: SettingsScreenProps<'SettingsHome'>) {
-  const { shop, user, signOut } = useAuth();
+  const { shop, user } = useAuth();
   const { start: startTour } = useProductTour();
-  const { mode, setMode } = useTheme();
+  const { mode, setMode, colors } = useTheme();
   const showToast = useToast();
-  const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation(['settings', 'common']);
   const currentLanguage = (i18n.language as AppLanguage) || 'en';
+  const [sheet, setSheet] = useState<'theme' | 'language' | null>(null);
+  const version = Constants.expoConfig?.version;
 
   const changeLanguage = async (language: AppLanguage) => {
     haptics.tap();
+    setSheet(null);
     try {
       await setAppLanguage(language);
     } catch {
@@ -44,236 +132,97 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps<'Sett
 
   const changeTheme = (next: ThemeMode) => {
     haptics.tap();
+    setSheet(null);
     void setMode(next);
   };
 
-  const confirmSignOut = () => {
-    haptics.warning();
-    Alert.alert(t('signOutConfirmTitle'), t('signOutConfirmMessage'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('signOut'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch (err) {
-            showToast(err instanceof Error ? err.message : t('errorSignOut'), 'error');
-          }
-        },
-      },
-    ]);
-  };
-
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50 dark:bg-gray-950"
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 8, paddingBottom: 224, gap: 20 }}
-    >
-      <View className="py-2">
-        <Text className="text-[18px] font-semibold text-[#101828] dark:text-gray-50">{t('title')}</Text>
-      </View>
-
-      {/* Profile hero card */}
-      <View className="items-center rounded-xl bg-[#101828] px-5 py-7 dark:border dark:border-gray-700">
-        <Pressable
-          onPress={() => navigation.navigate('ShopEdit')}
-          hitSlop={8}
-          className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full bg-white/10 active:bg-white/20"
-        >
-          <FontAwesome5 name="pen" size={13} color="#FFFFFF" />
-        </Pressable>
-        {shop?.logo_url ? (
-          <Image
-            source={{ uri: shop.logo_url }}
-            className="h-20 w-20 rounded-full border-2 border-white/20"
-          />
-        ) : (
-          <Avatar name={shop?.shop_name} size="lg" />
-        )}
-        <Text className="mt-3 text-lg font-semibold text-white">{shop?.shop_name}</Text>
-        {shop?.owner_name ? (
-          <View className="mt-1.5 flex-row items-center gap-1.5 rounded-full bg-white/10 px-3 py-1">
-            <FontAwesome5 name="user" size={10} color="#98A2B3" />
-            <Text className="font-sans text-base font-medium text-[#D0D5DD]">{shop.owner_name}</Text>
+    <DSScreen title={t('title')}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 22 }} showsVerticalScrollIndicator={false}>
+        {/* who is signed in stays at the top, centred */}
+        <Animated.View entering={FadeInDown.duration(300)} style={styles.identity}>
+          {shop?.logo_url ? (
+            <Image source={{ uri: shop.logo_url }} style={styles.logo} />
+          ) : (
+            <DSAvatar name={shop?.shop_name ?? ''} size="xl" />
+          )}
+          <Text style={{ fontFamily: f.bold, fontSize: 24, lineHeight: 30, color: colors.textPrimary, textAlign: 'center' }} numberOfLines={2}>
+            {shop?.shop_name}
+          </Text>
+          <View style={[styles.chip, { backgroundColor: colors.bgSubtle, maxWidth: '100%' }]}>
+            <IconMail size={14} color={colors.textMuted} />
+            <Text style={{ fontFamily: f.medium, fontSize: 13, color: colors.textSecondary, flexShrink: 1 }} numberOfLines={1}>
+              {user?.email}
+            </Text>
           </View>
+        </Animated.View>
+
+        <Group title={t('account')} delay={0}>
+          <Row icon={IconBuildingStore} kind="blue" label={t('editShopProfile')} onPress={() => navigation.navigate('ShopEdit')} />
+          <Row icon={IconShieldLock} kind="green" label={t('security.menu')} onPress={() => navigation.navigate('Security')} last />
+        </Group>
+
+        <Group title={t('business')} delay={50}>
+          <Row icon={IconReceipt} kind="amber" label={t('billingAndPayments')} onPress={() => navigation.navigate('Billing')} />
+          <Row icon={IconChartBar} kind="green" label={t('revenue:menuTitle')} onPress={() => navigation.navigate('Revenue')} />
+          <Row icon={IconUsers} kind="purple" label={t('staffManagement')} onPress={() => navigation.navigate('Staff')} />
+          <Row icon={IconRuler2} kind="blue" label={t('universalMeasurements.menuTitle')} onPress={() => navigation.navigate('UniversalMeasurements')} last />
+        </Group>
+
+        <Group title={t('preferences')} delay={100}>
+          <Row icon={IconPalette} kind="purple" label={t('appearance')} value={t(THEME_LABEL_KEY[mode])} onPress={() => setSheet('theme')} />
+          <Row icon={IconLanguage} kind="green" label={t('common:language.title')} value={t(`common:${LANGUAGE_LABEL_KEY[currentLanguage]}`)} onPress={() => setSheet('language')} last />
+        </Group>
+
+        <Group title={t('help')} delay={150}>
+          <Row icon={IconCompass} kind="green" label={t('howToUse')} onPress={startTour} last={!__DEV__} />
+          {/* Dev-only shortcut to the redesign's component reference page */}
+          {__DEV__ ? (
+            <Row
+              icon={IconWand}
+              kind="blue"
+              label="Design system"
+              onPress={() => (navigation as unknown as { navigate: (name: string) => void }).navigate('DesignSystem')}
+              last
+            />
+          ) : null}
+        </Group>
+
+        {version ? (
+          <Text style={{ fontFamily: f.regular, fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
+            {t('version', { version })}
+          </Text>
         ) : null}
-        <Text className="font-sans mt-2 text-base text-[#667085]">{user?.email}</Text>
-      </View>
+      </ScrollView>
 
-      {/* Business section */}
-      <SectionCard title={t('business')}>
-        <MenuRow
-          icon="chart-line"
-          iconBg="bg-emerald-50 dark:bg-emerald-950"
-          iconColor="#047857"
-          label={t('revenue:menuTitle')}
-          onPress={() => navigation.navigate('Revenue')}
-        />
-        <MenuRow
-          icon="user-friends"
-          iconBg="bg-purple-50 dark:bg-purple-950"
-          iconColor="#7C3AED"
-          label={t('staffManagement')}
-          onPress={() => navigation.navigate('Staff')}
-        />
-        <MenuRow
-          icon="ruler-combined"
-          iconBg="bg-blue-50 dark:bg-blue-950"
-          iconColor="#1D4ED8"
-          label={t('universalMeasurements.menuTitle')}
-          onPress={() => navigation.navigate('UniversalMeasurements')}
-          isLast
-        />
-      </SectionCard>
-
-      {/* Dev-only shortcut to the redesign's component reference page */}
-      {__DEV__ ? (
-        <SectionCard title="Developer">
-          <MenuRow
-            icon="magic"
-            iconBg="bg-blue-50 dark:bg-blue-950"
-            iconColor="#2563EB"
-            label="Design system"
-            onPress={() => (navigation as unknown as { navigate: (name: string) => void }).navigate('DesignSystem')}
-            isLast
+      <DSBottomSheet visible={sheet === 'theme'} onClose={() => setSheet(null)} title={t('appearance')}>
+        <View style={{ paddingTop: 12, paddingBottom: 16 }}>
+          <DSRadioGroup
+            value={mode}
+            onChange={(v) => changeTheme(v as ThemeMode)}
+            options={THEME_MODES.map((m) => ({ value: m, label: t(THEME_LABEL_KEY[m]) }))}
           />
-        </SectionCard>
-      ) : null}
-
-      {/* Appearance section */}
-      <SectionCard title={t('appearance')}>
-        <View className="flex-row gap-2 py-3">
-          {THEME_MODES.map((themeMode) => {
-            const active = themeMode === mode;
-            return (
-              <Pressable
-                key={themeMode}
-                onPress={() => changeTheme(themeMode)}
-                className={`flex-1 items-center rounded-md border py-2.5 ${
-                  active
-                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
-                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
-                }`}
-              >
-                <Text
-                  className={`font-sans text-base font-medium ${
-                    active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  {t(THEME_LABEL_KEY[themeMode])}
-                </Text>
-              </Pressable>
-            );
-          })}
         </View>
-      </SectionCard>
+      </DSBottomSheet>
 
-      {/* Language section */}
-      <SectionCard title={t('common:language.title')}>
-        <View className="flex-row gap-2 py-3">
-          {SUPPORTED_LANGUAGES.map((lang) => {
-            const active = lang === currentLanguage;
-            return (
-              <Pressable
-                key={lang}
-                onPress={() => changeLanguage(lang)}
-                className={`flex-1 items-center rounded-md border py-2.5 ${
-                  active
-                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-950'
-                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
-                }`}
-              >
-                <Text
-                  className={`font-sans text-base font-medium ${
-                    active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  {t(`common:${LANGUAGE_LABEL_KEY[lang]}`)}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <DSBottomSheet visible={sheet === 'language'} onClose={() => setSheet(null)} title={t('common:language.title')}>
+        <View style={{ paddingTop: 12, paddingBottom: 16 }}>
+          <DSRadioGroup
+            value={currentLanguage}
+            onChange={(v) => void changeLanguage(v as AppLanguage)}
+            options={SUPPORTED_LANGUAGES.map((l) => ({ value: l, label: t(`common:${LANGUAGE_LABEL_KEY[l]}`) }))}
+          />
         </View>
-      </SectionCard>
-
-      {/* Help section */}
-      <SectionCard title={t('help')}>
-        <MenuRow
-          icon="compass"
-          iconBg="bg-emerald-50 dark:bg-emerald-950"
-          iconColor="#047857"
-          label={t('howToUse')}
-          onPress={startTour}
-          isLast
-        />
-      </SectionCard>
-
-      <Pressable
-        onPress={confirmSignOut}
-        className="flex-row items-center justify-center rounded-md border border-red-100 bg-red-50 py-3.5 active:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:active:bg-red-900"
-      >
-        <FontAwesome5 name="sign-out-alt" size={14} color="#DC2626" />
-        <Text className="ml-2 text-base font-semibold text-danger">{t('signOut')}</Text>
-      </Pressable>
-    </ScrollView>
+      </DSBottomSheet>
+    </DSScreen>
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View>
-      <Text className="mb-2 px-1 text-base font-semibold text-gray-500 dark:text-gray-400">
-        {title}
-      </Text>
-      <Card>{children}</Card>
-    </View>
-  );
-}
-
-function MenuRow({
-  icon,
-  iconBg = 'bg-gray-100 dark:bg-gray-800',
-  iconColor = '#6B7280',
-  label,
-  value,
-  onPress,
-  isLast = false,
-}: {
-  icon: React.ComponentProps<typeof FontAwesome5>['name'];
-  iconBg?: string;
-  iconColor?: string;
-  label: string;
-  value?: string;
-  onPress?: () => void;
-  isLast?: boolean;
-}) {
-  const className = `flex-row items-center justify-between py-3.5 ${
-    isLast ? '' : 'border-b border-gray-100 dark:border-gray-800'
-  }`;
-
-  const content: ReactNode = (
-    <>
-      <View className="flex-row items-center">
-        <View className={`h-9 w-9 items-center justify-center rounded-md ${iconBg}`}>
-          <FontAwesome5 name={icon} size={14} color={iconColor} />
-        </View>
-        <Text className="font-sans ml-3 text-base font-medium text-gray-800 dark:text-gray-200">{label}</Text>
-      </View>
-      {value ? (
-        <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{value}</Text>
-      ) : onPress ? (
-        <FontAwesome5 name="chevron-right" size={12} color="#9CA3AF" />
-      ) : null}
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} className={className}>
-        {content}
-      </Pressable>
-    );
-  }
-  return <View className={className}>{content}</View>;
-}
+const styles = StyleSheet.create({
+  identity: { alignItems: 'center', gap: 12, paddingTop: 4 },
+  logo: { width: 80, height: 80, borderRadius: 9999 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 9999 },
+  group: { borderWidth: 1, borderRadius: 24, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  rowIcon: { width: 40, height: 40, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
+});

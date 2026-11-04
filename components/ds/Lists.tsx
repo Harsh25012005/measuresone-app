@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors as legacyColors, darkColors } from '../../constants/theme';
 import { primary, radii, status, typography } from '../../constants/tokens';
 import type { PaymentStatus } from '../../types';
+import { DSAvatar } from './Avatar';
 import { DSBadge, useBadgeTones } from './Badge';
 import { IconBolt, IconCalendarEvent, IconChevronRight } from './icons';
 
@@ -205,6 +206,34 @@ export function DSBillList({ items, onPressItem, edge }: { items: BillItem[]; on
           </Row>
         );
       })}
+    </ListShell>
+  );
+}
+
+// ───────────────────────────────── Staff
+
+export type StaffItem = { id: string; name: string; phone: string; /** e.g. "Per piece" */ wageLabel: string };
+
+export function DSStaffList({ items, onPressItem, edge }: { items: StaffItem[]; onPressItem?: (s: StaffItem) => void; edge?: boolean }) {
+  const { colors } = useTheme();
+  const tones = useBadgeTones();
+  return (
+    <ListShell>
+      {items.map((s, i) => (
+        <Row key={s.id} edge={edge} index={i} last={i === items.length - 1} onPress={() => onPressItem?.(s)}>
+          <DSAvatar name={s.name} size="md" />
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+              {s.name}
+            </Text>
+            <Text style={[styles.sub, { color: colors.textMuted }]} numberOfLines={1}>
+              {s.phone}
+            </Text>
+          </View>
+          <DSBadge size="sm" label={s.wageLabel} bg={tones.primary.bg} fg={tones.primary.fg} />
+          <IconChevronRight size={16} color={colors.textFaint} />
+        </Row>
+      ))}
     </ListShell>
   );
 }

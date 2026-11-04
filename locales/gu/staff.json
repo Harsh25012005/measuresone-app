@@ -67,6 +67,9 @@
     "defaultRole": "સ્ટાફ",
     "noPhone": "ફોન નથી",
     "wageAmount": "વેતન રકમ",
+    "amountPerPant": "પેન્ટ દીઠ ભાવ",
+    "amountPerShirt": "શર્ટ દીઠ ભાવ",
+    "amountPerPair": "પેન્ટ + શર્ટ દીઠ ભાવ",
     "editStaff": "સ્ટાફ સંપાદિત કરો",
     "assignedOrders": "સોંપાયેલા ઓર્ડર",
     "emptyOrdersTitle": "કોઈ ઓર્ડર સોંપાયેલ નથી",
@@ -113,6 +116,8 @@
       "pant": "પેન્ટ",
       "shirt": "શર્ટ",
       "pant_shirt": "પેન્ટ + શર્ટ"
-    }
+    },
+    "shirtQuantity": "શર્ટની સંખ્યા",
+    "pantQuantity": "પેન્ટની સંખ્યા"
   }
 }

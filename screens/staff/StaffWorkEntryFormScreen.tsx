@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, DatePickerField, Dropdown, Header, InputField, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSDateField } from '../../components/ds/DateField';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { DSQuantity } from '../../components/ds/Quantity';
+import { DSTabs } from '../../components/ds/Tabs';
+import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/format';
 import { useShop } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { primary, status, typography } from '../../constants/tokens';
 import type { SettingsScreenProps } from '../../navigation/types';
 import type { Enums } from '../../lib/database.types';
 import type { Staff } from '../../types';
 
 type WorkType = Enums<'work_item_type'>;
+
+const f = typography.family;
 
 /** Local YYYY-MM-DD (the column is a plain `date`, so avoid UTC shifting). */
 function toDateString(date: Date): string {
@@ -23,9 +32,11 @@ export default function StaffWorkEntryFormScreen({
   route,
 }: SettingsScreenProps<'StaffWorkEntryForm'>) {
   const { t } = useTranslation('staff');
+  const { t: tCommon } = useTranslation('common');
   const { staffId } = route.params;
   const shop = useShop();
   const showToast = useToast();
+  const { colors } = useTheme();
 
   const WORK_TYPES: { label: string; value: WorkType }[] = [
     { label: t('workEntry.types.pant'), value: 'pant' },
@@ -36,7 +47,10 @@ export default function StaffWorkEntryFormScreen({
   const [staff, setStaff] = useState<Staff | null>(null);
   const [workDate, setWorkDate] = useState<Date>(new Date());
   const [workType, setWorkType] = useState<WorkType>('pant');
-  const [quantity, setQuantity] = useState('1');
+  const [quantity, setQuantity] = useState(1);
+  // "Pant + Shirt" asks for each garment's count separately
+  const [pantQty, setPantQty] = useState(1);
+  const [shirtQty, setShirtQty] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -62,30 +76,34 @@ export default function StaffWorkEntryFormScreen({
     return Number(staff.wage_amount_pant ?? 0) + Number(staff.wage_amount_shirt ?? 0);
   };
 
+  const both = workType === 'pant_shirt';
   const rate = rateFor(workType);
-  const parsedQty = Number(quantity.trim());
-  const previewQty = Number.isFinite(parsedQty) && parsedQty > 0 ? Math.floor(parsedQty) : 0;
+  const pantRate = rateFor('pant');
+  const shirtRate = rateFor('shirt');
+  const totalPay = both ? pantRate * pantQty + shirtRate * shirtQty : rate * quantity;
+  const canSave = both ? pantQty + shirtQty > 0 && (pantQty === 0 || pantRate > 0) && (shirtQty === 0 || shirtRate > 0) : rate > 0;
 
   const handleSave = async () => {
-    if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+    if ((both ? pantQty + shirtQty : quantity) <= 0) {
       setError(t('workEntry.quantityRequired'));
       return;
     }
-    if (rate === 0) {
+    if (!canSave) {
       showToast(t('workEntry.noRateWarning'), 'error');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      const { error: saveError } = await supabase.from('staff_work_entries').insert({
-        shop_id: shop.id,
-        staff_id: staffId,
-        work_date: toDateString(workDate),
-        work_type: workType,
-        quantity: Math.floor(parsedQty),
-        rate_applied: rate,
-      });
+      const base = { shop_id: shop.id, staff_id: staffId, work_date: toDateString(workDate) };
+      // A pant + shirt entry is stored as one row per garment, each at its own rate and count.
+      const rows = both
+        ? [
+            ...(pantQty > 0 ? [{ ...base, work_type: 'pant' as WorkType, quantity: pantQty, rate_applied: pantRate }] : []),
+            ...(shirtQty > 0 ? [{ ...base, work_type: 'shirt' as WorkType, quantity: shirtQty, rate_applied: shirtRate }] : []),
+          ]
+        : [{ ...base, work_type: workType, quantity, rate_applied: rate }];
+      const { error: saveError } = await supabase.from('staff_work_entries').insert(rows);
       if (saveError) throw saveError;
 
       showToast(t('workEntry.saveSuccess'), 'success');
@@ -98,57 +116,62 @@ export default function StaffWorkEntryFormScreen({
   };
 
   return (
-    <>
-      <Header title={t('workEntry.title')} onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView
-          className="flex-1 bg-white dark:bg-gray-950"
-          contentContainerStyle={{ padding: 20, paddingBottom: 110 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <DatePickerField
-            label={t('workEntry.dateLabel')}
-            value={workDate}
-            onChange={setWorkDate}
-            placeholder={t('workEntry.datePlaceholder')}
-          />
-          <Dropdown<WorkType>
-            label={t('workEntry.typeLabel')}
-            value={workType}
-            onChange={setWorkType}
-            options={WORK_TYPES}
-            placeholder={t('workEntry.typePlaceholder')}
-          />
-          <InputField
-            label={t('workEntry.quantityLabel')}
-            value={quantity}
-            onChangeText={setQuantity}
-            placeholder={t('workEntry.quantityPlaceholder')}
-            keyboardType="number-pad"
-            error={error}
-          />
+    <DSFormScreen
+      title={t('workEntry.title')}
+      onBack={() => navigation.goBack()}
+      footer={<DSButton title={t('workEntry.save')} size="lg" fullWidth onPress={handleSave} loading={loading} disabled={!canSave} />}
+    >
+      <DSDateField label={t('workEntry.dateLabel')} value={workDate} onChange={setWorkDate} confirmLabel={tCommon('actions.confirm', { defaultValue: 'Confirm' })} />
 
-          <View className="mb-4 gap-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-            <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('workEntry.rateApplied')}</Text>
-              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(rate)}</Text>
+      <View style={{ gap: 10 }}>
+        <Text style={{ fontFamily: f.semibold, fontSize: 13, color: colors.textSecondary }}>{t('workEntry.typeLabel')}</Text>
+        <DSTabs variant="pill" value={workType} onChange={(k) => setWorkType(k as WorkType)} items={WORK_TYPES.map((w) => ({ key: w.value, label: w.label }))} />
+      </View>
+
+      <View style={{ gap: 6 }}>
+        {both ? (
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <DSQuantity label={t('workEntry.shirtQuantity')} value={shirtQty} min={0} onChange={(n) => { setShirtQty(n); setError(''); }} />
             </View>
-            <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-base text-gray-600 dark:text-gray-300">{t('workEntry.totalPay')}</Text>
-              <Text className="text-base font-bold text-[#101828] dark:text-gray-50">{formatCurrency(rate * previewQty)}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <DSQuantity label={t('workEntry.pantQuantity')} value={pantQty} min={0} onChange={(n) => { setPantQty(n); setError(''); }} />
             </View>
-            {rate === 0 ? (
-              <Text className="font-sans text-base text-amber-600 dark:text-amber-400">{t('workEntry.noRateWarning')}</Text>
-            ) : null}
           </View>
+        ) : (
+          <DSQuantity label={t('workEntry.quantityLabel')} value={quantity} min={0} onChange={(n) => { setQuantity(n); setError(''); }} />
+        )}
+        {error ? <Text style={{ fontFamily: f.regular, fontSize: 12, color: status.danger[600] }}>{error}</Text> : null}
+      </View>
 
-          <Button title={t('workEntry.save')} onPress={handleSave} loading={loading} disabled={rate === 0} />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+      <View style={{ gap: 10, borderRadius: 24, padding: 16, backgroundColor: colors.primaryTint }}>
+        {both ? (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: f.medium, fontSize: 14, color: colors.textSecondary }}>
+                {t('workEntry.types.shirt')} × {shirtQty}
+              </Text>
+              <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>{formatCurrency(shirtRate * shirtQty)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: f.medium, fontSize: 14, color: colors.textSecondary }}>
+                {t('workEntry.types.pant')} × {pantQty}
+              </Text>
+              <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>{formatCurrency(pantRate * pantQty)}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontFamily: f.medium, fontSize: 14, color: colors.textSecondary }}>{t('workEntry.rateApplied')}</Text>
+            <Text style={{ fontFamily: f.semibold, fontSize: 15, color: colors.textPrimary }}>{formatCurrency(rate)}</Text>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontFamily: f.semibold, fontSize: 14, color: primary[600] }}>{t('workEntry.totalPay')}</Text>
+          <Text style={{ fontFamily: f.bold, fontSize: 22, color: primary[600] }}>{formatCurrency(totalPay)}</Text>
+        </View>
+        {staff && !canSave ? <Text style={{ fontFamily: f.regular, fontSize: 13, color: status.warning[600] }}>{t('workEntry.noRateWarning')}</Text> : null}
+      </View>
+    </DSFormScreen>
   );
 }

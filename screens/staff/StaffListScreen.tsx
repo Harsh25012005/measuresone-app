@@ -1,9 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Badge, Card, EmptyState, Header, LoadingSpinner, useToast } from '../../components/ui';
+import { DSBottomSheet } from '../../components/ds/BottomSheet';
+import { DSButton } from '../../components/ds/Button';
+import { DSEmptyState } from '../../components/ds/EmptyState';
+import { DSStaffList } from '../../components/ds/Lists';
+import { DSSkeletonList } from '../../components/ds/Loading';
+import { DSScreen, GlassSearch } from '../../components/ds/Screen';
+import { DSRadioGroup } from '../../components/ds/Selection';
+import { IconAdjustmentsHorizontal, IconPlus, IconSearchOff, IconUsers } from '../../components/ds/icons';
+import { useToast } from '../../components/ui';
 import { staffRepo } from '../../lib/data/repository';
 import { useShop } from '../../context/AuthContext';
 import type { SettingsScreenProps } from '../../navigation/types';
@@ -13,7 +20,6 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
   const { t } = useTranslation('staff');
   const showToast = useToast();
   const shop = useShop();
-  const insets = useSafeAreaInsets();
   const WAGE_LABELS: Record<WageType, string> = {
     daily: t('wageUnit.daily'),
     monthly: t('wageUnit.monthly'),
@@ -24,7 +30,7 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [wageTypeFilter, setWageTypeFilter] = useState<WageType | null>(null);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -47,8 +53,6 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
     setRefreshing(false);
   };
 
-  const wageTypeOptions: WageType[] = ['daily', 'monthly', 'per_piece'];
-
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
     return staff.filter((item) => {
@@ -59,122 +63,77 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
   }, [staff, search, wageTypeFilter]);
 
   const hasActiveFilters = Boolean(wageTypeFilter);
-
-  if (loading) return <LoadingSpinner fullScreen text={t('list.loading')} />;
+  const narrowed = hasActiveFilters || search.trim().length > 0;
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      <Header
-        title={t('list.title')}
-        onBack={() => navigation.goBack()}
-        searchProps={{
-          value: search,
-          onChangeText: setSearch,
-          placeholder: t('list.searchPlaceholder'),
-          onFilterPress: () => setShowFilterModal(true),
-          hasActiveFilter: hasActiveFilters,
-        }}
-      />
-
-      {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <Pressable
-          className="flex-1 justify-end bg-black/40"
-          onPress={() => setShowFilterModal(false)}
+    <DSScreen
+      title={t('list.title')}
+      onBack={() => navigation.goBack()}
+      actions={[
+        { icon: IconAdjustmentsHorizontal, label: t('list.filterModalTitle'), badge: hasActiveFilters, onPress: () => setShowFilter(true) },
+        { icon: IconPlus, label: t('list.addStaff'), onPress: () => navigation.navigate('StaffForm', {}) },
+      ]}
+      headerExtra={<GlassSearch value={search} onChangeText={setSearch} placeholder={t('list.searchPlaceholder')} />}
+    >
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <DSSkeletonList rows={6} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={filteredStaff.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : { paddingTop: 8, paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
         >
-          <Pressable
-            className="rounded-t-2xl bg-white p-5 gap-4 dark:bg-gray-900"
-            style={{ paddingBottom: insets.bottom + 20 }}
-            onPress={() => {}}
-          >
-            <View className="flex-row items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-              <Text className="text-base font-semibold text-gray-900 dark:text-gray-50">{t('list.filterModalTitle')}</Text>
-              {hasActiveFilters ? (
-                <Pressable
-                  onPress={() => {
-                    setWageTypeFilter(null);
-                  }}
-                >
-                  <Text className="text-base font-semibold text-primary-600 dark:text-primary-400">{t('list.reset')}</Text>
-                </Pressable>
-              ) : null}
-            </View>
+          {filteredStaff.length === 0 ? (
+            narrowed ? (
+              <DSEmptyState icon={IconSearchOff} title={t('list.emptySearchTitle')} description={t('list.emptySearchDescription')} />
+            ) : (
+              <DSEmptyState
+                icon={IconUsers}
+                title={t('list.emptyTitle')}
+                description={t('list.emptyDescription')}
+                actionLabel={t('list.addStaff')}
+                onAction={() => navigation.navigate('StaffForm', {})}
+              />
+            )
+          ) : (
+            <DSStaffList
+              edge
+              items={filteredStaff.map((s) => ({
+                id: s.id,
+                name: s.name,
+                phone: s.phone ?? t('list.noPhone'),
+                wageLabel: WAGE_LABELS[s.wage_type],
+              }))}
+              onPressItem={(item) => navigation.navigate('StaffDetail', { staffId: item.id })}
+            />
+          )}
+        </ScrollView>
+      )}
 
-            {/* Wage Type Section */}
-            <View>
-              <Text className="mb-2 text-base font-semibold text-gray-600 dark:text-gray-400">
-                {t('list.wageTypeSection')}
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {wageTypeOptions.map((wt) => {
-                  const active = wageTypeFilter === wt;
-                  return (
-                    <Pressable
-                      key={wt}
-                      onPress={() => setWageTypeFilter(active ? null : wt)}
-                      className={`rounded-full border px-3.5 py-2 ${
-                        active ? 'border-primary-600 bg-primary-600' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
-                      }`}
-                    >
-                      <Text className={`text-base font-semibold ${active ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                        {WAGE_LABELS[wt]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => setShowFilterModal(false)}
-              className="items-center rounded-md bg-primary-600 py-3 active:bg-primary-700"
-            >
-              <Text className="text-base font-semibold text-white">{t('list.applyFilters')}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <FlatList
-        data={filteredStaff}
-        keyExtractor={(item) => item.id}
-        className="px-5"
-        contentContainerStyle={filteredStaff.length === 0 ? { flexGrow: 1, paddingTop: 12 } : { paddingTop: 12, paddingBottom: 224, gap: 10 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1D4ED8" />
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="user-friends"
-            title={hasActiveFilters ? t('list.emptySearchTitle') : t('list.emptyTitle')}
-            description={
-              hasActiveFilters
-                ? t('list.emptySearchDescription')
-                : t('list.emptyDescription')
-            }
-            actionLabel={hasActiveFilters ? undefined : t('list.addStaff')}
-            onAction={hasActiveFilters ? undefined : () => navigation.navigate('StaffForm', {})}
+      <DSBottomSheet visible={showFilter} onClose={() => setShowFilter(false)} title={t('list.filterModalTitle')}>
+        <View style={{ paddingTop: 12, paddingBottom: 16, gap: 16 }}>
+          <DSRadioGroup
+            value={wageTypeFilter ?? 'all'}
+            onChange={(v) => {
+              setWageTypeFilter(v === 'all' ? null : (v as WageType));
+              setShowFilter(false);
+            }}
+            options={[
+              { value: 'all', label: t('list.filterAll') },
+              { value: 'daily', label: WAGE_LABELS.daily },
+              { value: 'monthly', label: WAGE_LABELS.monthly },
+              { value: 'per_piece', label: WAGE_LABELS.per_piece },
+            ]}
           />
-        }
-        renderItem={({ item }) => (
-          <Card onPress={() => navigation.navigate('StaffDetail', { staffId: item.id })}>
-            <View className="flex-row items-center">
-              <Avatar name={item.name} size="md" />
-              <View className="ml-3 flex-1">
-                <Text className="text-lg font-semibold text-gray-900 dark:text-gray-50">{item.name}</Text>
-                <Text className="font-sans text-base text-gray-500 dark:text-gray-400">{item.phone ?? t('list.noPhone')}</Text>
-              </View>
-              <Badge label={WAGE_LABELS[item.wage_type]} />
+          {hasActiveFilters ? (
+            <View style={{ alignItems: 'flex-start' }}>
+              <DSButton title={t('list.reset')} variant="link" size="sm" onPress={() => setWageTypeFilter(null)} />
             </View>
-          </Card>
-        )}
-      />
-
-    </View>
+          ) : null}
+        </View>
+      </DSBottomSheet>
+    </DSScreen>
   );
 }

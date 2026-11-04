@@ -51,6 +51,7 @@ export type SettingsStackParamList = {
   StaffDetail: { staffId: string };
   StaffWorkEntryForm: { staffId: string };
   Revenue: undefined;
+  Security: undefined;
   /** The whole Billing stack, nested here since Billing is no longer a tab. */
   Billing: undefined;
   CustomMeasurementFields: undefined;

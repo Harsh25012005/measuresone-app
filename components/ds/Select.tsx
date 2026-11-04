@@ -114,7 +114,7 @@ export function DSSelect({
 
           {onAddNew ? (
             <DSButton
-              title={addNewLabel ?? '+'}
+              title={(addNewLabel ?? '').replace(/^\+\s*/, '') || 'Add'}
               variant="line"
               size="rg"
               leftIcon={IconPlus}

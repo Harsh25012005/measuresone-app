@@ -59,6 +59,6 @@ export function DSQuantity({
 
 const styles = StyleSheet.create({
   box: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52, borderRadius: 9999, borderWidth: 1, paddingHorizontal: 6 },
-  btn: { width: 40, height: 40, borderRadius: 9999, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, textAlign: 'center', fontFamily: f.bold, fontSize: 18, padding: 0 },
+  btn: { width: 40, height: 40, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  input: { flex: 1, minWidth: 0, width: 0, textAlign: 'center', fontFamily: f.bold, fontSize: 18, padding: 0 },
 });

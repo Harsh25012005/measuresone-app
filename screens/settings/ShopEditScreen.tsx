@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, Header, ImagePickerField, InputField, useToast } from '../../components/ui';
+import { DSButton } from '../../components/ds/Button';
+import { DSImagePicker } from '../../components/ds/ImagePicker';
+import { DSInput } from '../../components/ds/Input';
+import { DSFormScreen } from '../../components/ds/Screen';
+import { useToast } from '../../components/ui';
 import { useAuth, useShop } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { uploadImage } from '../../lib/storage';
@@ -13,7 +16,6 @@ type ShopEditErrors = { shopName?: string; ownerName?: string };
 export default function ShopEditScreen({ navigation }: SettingsScreenProps<'ShopEdit'>) {
   const shop = useShop();
   const { refreshShop } = useAuth();
-  const insets = useSafeAreaInsets();
   const showToast = useToast();
   const { t } = useTranslation('settings');
 
@@ -74,50 +76,37 @@ export default function ShopEditScreen({ navigation }: SettingsScreenProps<'Shop
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-white dark:bg-gray-950">
-      <Header title={t('shopEdit.title')} onBack={() => navigation.goBack()} />
-      <ScrollView
-        className="flex-1 bg-white dark:bg-gray-950"
-        contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 32 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <ImagePickerField label={t('shopEdit.shopLogo')} uri={logoUri} onChange={setLogoUri} />
+    <DSFormScreen
+      title={t('shopEdit.title')}
+      onBack={() => navigation.goBack()}
+      footer={<DSButton title={t('shopEdit.save')} size="lg" fullWidth onPress={handleSave} loading={loading} />}
+    >
+      <View style={{ alignItems: 'center' }}>
+        <DSImagePicker uri={logoUri} onChange={setLogoUri} />
+      </View>
 
-        <InputField
-          label={t('shopEdit.shopName')}
-          value={shopName}
-          onChangeText={setShopName}
-          placeholder={t('shopEdit.shopNamePlaceholder')}
-          error={errors.shopName}
-          required
-        />
-
-        <InputField
-          label={t('shopEdit.ownerName')}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder={t('shopEdit.ownerNamePlaceholder')}
-          error={errors.ownerName}
-          required
-        />
-
-        <InputField
-          label={t('shopEdit.address')}
-          value={address}
-          onChangeText={setAddress}
-          placeholder={t('shopEdit.addressPlaceholder')}
-        />
-
-        <InputField
-          label={t('shopEdit.phone')}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder={t('shopEdit.phonePlaceholder')}
-          keyboardType="phone-pad"
-        />
-
-        <Button title={t('shopEdit.save')} onPress={handleSave} loading={loading} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <DSInput
+        label={`${t('shopEdit.shopName')} *`}
+        value={shopName}
+        onChangeText={(v) => {
+          setShopName(v);
+          setErrors((e) => ({ ...e, shopName: undefined }));
+        }}
+        placeholder={t('shopEdit.shopNamePlaceholder')}
+        error={errors.shopName}
+      />
+      <DSInput
+        label={`${t('shopEdit.ownerName')} *`}
+        value={ownerName}
+        onChangeText={(v) => {
+          setOwnerName(v);
+          setErrors((e) => ({ ...e, ownerName: undefined }));
+        }}
+        placeholder={t('shopEdit.ownerNamePlaceholder')}
+        error={errors.ownerName}
+      />
+      <DSInput label={t('shopEdit.address')} value={address} onChangeText={setAddress} placeholder={t('shopEdit.addressPlaceholder')} />
+      <DSInput label={t('shopEdit.phone')} value={phone} onChangeText={setPhone} placeholder={t('shopEdit.phonePlaceholder')} keyboardType="phone-pad" />
+    </DSFormScreen>
   );
 }
