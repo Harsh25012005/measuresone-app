@@ -71,7 +71,6 @@ export default function MeasurementFormScreen({
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void loadData().finally(() => setLoading(false));
     }, [loadData])
   );

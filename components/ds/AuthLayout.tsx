@@ -78,7 +78,7 @@ export function AuthLayout({ scene, title, subtitle, children, footer, onBack, o
   const rows = Children.toArray(children);
   useHeroStatusBar();
 
-  const enter = (i: number) => FadeInDown.delay(180 + i * 70).duration(340).springify().damping(18);
+  const enter = (i: number) => FadeInDown.delay(60 + i * 35).duration(260);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#2F66F0' }}>
@@ -92,7 +92,10 @@ export function AuthLayout({ scene, title, subtitle, children, footer, onBack, o
       >
         {/* hero */}
         <View style={{ paddingTop: insets.top + 8, paddingBottom: 44, paddingHorizontal: 12 }}>
-          <HeroGradient />
+          {/* extends under the sheet so its rounded corners don't reveal the flat backing colour */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: -40 }]}>
+            <HeroGradient />
+          </View>
           {onBack ? (
             <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
               <IconChevronLeft size={26} color="#FFFFFF" strokeWidth={2.2} />
@@ -105,7 +108,7 @@ export function AuthLayout({ scene, title, subtitle, children, footer, onBack, o
 
         {/* sheet */}
         <Animated.View
-          entering={FadeInUp.duration(420).springify().damping(20)}
+          entering={FadeInUp.duration(280)}
           style={[styles.sheet, { backgroundColor: colors.bgPage, paddingBottom: insets.bottom + 28 }]}
         >
           <Animated.View entering={enter(0)}>

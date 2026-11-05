@@ -11,3 +11,14 @@ export async function hasSeenProductTour(userId: string): Promise<boolean> {
 export async function markProductTourSeen(userId: string): Promise<void> {
   await AsyncStorage.setItem(SEEN_KEY_PREFIX + userId, 'true');
 }
+
+/** How long after sign-up a shop still counts as new enough to be offered the tour. */
+const NEW_SHOP_WINDOW_DAYS = 3;
+
+/** True when the shop was created within the last few days. */
+export function isNewShop(createdAt: string | null | undefined): boolean {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created <= NEW_SHOP_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}

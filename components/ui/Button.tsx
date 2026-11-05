@@ -1,4 +1,5 @@
-import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { Text, ActivityIndicator } from 'react-native';
+import { Pressable } from '../ds/Pressable';
 import type { ReactNode } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 

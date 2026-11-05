@@ -86,7 +86,7 @@
     "workEntries": "काम की एंट्री",
     "emptyWorkTitle": "अभी तक कोई काम की एंट्री नहीं",
     "emptyWorkDescription": "इस स्टाफ की कमाई ट्रैक करने के लिए नग के हिसाब से काम दर्ज करें",
-    "addWorkEntry": "+ काम की एंट्री जोड़ें",
+    "addWorkEntry": "काम की एंट्री जोड़ें",
     "workTotal": "कुल नग काम की कमाई",
     "perPieceSuffix": " प्रति नग",
     "loadError": "स्टाफ लोड नहीं किया जा सका",

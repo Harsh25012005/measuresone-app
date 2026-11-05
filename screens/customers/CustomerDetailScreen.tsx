@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
@@ -40,7 +41,7 @@ import type { Tables } from '../../lib/database.types';
 
 const f = typography.family;
 
-const TABS = ['info', 'orders', 'bills'] as const;
+const TABS = ['info', 'orders'] as const;
 type TabKey = (typeof TABS)[number];
 
 const PAYMENT_LABEL = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' } as const;
@@ -104,7 +105,7 @@ export default function CustomerDetailScreen({
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   // Billing list deep-links straight into the Bills tab for a client.
-  const [tab, setTab] = useState<TabKey>(route.params?.initialTab ?? 'info');
+  const [tab, setTab] = useState<TabKey>(route.params?.initialTab === 'orders' || route.params?.initialTab === 'bills' ? 'orders' : 'info');
   const [search, setSearch] = useState('');
 
   const q = search.trim().toLowerCase();
@@ -115,14 +116,6 @@ export default function CustomerDetailScreen({
           (o.cloth_type ?? '').toLowerCase().includes(q)
       )
     : orders;
-  const filteredBills = q
-    ? bills.filter(
-        (b) =>
-          String(b.total_amount ?? '').includes(q) ||
-          (b.payment_status ?? '').toLowerCase().includes(q) ||
-          formatDate(b.created_at).toLowerCase().includes(q)
-      )
-    : bills;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -385,55 +378,6 @@ export default function CustomerDetailScreen({
                 />
               ) : (
                 <DSEmptyState variant="compact" icon={IconShirt} title={t('detail.noOrdersTitle')} description={t('detail.noOrdersDescription')} />
-              )}
-            </View>
-          ) : null}
-
-          {/* ── bills ── */}
-          {tab === 'bills' ? (
-            <View style={{ gap: 14 }}>
-              <DSInput kind="search" label={t('detail.searchBills')} placeholder={t('detail.searchBills')} value={search} onChangeText={setSearch} />
-              {balance > 0 ? (
-                <View style={{ alignItems: 'flex-start' }}>
-                  <DSButton title={t('detail.whatsappReminder', { defaultValue: 'Send reminder on WhatsApp' })} variant="line" size="sm" onPress={handleRemind} />
-                </View>
-              ) : null}
-              {filteredBills.length > 0 ? (
-                <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault }]}>
-                  {filteredBills.map((b, i) => {
-                    const pending = Math.max(Number(b.total_amount ?? 0) - Number(b.paid ?? 0), 0);
-                    const pay = palette.payment[b.payment_status];
-                    return (
-                      <View key={b.id}>
-                        <Pressable
-                          onPress={() => navigation.navigate('BillDetail', { billId: b.id })}
-                          style={({ pressed }) => [styles.billRow, { backgroundColor: pressed ? colors.bgSubtle : 'transparent' }]}
-                        >
-                          <View style={[styles.billIcon, { backgroundColor: pay.bg }]}>
-                            <IconReceipt size={20} color={pay.text} strokeWidth={2} />
-                          </View>
-                          <View style={{ flex: 1, gap: 2 }}>
-                            <Text style={{ fontFamily: f.bold, fontSize: 16, color: colors.textPrimary }}>{formatCurrency(b.total_amount)}</Text>
-                            <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{formatDate(b.created_at)}</Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                            {pending > 0 ? (
-                              <Text style={{ fontFamily: f.bold, fontSize: 13, color: status.danger[600] }}>
-                                {t('detail.pendingAmount', { amount: formatCurrency(pending) })}
-                              </Text>
-                            ) : null}
-                            <DSBadge size="sm" label={PAYMENT_LABEL[b.payment_status]} bg={pay.bg} fg={pay.text} />
-                          </View>
-                        </Pressable>
-                        {i < filteredBills.length - 1 ? (
-                          <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.borderSubtle }} />
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <DSEmptyState variant="compact" icon={IconReceipt} title={t('detail.noBillsTitle')} description={t('detail.noBillsDescription')} />
               )}
             </View>
           ) : null}

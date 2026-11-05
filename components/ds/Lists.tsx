@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Pressable } from 'react-native';
+import { Pressable } from './Pressable';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 import { colors as legacyColors, darkColors } from '../../constants/theme';
@@ -7,7 +7,7 @@ import { primary, radii, status, typography } from '../../constants/tokens';
 import type { PaymentStatus } from '../../types';
 import { DSAvatar } from './Avatar';
 import { DSBadge, useBadgeTones } from './Badge';
-import { IconBolt, IconCalendarEvent, IconChevronRight } from './icons';
+import { IconBolt, IconCalendarEvent, IconChevronRight, type TablerIcon } from './icons';
 
 const f = typography.family;
 const money = (n: number) => '₹' + n.toLocaleString('en-IN');
@@ -162,6 +162,50 @@ const styles = StyleSheet.create({
   sub: { fontFamily: f.regular, fontSize: 13, lineHeight: 18 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });
+
+// ───────────────────────────────── Notifications
+
+export type NotificationItem = {
+  id: string;
+  icon: TablerIcon;
+  /** Circle background and icon colour. */
+  bg: string;
+  fg: string;
+  title: string;
+  /** e.g. "2 hours ago" */
+  meta: string;
+  /** Optional trailing pill, e.g. a failed/pending status. */
+  badge?: string;
+};
+
+/** Same row anatomy as the client list: round icon, two text lines, hairline dividers. */
+export function DSNotificationList({ items, onPressItem, edge }: { items: NotificationItem[]; onPressItem?: (n: NotificationItem) => void; edge?: boolean }) {
+  const { colors } = useTheme();
+  const tones = useBadgeTones();
+  return (
+    <ListShell>
+      {items.map((n, i) => {
+        const Icon = n.icon;
+        return (
+          <Row key={n.id} edge={edge} index={i} last={i === items.length - 1} onPress={onPressItem ? () => onPressItem(n) : undefined}>
+            <View style={[styles.circle, { backgroundColor: n.bg }]}>
+              <Icon size={20} color={n.fg} strokeWidth={2.2} />
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
+                {n.title}
+              </Text>
+              <Text style={[styles.sub, { color: colors.textMuted }]} numberOfLines={1}>
+                {n.meta}
+              </Text>
+            </View>
+            {n.badge ? <DSBadge label={n.badge} bg={tones.danger.bg} fg={tones.danger.fg} size="sm" /> : null}
+          </Row>
+        );
+      })}
+    </ListShell>
+  );
+}
 
 // ───────────────────────────────── Bills (one row per client)
 

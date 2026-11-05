@@ -146,7 +146,7 @@
   "account": "Account",
   "preferences": "Preferences",
   "session": "Session",
-  "version": "MeasuresOne v{{version}}",
+  "version": "TrueFit v{{version}}",
   "security": {
     "title": "Security",
     "signedInAs": "Signed in as",

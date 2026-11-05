@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AppState, Pressable, Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import { useTranslation } from 'react-i18next';
 import { AuthLayout } from '../../components/ds/AuthLayout';
 import { DSBottomSheet } from '../../components/ds/BottomSheet';

@@ -108,7 +108,7 @@
     "title": "Notifications",
     "loading": "Loading notifications...",
     "emptyTitle": "No notifications yet",
-    "emptyDescription": "Order and payment reminders will show up here",
+    "emptyDescription": "Delivery dates, overdue orders and pending payments will show up here",
     "errorLoad": "Could not load notifications",
     "customer": "Customer",
     "justNow": "Just now",
@@ -118,6 +118,19 @@
     "types": {
       "order_ready": "Order ready",
       "payment_due": "Payment due"
+    },
+    "alerts": {
+      "sectionReminders": "Reminders",
+      "sectionSent": "Sent to customers",
+      "overdueTitle": "Delivery overdue",
+      "todayTitle": "Delivery due today",
+      "tomorrowTitle": "Delivery due tomorrow",
+      "soonTitle": "Delivery in {{count}} days",
+      "paymentTitle": "Payment pending",
+      "daysLate_one": "{{count}} day late",
+      "daysLate_other": "{{count}} days late",
+      "dueOn": "due {{date}}",
+      "paymentMeta": "{{amount}} owed for #{{number}}"
     }
   },
   "welcomeBack": "Welcome back",

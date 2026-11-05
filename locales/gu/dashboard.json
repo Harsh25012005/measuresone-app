@@ -108,7 +108,7 @@
     "title": "સૂચનાઓ",
     "loading": "સૂચનાઓ લોડ થઈ રહી છે...",
     "emptyTitle": "હજુ સુધી કોઈ સૂચના નથી",
-    "emptyDescription": "ઓર્ડર અને ચુકવણી રિમાઇન્ડર્સ અહીં દેખાશે",
+    "emptyDescription": "ડિલિવરીની તારીખો, મોડા ઓર્ડર અને બાકી ચુકવણી અહીં દેખાશે",
     "errorLoad": "સૂચનાઓ લોડ કરી શકાઈ નહીં",
     "customer": "ગ્રાહક",
     "justNow": "હમણાં જ",
@@ -118,6 +118,19 @@
     "types": {
       "order_ready": "ઓર્ડર તૈયાર છે",
       "payment_due": "ચુકવણી બાકી છે"
+    },
+    "alerts": {
+      "sectionReminders": "રિમાઇન્ડર",
+      "sectionSent": "ગ્રાહકોને મોકલ્યા",
+      "overdueTitle": "ડિલિવરી મોડી છે",
+      "todayTitle": "આજે ડિલિવરી છે",
+      "tomorrowTitle": "કાલે ડિલિવરી છે",
+      "soonTitle": "{{count}} દિવસમાં ડિલિવરી",
+      "paymentTitle": "ચુકવણી બાકી",
+      "daysLate_one": "{{count}} દિવસ મોડું",
+      "daysLate_other": "{{count}} દિવસ મોડું",
+      "dueOn": "તારીખ {{date}}",
+      "paymentMeta": "#{{number}} માટે {{amount}} બાકી"
     }
   },
   "welcomeBack": "ફરી સ્વાગત છે",

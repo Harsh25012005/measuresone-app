@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,7 +29,9 @@ import { ordersRepo, customersRepo, billsRepo, paymentsRepo } from '../../lib/da
 import { formatCurrency } from '../../lib/format';
 import { loadOrderBillAmounts, type BillAmounts } from '../../lib/orderPayments';
 import { haptics } from '../../lib/haptics';
-import { hasSeenProductTour, markProductTourSeen } from '../../lib/productTour';
+import { hasSeenProductTour, isNewShop, markProductTourSeen } from '../../lib/productTour';
+import { supabase } from '../../lib/supabase';
+import { buildAlerts } from '../../lib/alerts';
 import { useShop } from '../../context/AuthContext';
 import { useProductTour } from '../../context/ProductTourContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -141,18 +144,22 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
   const { t } = useTranslation('dashboard');
   const { colors, scheme } = useTheme();
   const [stats, setStats] = useState<Stats | null>(null);
+  // number of reminders (late / due deliveries, pending payments) shown on the bell
+  const [alertCount, setAlertCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const tour = useProductTour();
   useHeroStatusBar();
 
-  // First visit to the home page after signing up: show the tour once,
-  // then never again on this device for this shop.
+  // Only a brand-new shop gets the tour, and only once: existing users (and anyone who has
+  // already seen it, on any device — the flag lives on the shop) never see it automatically.
   useEffect(() => {
+    if (shop.has_seen_guide || !isNewShop(shop.created_at)) return;
     let cancelled = false;
     void hasSeenProductTour(shop.id).then((seen) => {
       if (!seen && !cancelled) {
         void markProductTourSeen(shop.id);
+        void supabase.from('shops').update({ has_seen_guide: true }).eq('id', shop.id).then(() => undefined);
         tour.start();
       }
     });
@@ -165,6 +172,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
   const load = useCallback(async () => {
     try {
       const { localDate } = todayRange();
+      void buildAlerts(shop.id).then((a) => setAlertCount(a.length)).catch(() => undefined);
 
       // Everything reads from the local-first mirror (same one every
       // create/order/payment flow writes through) rather than Supabase
@@ -245,7 +253,6 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );
@@ -282,7 +289,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps<'Da
               </Text>
             </View>
             <GlassButton icon={IconCalendarEvent} label={t('calendarNavLabel')} onPress={() => navigation.navigate('Calendar')} />
-            <GlassButton icon={IconBell} label={t('alerts')} onPress={() => navigation.navigate('Notifications')} />
+            <GlassButton icon={IconBell} label={t('alerts')} badge={alertCount} onPress={() => navigation.navigate('Notifications')} />
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(80).duration(300)} style={{ marginTop: 18 }}>

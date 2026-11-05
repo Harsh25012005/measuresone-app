@@ -60,7 +60,16 @@ function NavTab({
 function Glass({ tint, wash, intensity = 45 }: { tint: 'light' | 'dark'; wash: string; intensity?: number }) {
   return (
     <>
-      <BlurView intensity={intensity} tint={tint} style={[StyleSheet.absoluteFill, { borderRadius: 9999 }]} />
+      {/* Live blur re-samples whatever is behind it every frame, which makes tab switches and
+          scrolling stutter on Android; there it's replaced by a near-opaque tint. */}
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={intensity} tint={tint} style={[StyleSheet.absoluteFill, { borderRadius: 9999 }]} />
+      ) : (
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { borderRadius: 9999, backgroundColor: tint === 'dark' ? 'rgba(24,24,24,0.94)' : 'rgba(255,255,255,0.94)' }]}
+        />
+      )}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: wash, borderRadius: 9999 }]} />
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none" preserveAspectRatio="none">
         <Defs>

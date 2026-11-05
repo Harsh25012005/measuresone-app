@@ -148,7 +148,23 @@ let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
  * it) doesn't block startup.
  */
 async function runColumnMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
-  const migrations = ['alter table customers add column book_number text'];
+  const migrations = [
+    'alter table customers add column book_number text',
+    // Indexes: every screen filters by shop_id and joins on these ids; without them each
+    // list load scans whole tables, which gets slow as an order book grows.
+    'create index if not exists idx_orders_shop_created on orders (shop_id, created_at)',
+    'create index if not exists idx_orders_customer on orders (customer_id)',
+    'create index if not exists idx_order_items_order on order_items (order_id)',
+    'create index if not exists idx_customers_shop on customers (shop_id)',
+    'create index if not exists idx_staff_shop on staff (shop_id)',
+    'create index if not exists idx_bills_shop on bills (shop_id)',
+    'create index if not exists idx_bills_order on bills (order_id)',
+    'create index if not exists idx_bills_customer on bills (customer_id)',
+    'create index if not exists idx_payments_bill on payments (bill_id)',
+    'create index if not exists idx_payments_shop on payments (shop_id)',
+    'create index if not exists idx_cust_meas_customer on customer_measurements (customer_id)',
+    'create index if not exists idx_ufields_template on universal_measurement_fields (template_id)',
+  ];
   for (const sql of migrations) {
     try {
       await db.execAsync(sql);

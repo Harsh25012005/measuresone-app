@@ -455,6 +455,13 @@ export const billsRepo = {
     return rows.map((r) => fromSqlite<Tables<'bills'>>(r));
   },
 
+  /** The bill raised for an order, if any (one indexed lookup instead of loading every bill). */
+  async forOrder(orderId: string): Promise<Tables<'bills'> | null> {
+    const db = await getDb();
+    const row = await db.getFirstAsync<Record<string, unknown>>('select * from bills where order_id = ? order by created_at desc limit 1', [orderId]);
+    return row ? fromSqlite<Tables<'bills'>>(row) : null;
+  },
+
   async get(id: string): Promise<Tables<'bills'> | null> {
     const db = await getDb();
     const row = await db.getFirstAsync<Record<string, unknown>>('select * from bills where id = ?', [id]);
@@ -597,6 +604,12 @@ export const paymentsRepo = {
 
     kickSync(row.shop_id);
     return row;
+  },
+
+  async listForBill(billId: string): Promise<Tables<'payments'>[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<Record<string, unknown>>('select * from payments where bill_id = ? order by payment_date desc', [billId]);
+    return rows.map((r) => fromSqlite<Tables<'payments'>>(r));
   },
 
   async listForShop(shopId: string): Promise<Tables<'payments'>[]> {

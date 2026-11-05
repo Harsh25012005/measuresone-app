@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -166,6 +167,13 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
   const { colors } = useTheme();
   const session = useRef<Session>(newSession(appLang));
   const scrollRef = useRef<ScrollView>(null);
+  // Mirrors `step` so speech-recognition callbacks (registered once) see the live value.
+  const stepRef = useRef<Step>('greeting');
+  stepRef.current = step;
+  // Did the current listening session produce a transcript? And how many silent
+  // sessions in a row while collecting measurements (so we re-ask instead of stalling).
+  const heardRef = useRef(false);
+  const emptyRetries = useRef(0);
 
   useHeroStatusBar();
   const insets = useSafeAreaInsets();
@@ -215,11 +223,18 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
       appendLog({ who: 'ai', text });
       const listenAfter = opts?.listenAfter ?? true;
       const lang = opts?.lang ?? TTS_CODE[appLang];
+      // `onError` matters: if the device lacks the Gujarati/Hindi voice the line is never
+      // spoken and onDone never fires, which used to leave the flow stuck on one field.
+      let proceeded = false;
+      const proceed = () => {
+        if (proceeded) return;
+        proceeded = true;
+        if (listenAfter) void startListening(lang);
+      };
       Speech.speak(text, {
         language: opts?.tts ?? TTS_CODE[appLang],
-        onDone: () => {
-          if (listenAfter) void startListening(lang);
-        },
+        onDone: proceed,
+        onError: proceed,
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
@@ -237,15 +252,36 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
       return;
     }
     setListening(true);
+    heardRef.current = false;
     ExpoSpeechRecognitionModule.start({ lang, interimResults: false, continuous: false });
   };
   const stopListening = () => ExpoSpeechRecognitionModule.stop();
 
+  /** Says the field the measurement flow is currently waiting on. */
+  const askCurrentField = (prefix = '') => {
+    const s = session.current;
+    const item = s.plan?.items[s.fieldIndex];
+    if (!item) return;
+    speak(`${prefix}${item.group ? item.group + ' ' : ''}${item.name}?`);
+  };
+
   useSpeechRecognitionEvent('result', (event) => {
     const transcript = event.results[0]?.transcript;
-    if (transcript) void handleUserReply(transcript);
+    if (transcript) {
+      heardRef.current = true;
+      emptyRetries.current = 0;
+      void handleUserReply(transcript);
+    }
   });
-  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('end', () => {
+    setListening(false);
+    // Silence / no match while collecting measurements: ask the same field again
+    // rather than going quiet (a few tries, then leave the mic button to the user).
+    if (!heardRef.current && stepRef.current === 'collectMeasurementField' && emptyRetries.current < 3) {
+      emptyRetries.current += 1;
+      askCurrentField();
+    }
+  });
   useSpeechRecognitionEvent('error', () => setListening(false));
 
   const setMode = (mode: Mode) => {
@@ -550,11 +586,16 @@ export default function AIOrderAssistantScreen({ navigation }: DashboardScreenPr
         const plan = s.plan;
         if (!plan) return;
         const value = extractFirstNumber(text);
+        const wantsSkip = /\b(skip|next|pass|no)\b|છોડ|આગળ|ના\b|छोड़|अगला|नहीं/i.test(text);
+        if (value === null && !wantsSkip) {
+          // Didn't catch a number: ask this field again instead of silently moving on.
+          askCurrentField(appLang === 'gu' ? 'ફરી કહો. ' : appLang === 'hi' ? 'फिर से बताइए. ' : 'Say the number. ');
+          return;
+        }
         if (value !== null) s.fieldValues[String(s.fieldIndex)] = String(value);
         s.fieldIndex += 1;
         if (s.fieldIndex < plan.items.length) {
-          const next = plan.items[s.fieldIndex];
-          speak(`${next.group ? next.group + ' ' : ''}${next.name}?`);
+          askCurrentField();
           return;
         }
 

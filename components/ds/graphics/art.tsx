@@ -362,8 +362,8 @@ export function Backdrop({ width, height }: { width: number; height: number }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const drift = useSharedValue(0);
   useEffect(() => {
-    drift.value = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
-    return () => cancelAnimation(drift);
+    // static: continuously animating SVG dash offsets forces a native re-commit every frame
+    drift.value = 0.35;
   }, [drift]);
   const a = useAnimatedProps(() => ({ strokeDashoffset: -drift.value * 28 }));
   const b = useAnimatedProps(() => ({ strokeDashoffset: drift.value * 28 }));

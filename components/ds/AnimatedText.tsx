@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { View, type TextStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 function Word({ word, index, baseDelay, style, accent, accentColor, gap }: {
   word: string;
@@ -13,7 +13,7 @@ function Word({ word, index, baseDelay, style, accent, accentColor, gap }: {
 }) {
   const p = useSharedValue(0);
   useEffect(() => {
-    p.value = withDelay(baseDelay + index * 75, withSpring(1, { damping: 13, stiffness: 150 }));
+    p.value = withDelay(baseDelay + index * 45, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
   }, [baseDelay, index, p]);
   const s = useAnimatedStyle(() => ({
     opacity: Math.min(1, p.value * 1.4),

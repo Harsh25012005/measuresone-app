@@ -42,7 +42,6 @@ export default function StaffListScreen({ navigation }: SettingsScreenProps<'Sta
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

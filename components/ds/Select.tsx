@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { useTheme } from '../../context/ThemeContext';
 import { primary, typography } from '../../constants/tokens';
 import { DSBottomSheet } from './BottomSheet';

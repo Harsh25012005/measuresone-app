@@ -1,10 +1,15 @@
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { DSButton } from './ds/Button';
 import { QUICK_ADD_LAYOUT } from './ds/QuickAdd';
+import { useTheme } from '../context/ThemeContext';
 import { TOUR_STEPS, type TourStep } from '../context/ProductTourContext';
+import { primary, typography } from '../constants/tokens';
 
+const f = typography.family;
 const { ITEM_H, GAP, FAB, FAB_GAP } = QUICK_ADD_LAYOUT;
-const H_MARGIN = 12;
+const H_MARGIN = 16;
 
 export type ProductTourSpotlightProps = {
   step: TourStep;
@@ -18,9 +23,9 @@ export type ProductTourSpotlightProps = {
 };
 
 /**
- * Renders above the (forced-open) QuickAddMenu during the tour: a tooltip
- * card pointing at the currently spotlit row, positioned by the same row
- * geometry the menu itself uses, so no measuring/refs are needed.
+ * Renders above the (forced-open) QuickAddMenu during the tour: a card in the app's own
+ * surface style pointing at the currently spotlit row, positioned by the same row geometry
+ * the menu itself uses, so no measuring/refs are needed.
  */
 export function ProductTourSpotlight({
   step,
@@ -32,7 +37,9 @@ export function ProductTourSpotlight({
   onTryItNow,
 }: ProductTourSpotlightProps) {
   const { t } = useTranslation('settings');
+  const { colors, scheme } = useTheme();
   const { height: screenH } = useWindowDimensions();
+  const dark = scheme === 'dark';
 
   const index = TOUR_STEPS.indexOf(step);
   const isLast = index === TOUR_STEPS.length - 1;
@@ -42,60 +49,68 @@ export function ProductTourSpotlight({
   const rowFromTop = actionCount - 1 - index;
   const rowCenterY = sheetTop + rowFromTop * (ITEM_H + GAP) + ITEM_H / 2;
 
-  // Tooltip sits just above the row it's pointing at, right-aligned to the
-  // sheet's inner edge, and never crowds above the status bar.
+  // The card sits just above the row it's pointing at and never crowds the rows above.
   const tooltipBottom = Math.max(screenH - rowCenterY + 34, screenH - sheetTop + 8);
 
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: screenH }}>
-      <View
+      <Animated.View
+        key={step}
+        entering={FadeInDown.duration(240)}
         pointerEvents="box-none"
         style={{ position: 'absolute', left: H_MARGIN, right: H_MARGIN, bottom: tooltipBottom }}
       >
-        <View className="rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-lg">
-          <View className="mb-3 flex-row items-center justify-between">
-            <View className="flex-row gap-1.5">
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.bgSurface, borderColor: dark ? '#262626' : colors.borderDefault },
+          ]}
+        >
+          <View style={styles.header}>
+            <View style={styles.pills}>
               {TOUR_STEPS.map((s, i) => (
                 <View
                   key={s}
-                  className="h-1 rounded-full"
-                  style={{ width: 20, backgroundColor: i <= index ? '#2563EB' : 'rgba(255,255,255,0.18)' }}
+                  style={[styles.pill, { width: i === index ? 24 : 8, backgroundColor: i === index ? primary[600] : colors.borderDefault }]}
                 />
               ))}
+              <Text style={{ fontFamily: f.medium, fontSize: 12, color: colors.textMuted, marginLeft: 6 }}>
+                {index + 1}/{TOUR_STEPS.length}
+              </Text>
             </View>
-            <Pressable onPress={onSkip} hitSlop={8}>
-              <Text className="text-base font-medium text-gray-400">{t('appGuide.skip')}</Text>
-            </Pressable>
+            <DSButton title={t('appGuide.skip')} variant="link" size="sm" onPress={onSkip} />
           </View>
 
-          <Text className="mb-1 text-base font-bold text-white">{t(`appGuide.steps.${step}.title`)}</Text>
-          <Text className="mb-4 text-base leading-5 text-gray-300">
+          <Text style={{ fontFamily: f.bold, fontSize: 18, lineHeight: 25, color: colors.textPrimary }}>
+            {t(`appGuide.steps.${step}.title`)}
+          </Text>
+          <Text style={{ fontFamily: f.regular, fontSize: 14, lineHeight: 21, color: colors.textMuted, marginTop: 4 }}>
             {t(`appGuide.steps.${step}.description`)}
           </Text>
 
-          <View className="flex-row items-center gap-2">
+          <View style={styles.actions}>
             {index > 0 ? (
-              <Pressable
-                onPress={onBack}
-                className="rounded-full border border-white/15 px-4 py-2.5 active:bg-white/5"
-              >
-                <Text className="text-base font-semibold text-gray-200">{t('appGuide.back')}</Text>
-              </Pressable>
+              <View style={{ flex: 1 }}>
+                <DSButton title={t('appGuide.back')} variant="line" size="rg" fullWidth onPress={onBack} />
+              </View>
             ) : null}
-            <Pressable
-              onPress={onTryItNow}
-              className="flex-1 rounded-full border border-white/15 px-4 py-2.5 active:bg-white/5"
-            >
-              <Text className="text-center text-base font-semibold text-gray-200">{t('appGuide.tryItNow')}</Text>
-            </Pressable>
-            <Pressable onPress={onNext} className="flex-1 rounded-full bg-primary-500 px-4 py-2.5 active:bg-primary-600">
-              <Text className="text-center text-base font-semibold text-white">
-                {isLast ? t('appGuide.getStarted') : t('appGuide.next')}
-              </Text>
-            </Pressable>
+            <View style={{ flex: 1 }}>
+              <DSButton title={t('appGuide.tryItNow')} variant="line" size="rg" fullWidth onPress={onTryItNow} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <DSButton title={isLast ? t('appGuide.getStarted') : t('appGuide.next')} size="rg" fullWidth onPress={onNext} />
+            </View>
           </View>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 28, padding: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  pills: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pill: { height: 8, borderRadius: 9999 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+});

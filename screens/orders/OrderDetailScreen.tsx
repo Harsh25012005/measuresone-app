@@ -7,21 +7,23 @@ import { useTranslation } from 'react-i18next';
 import { DSBadge, useBadgeTones } from '../../components/ds/Badge';
 import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
 import { DSButton } from '../../components/ds/Button';
+import { DSConfirmSheet } from '../../components/ds/ConfirmSheet';
+import { DSTabs } from '../../components/ds/Tabs';
 import { DSSkeletonList } from '../../components/ds/Loading';
 import { DSScreen } from '../../components/ds/Screen';
-import { IconBolt, IconBrandWhatsapp, IconCalendarEvent, IconCheck, IconPencil, IconTrash } from '../../components/ds/icons';
+import { IconBolt, IconCalendarEvent, IconCheck, IconCurrencyRupee, IconPencil, IconTrash } from '../../components/ds/icons';
 import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { ordersRepo, billsRepo, paymentsRepo, customersRepo, staffRepo } from '../../lib/data/repository';
 import { sendPushNotification } from '../../lib/notify';
 import { formatCurrency, formatDate } from '../../lib/format';
-import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { haptics } from '../../lib/haptics';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { primary, status, typography } from '../../constants/tokens';
 import type { AppScreenProps } from '../../navigation/types';
 import type { Customer, Order, Staff } from '../../types';
+import type { Tables } from '../../lib/database.types';
 
 const f = typography.family;
 
@@ -60,9 +62,12 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
    */
   const [billAmounts, setBillAmounts] = useState<{ total: number; paid: number } | null>(null);
   const [garmentType, setGarmentType] = useState<string | null>(null);
+  const [bill, setBill] = useState<Tables<'bills'> | null>(null);
+  const [payments, setPayments] = useState<Tables<'payments'>[]>([]);
+  const [payVisible, setPayVisible] = useState(false);
+  const [payMode, setPayMode] = useState<string>('Cash');
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       // Reads from the local-first mirror (same one order create/update/delete
       // write through) rather than Supabase directly — querying Supabase here
@@ -89,18 +94,15 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
       });
       setGarmentType(orderItems[0]?.garment_type ?? null);
 
-      const [shopBills, shopPayments] = await Promise.all([
-        billsRepo.list(shop.id),
-        paymentsRepo.listForShop(shop.id),
-      ]);
-      const bill = shopBills.find((b) => b.order_id === orderId) ?? null;
+      const orderBill = await billsRepo.forOrder(orderId);
+      const billPayments = orderBill ? await paymentsRepo.listForBill(orderBill.id) : [];
+      setBill(orderBill);
+      setPayments(billPayments);
       setBillAmounts(
-        bill
+        orderBill
           ? {
-              total: Number(bill.total_amount ?? 0),
-              paid: shopPayments
-                .filter((p) => p.bill_id === bill.id)
-                .reduce((s, p) => s + Number(p.amount_paid ?? 0), 0),
+              total: Number(orderBill.total_amount ?? 0),
+              paid: billPayments.reduce((sum, p) => sum + Number(p.amount_paid ?? 0), 0),
             }
           : null
       );
@@ -118,7 +120,7 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     }, [load])
   );
 
-  const markComplete = async () => {
+  const completeOrder = async () => {
     if (!order) return;
     setUpdating(true);
     try {
@@ -173,17 +175,48 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
     }
   };
 
-  /** Opens WhatsApp with a prefilled message; both action buttons funnel here. */
-  const sendMessage = async (body: string) => {
-    if (!order?.customers?.phone) {
-      showToast(t('detail.whatsapp.noPhone'), 'error');
+  /** Marking complete with money still owed first asks to settle it. */
+  const markComplete = () => {
+    if (balanceDue > 0) {
+      setPayVisible(true);
       return;
     }
+    void completeOrder();
+  };
+
+  /** Records the outstanding balance as a payment, then completes the order. */
+  const collectAndComplete = async () => {
+    if (!order) return;
+    setUpdating(true);
     try {
-      await sendWhatsAppMessage(order.customers.phone, body);
+      let target = bill;
+      if (!target) {
+        target = await billsRepo.create({
+          shop_id: shop.id,
+          order_id: orderId,
+          customer_id: order.customer_id,
+          fabric_cost: 0,
+          stitching_charge: totalAmount,
+          tax: 0,
+          discount: 0,
+          payment_status: 'unpaid',
+        });
+      }
+      await paymentsRepo.create({
+        shop_id: shop.id,
+        bill_id: target.id,
+        customer_id: order.customer_id,
+        amount_paid: balanceDue,
+        payment_mode: payMode,
+      });
+      setPayVisible(false);
+      await completeOrder();
+      await load();
     } catch (err) {
       haptics.error();
-      showToast(err instanceof Error ? err.message : t('detail.whatsapp.sendFailed'), 'error');
+      showToast(err instanceof Error ? err.message : t('detail.updateStatusFailed'), 'error');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -218,9 +251,8 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
   const totalAmount = order ? (billAmounts ? billAmounts.total : Number(order.total_amount ?? 0)) : 0;
   const paidAmount = order ? (billAmounts ? billAmounts.paid : Number(order.paid_amount ?? 0)) : 0;
   const balanceDue = Math.max(totalAmount - paidAmount, 0);
-  const hasBilling = order ? order.total_amount != null : false;
+  const hasBilling = order ? order.total_amount != null || !!bill : false;
   const customerName = order?.customers?.name ?? '';
-  const hasPhone = !!order?.customers?.phone;
   const paidRatio = totalAmount > 0 ? Math.min(1, paidAmount / totalAmount) : 0;
 
   const Row = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
@@ -338,57 +370,52 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
                     </View>
                   ) : null}
 
-                  {/* chasing money belongs next to the balance it refers to */}
-                  {balanceDue > 0 ? (
-                    <View style={{ marginTop: 14 }}>
-                      <DSButton
-                        title={t('detail.whatsapp.sendReminder')}
-                        variant="line"
-                        size="rg"
-                        fullWidth
-                        leftIcon={IconBrandWhatsapp}
-                        disabled={!hasPhone}
-                        onPress={() =>
-                          sendMessage(
-                            t('detail.whatsapp.reminderPaymentBody', {
-                              customerName,
-                              amount: formatCurrency(balanceDue),
-                              orderNumber: order.order_number,
-                              shopName: shop.shop_name,
-                            })
-                          )
-                        }
-                      />
+                  {/* bill breakdown + payments, so the order shows everything billing used to */}
+                  {bill ? (
+                    <View style={{ gap: 8, marginTop: 6, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderSubtle }}>
+                      {Number(bill.fabric_cost) > 0 || Number(bill.tax) > 0 || Number(bill.discount) > 0 ? (
+                        <Text style={{ fontFamily: f.semibold, fontSize: 13, color: colors.textMuted }}>
+                          {t('detail.billInfo', { defaultValue: 'Bill details' })}
+                        </Text>
+                      ) : null}
+                      {Number(bill.fabric_cost) > 0 ? (
+                      <View style={styles.kv}>
+                        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.fabricCost', { defaultValue: 'Fabric cost' })}</Text>
+                        <Text style={{ fontFamily: f.semibold, fontSize: 14, color: colors.textPrimary }}>{formatCurrency(Number(bill.fabric_cost))}</Text>
+                      </View>
+                      ) : null}
+                      {Number(bill.tax) > 0 ? (
+                      <View style={styles.kv}>
+                        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.tax', { defaultValue: 'Tax' })}</Text>
+                        <Text style={{ fontFamily: f.semibold, fontSize: 14, color: colors.textPrimary }}>{formatCurrency(Number(bill.tax))}</Text>
+                      </View>
+                      ) : null}
+                      {Number(bill.discount) > 0 ? (
+                      <View style={styles.kv}>
+                        <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>{t('detail.discount', { defaultValue: 'Discount' })}</Text>
+                        <Text style={{ fontFamily: f.semibold, fontSize: 14, color: status.success[600] }}>- {formatCurrency(Number(bill.discount))}</Text>
+                      </View>
+                      ) : null}
+                      {payments.length > 0 ? (
+                        <>
+                          <Text style={{ fontFamily: f.semibold, fontSize: 13, color: colors.textMuted, marginTop: 6 }}>
+                            {t('detail.paymentsReceived', { defaultValue: 'Payments received' })}
+                          </Text>
+                          {payments.map((p) => (
+                            <View key={p.id} style={styles.kv}>
+                              <Text style={{ fontFamily: f.regular, fontSize: 14, color: colors.textMuted }}>
+                                {formatDate(p.payment_date)}{p.payment_mode ? ` · ${p.payment_mode}` : ''}
+                              </Text>
+                              <Text style={{ fontFamily: f.semibold, fontSize: 14, color: status.success[600] }}>{formatCurrency(Number(p.amount_paid))}</Text>
+                            </View>
+                          ))}
+                        </>
+                      ) : null}
                     </View>
                   ) : null}
                 </View>
               </Animated.View>
             ) : null}
-
-            {/* customer messaging */}
-            <Animated.View entering={FadeInDown.delay(240).duration(300)} style={{ gap: 10 }}>
-              <Text style={{ fontFamily: f.bold, fontSize: 18, color: colors.textPrimary }}>{t('detail.whatsapp.sectionTitle')}</Text>
-              {!hasPhone ? (
-                <Text style={{ fontFamily: f.regular, fontSize: 13, color: colors.textMuted }}>{t('detail.whatsapp.noPhone')}</Text>
-              ) : null}
-              <DSButton
-                title={t('detail.whatsapp.sendCompletion')}
-                variant="line"
-                size="rg"
-                fullWidth
-                leftIcon={IconBrandWhatsapp}
-                disabled={!hasPhone}
-                onPress={() =>
-                  sendMessage(
-                    t('detail.whatsapp.completionBody', {
-                      customerName,
-                      orderNumber: order.order_number,
-                      shopName: shop.shop_name,
-                    })
-                  )
-                }
-              />
-            </Animated.View>
           </ScrollView>
 
           {/* the one status action stays pinned */}
@@ -413,6 +440,28 @@ export default function OrderDetailScreen({ navigation, route }: AppScreenProps<
           </View>
         </>
       )}
+      <DSConfirmSheet
+        visible={payVisible}
+        onClose={() => setPayVisible(false)}
+        icon={IconCurrencyRupee}
+        title={t('detail.completePaymentTitle', { defaultValue: 'Complete this payment' })}
+        amount={formatCurrency(balanceDue)}
+        message={t('detail.completePaymentMessage', { defaultValue: 'This order still has a balance due. Collect it to mark the order complete.' })}
+        confirmLabel={t('detail.completePaymentConfirm', { defaultValue: 'Collect & mark complete' })}
+        cancelLabel={t('detail.cancel')}
+        loading={updating}
+        onConfirm={() => void collectAndComplete()}
+      >
+        <DSTabs
+          variant="pill"
+          value={payMode}
+          onChange={setPayMode}
+          items={[
+            { key: 'Cash', label: 'Cash' },
+            { key: 'UPI', label: 'UPI' },
+          ]}
+        />
+      </DSConfirmSheet>
       {deletePopup}
     </DSScreen>
   );

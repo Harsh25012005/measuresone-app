@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +80,6 @@ export default function UniversalMeasurementsScreen({ navigation }: SettingsScre
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

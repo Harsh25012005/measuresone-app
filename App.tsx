@@ -25,7 +25,6 @@ import { initTheme, type ThemeMode } from './lib/theme';
  */
 function StatusBarBackdrop() {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
   const hero = useStatusBarHero();
   // Hero screens (blue gradient header) draw behind the status bar themselves.
   if (hero) return null;
@@ -38,17 +37,16 @@ function StatusBarBackdrop() {
         left: 0,
         right: 0,
         height: insets.top,
-        backgroundColor: colors.bgPage,
+        backgroundColor: '#000000',
         zIndex: 999,
       }}
     />
   );
 }
 
+/** The status bar area is always dark, so its icons are always light. */
 function ThemedStatusBar() {
-  const { scheme } = useTheme();
-  const hero = useStatusBarHero();
-  return <StatusBar style={hero || scheme === 'dark' ? 'light' : 'dark'} />;
+  return <StatusBar style="light" />;
 }
 
 export default function App() {

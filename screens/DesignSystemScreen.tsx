@@ -648,7 +648,7 @@ function DesignSystemContent() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>Design System</Text>
-            <Text style={[styles.sectionSub, { color: colors.textMuted }]}>MeasuresOne · Foundations</Text>
+            <Text style={[styles.sectionSub, { color: colors.textMuted }]}>TrueFit · Foundations</Text>
           </View>
           <Pressable
             onPress={() => setMode(scheme === 'dark' ? 'light' : 'dark')}

@@ -67,7 +67,7 @@
     "workEntries": "Work Entries",
     "emptyWorkTitle": "No work entries yet",
     "emptyWorkDescription": "Log piece work to track how much this staff member has earned",
-    "addWorkEntry": "+ Add Work Entry",
+    "addWorkEntry": "Add Work Entry",
     "workTotal": "Total piece work earned",
     "perPieceSuffix": " each",
     "loadError": "Could not load staff",

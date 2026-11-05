@@ -43,7 +43,6 @@ export default function BillingListScreen({ navigation }: BillingScreenProps<'Bi
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../../components/ds/Pressable';
 import Constants from 'expo-constants';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +16,6 @@ import {
   IconLanguage,
   IconMail,
   IconPalette,
-  IconReceipt,
   IconRuler2,
   IconShieldLock,
   IconUsers,
@@ -163,7 +163,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps<'Sett
         </Group>
 
         <Group title={t('business')} delay={50}>
-          <Row icon={IconReceipt} kind="amber" label={t('billingAndPayments')} onPress={() => navigation.navigate('Billing')} />
           <Row icon={IconChartBar} kind="green" label={t('revenue:menuTitle')} onPress={() => navigation.navigate('Revenue')} />
           <Row icon={IconUsers} kind="purple" label={t('staffManagement')} onPress={() => navigation.navigate('Staff')} />
           <Row icon={IconRuler2} kind="blue" label={t('universalMeasurements.menuTitle')} onPress={() => navigation.navigate('UniversalMeasurements')} last />

@@ -6,9 +6,11 @@ import Animated, {
   FadeInDown,
   interpolate,
   interpolateColor,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AnimatedWords } from '../../components/ds/AnimatedText';
@@ -43,7 +45,7 @@ function Backdrop({ i, x, w, colors }: { i: number; x: { value: number }; w: num
 }
 
 /** Wraps a slide's artwork with parallax, scale and fade driven by the pager. */
-function Page({ i, x, w, children }: { i: number; x: { value: number }; w: number; children: React.ReactNode }) {
+function Page({ i, x, w, near, children }: { i: number; x: { value: number }; w: number; near: boolean; children: React.ReactNode }) {
   const s = useAnimatedStyle(() => {
     const input = [(i - 1) * w, i * w, (i + 1) * w];
     return {
@@ -56,7 +58,7 @@ function Page({ i, x, w, children }: { i: number; x: { value: number }; w: numbe
   });
   return (
     <View style={{ width: w, justifyContent: 'center', paddingHorizontal: 14 }}>
-      <Animated.View style={s}>{children}</Animated.View>
+      <Animated.View style={s} renderToHardwareTextureAndroid>{near ? children : null}</Animated.View>
     </View>
   );
 }
@@ -81,6 +83,7 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
   const { width } = useWindowDimensions();
   const pager = useRef<ScrollView>(null);
   const x = useSharedValue(0);
+  const activeIdx = useSharedValue(0);
   const [index, setIndex] = useState(0);
   useHeroStatusBar();
 
@@ -91,6 +94,21 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
     await markOnboardingSeen();
     navigation.replace(to);
   };
+
+  const onPage = (i: number) => {
+    setIndex(i);
+    haptics.tap();
+  };
+
+  // runs on the UI thread so the parallax never waits on the JS thread
+  const onScroll = useAnimatedScrollHandler((e) => {
+    x.value = e.contentOffset.x;
+    const i = Math.round(e.contentOffset.x / width);
+    if (i !== activeIdx.value && i >= 0 && i < SLIDES.length) {
+      activeIdx.value = i;
+      scheduleOnRN(onPage, i);
+    }
+  });
 
   const next = () => {
     haptics.tap();
@@ -124,19 +142,11 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           bounces={false}
-          onScroll={(e) => {
-            const cx = e.nativeEvent.contentOffset.x;
-            x.value = cx;
-            const i = Math.round(cx / width);
-            if (i !== index && i >= 0 && i < SLIDES.length) {
-              setIndex(i);
-              haptics.tap();
-            }
-          }}
+          onScroll={onScroll}
           contentContainerStyle={{ alignItems: 'center' }}
         >
           {SLIDES.map((s, i) => (
-            <Page key={s.key} i={i} x={x} w={width}>
+            <Page key={s.key} i={i} x={x} w={width} near={Math.abs(i - index) <= 1}>
               <s.Scene />
             </Page>
           ))}
@@ -145,7 +155,7 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
 
       {/* bottom sheet: copy, dots, actions */}
       <Animated.View
-        entering={FadeInDown.duration(420).springify().damping(20)}
+        entering={FadeInDown.duration(280)}
         style={[styles.sheet, { backgroundColor: colors.bgPage, paddingBottom: insets.bottom + 24 }]}
       >
         <View style={{ alignSelf: 'center', width: '100%', maxWidth: 560 }}>
@@ -165,7 +175,7 @@ export default function OnboardingScreen({ navigation }: AuthScreenProps<'Onboar
             />
             <Animated.Text
               key={`${slide.key}-d`}
-              entering={FadeInDown.delay(260).duration(420)}
+              entering={FadeInDown.delay(150).duration(280)}
               style={{ fontFamily: f.regular, fontSize: 15, lineHeight: 23, color: colors.textMuted, marginTop: 10 }}
             >
               {t(`onboarding.slides.${slide.key}.description`)}

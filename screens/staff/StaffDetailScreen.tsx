@@ -8,12 +8,11 @@ import { DSButton } from '../../components/ds/Button';
 import { useConfirmDelete } from '../../components/ds/ConfirmDelete';
 import { DSSkeletonList } from '../../components/ds/Loading';
 import { DSScreen } from '../../components/ds/Screen';
-import { IconBrandWhatsapp, IconPencil, IconPhone, IconPlus, IconShirt, IconTrash } from '../../components/ds/icons';
+import { IconPencil, IconPhone, IconPlus, IconShirt, IconTrash } from '../../components/ds/icons';
 import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { staffRepo } from '../../lib/data/repository';
 import { formatCurrency, formatDate } from '../../lib/format';
-import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { primary, status, typography } from '../../constants/tokens';
@@ -62,7 +61,6 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
   const [staff, setStaff] = useState<Staff | null>(null);
   const [workEntries, setWorkEntries] = useState<WorkEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sendingReport, setSendingReport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,25 +126,6 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
         }
       },
     });
-  };
-
-  const handleSendReport = async () => {
-    if (!staff) return;
-    setSendingReport(true);
-    try {
-      await sendWhatsAppMessage(
-        staff.phone,
-        t('detail.reportMessage', {
-          staffName: staff.name,
-          shopName: shop.shop_name,
-          amount: formatCurrency(thisMonthEarnings),
-        })
-      );
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : t('detail.reportSendFailed'), 'error');
-    } finally {
-      setSendingReport(false);
-    }
   };
 
   const card = [styles.card, { backgroundColor: colors.bgSurface, borderColor: border }];
@@ -230,16 +209,6 @@ export default function StaffDetailScreen({ navigation, route }: SettingsScreenP
             <View style={[styles.list, { backgroundColor: colors.bgSurface, borderColor: border }]}>
               <Line label={t('detail.allTimeEarnings')} value={formatCurrency(totalEarnings)} strong last />
             </View>
-            <DSButton
-              title={t('detail.sendReport')}
-              variant="line"
-              size="rg"
-              fullWidth
-              leftIcon={IconBrandWhatsapp}
-              loading={sendingReport}
-              disabled={!staff.phone}
-              onPress={handleSendReport}
-            />
           </Animated.View>
 
           {/* Work entries only make sense for per-piece staff — monthly/daily

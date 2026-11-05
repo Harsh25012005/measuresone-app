@@ -1,13 +1,13 @@
-# MeasuresOne — Full Application Documentation
+# TrueFit — Full Application Documentation
 
 > Repository: `Harsh25012005/measuresone-app`
 > Generated from a direct read of the source code (not assumptions).
 
 ---
 
-## 1. What is MeasuresOne?
+## 1. What is TrueFit?
 
-**MeasuresOne** is a mobile business-management app built for **tailoring shops / garment stitching businesses** (the kind common in India — the UI text, sample data, and voice assistant are Gujarati/Hindi/English). It replaces the shop owner's paper ledger, measurement notebook, and bill book with one app that runs on a phone, works **offline**, and syncs to the cloud.
+**TrueFit** is a mobile business-management app built for **tailoring shops / garment stitching businesses** (the kind common in India — the UI text, sample data, and voice assistant are Gujarati/Hindi/English). It replaces the shop owner's paper ledger, measurement notebook, and bill book with one app that runs on a phone, works **offline**, and syncs to the cloud.
 
 Core jobs the app does for a tailor shop owner:
 
@@ -632,7 +632,7 @@ delivery date = today + 2 base days
 ## 10. Build & Environment
 
 - **Env vars** (`.env.example`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_URL_SCHEME`.
-- **App identity**: name `MeasuresOne`, slug `measuresone`, scheme `measuresone://`, bundle/package id `com.measuresone.app` on both iOS and Android.
+- **App identity**: name `TrueFit` (formerly MeasuresOne), slug `measuresone`, scheme `measuresone://`, bundle/package id `com.measuresone.app` on both iOS and Android.
 - **EAS project ID**: `4623e4e2-cc7b-421b-8aff-d3021c25c452` (`eas.json` defines build profiles).
 - **Permissions requested**: camera & photo library (design photos), microphone & speech recognition (voice dictation/search/AI assistant), notifications.
 - **iOS `LSApplicationQueriesSchemes`**: whitelist of mail-client URL schemes (Gmail, Outlook, Yahoo Mail, ProtonMail, Spark, generic `message`) so the app can detect/open the user's mail app for email-related flows.
@@ -642,7 +642,7 @@ delivery date = today + 2 base days
 
 ## 11. Summary — What Kind of Product Is This?
 
-MeasuresOne is a **vertical SaaS-style mobile app for tailoring/garment shops**, most directly aimed at the Indian tailoring trade (Gujarati-first voice UX, INR-style bill breakdowns, WhatsApp-centric customer communication, "book number" ledger continuity). It functions as an **all-in-one shop operating system**:
+TrueFit is a **vertical SaaS-style mobile app for tailoring/garment shops**, most directly aimed at the Indian tailoring trade (Gujarati-first voice UX, INR-style bill breakdowns, WhatsApp-centric customer communication, "book number" ledger continuity). It functions as an **all-in-one shop operating system**:
 
 - CRM (clients + measurements)
 - Job/production tracker (orders through a cutting→stitching→ready→delivered pipeline)

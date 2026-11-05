@@ -44,7 +44,6 @@ export default function CustomerListScreen({ navigation }: CustomersScreenProps<
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

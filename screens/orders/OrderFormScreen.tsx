@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { DSButton } from '../../components/ds/Button';
+import { DSConfirmSheet } from '../../components/ds/ConfirmSheet';
 import { DSDateField } from '../../components/ds/DateField';
 import { DSEmptyState } from '../../components/ds/EmptyState';
 import { DSImagePicker } from '../../components/ds/ImagePicker';
@@ -13,7 +14,7 @@ import { DSFormScreen } from '../../components/ds/Screen';
 import { DSSelect } from '../../components/ds/Select';
 import { DSStepBar } from '../../components/ds/StepBar';
 import { DSTabs } from '../../components/ds/Tabs';
-import { IconRuler2, IconUserPlus } from '../../components/ds/icons';
+import { IconCurrencyRupee, IconRuler2, IconUserPlus } from '../../components/ds/icons';
 import { QuickAddCustomerSheet, useToast } from '../../components/ui';
 import { uploadImage } from '../../lib/storage';
 import { useShop } from '../../context/AuthContext';
@@ -98,6 +99,7 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
   const [totalAmount, setTotalAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<string>('Cash');
+  const [upiConfirmVisible, setUpiConfirmVisible] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(isEditing);
@@ -327,12 +329,9 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
     }
     setError('');
 
-    // Alert.alert has no web implementation, so the UPI confirm would swallow the tap there.
-    if (paymentMode === 'UPI' && Platform.OS !== 'web') {
-      Alert.alert(t('form.upiConfirmTitle'), t('form.upiConfirmMessage'), [
-        { text: t('form.upiConfirmNo'), style: 'cancel' },
-        { text: t('form.upiConfirmYes'), onPress: () => void submitOrder() },
-      ]);
+    // UPI money lands outside the app, so ask whether it actually arrived before recording it.
+    if (paymentMode === 'UPI' && Number(paidAmount) > 0) {
+      setUpiConfirmVisible(true);
       return;
     }
 
@@ -724,6 +723,21 @@ export default function OrderFormScreen({ navigation, route }: AppScreenProps<'O
         ) : null}
       </DSFormScreen>
       {quickAddSheet}
+      <DSConfirmSheet
+        visible={upiConfirmVisible}
+        onClose={() => setUpiConfirmVisible(false)}
+        icon={IconCurrencyRupee}
+        title={t('form.upiConfirmTitle')}
+        amount={formatCurrency(Number(paidAmount) || 0)}
+        message={t('form.upiConfirmMessage')}
+        confirmLabel={t('form.upiConfirmYes')}
+        cancelLabel={t('form.upiConfirmNo')}
+        loading={loading}
+        onConfirm={() => {
+          setUpiConfirmVisible(false);
+          void submitOrder();
+        }}
+      />
     </>
   );
 }

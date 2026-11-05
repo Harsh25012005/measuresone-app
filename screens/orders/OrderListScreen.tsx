@@ -79,7 +79,8 @@ export default function OrderListScreen({ navigation }: OrdersScreenProps<'Order
         if (b.order_id) amounts[b.order_id] = { total: Number(b.total_amount ?? 0), paid: paidByBill[b.id] ?? 0 };
       }
       setBillAmounts(amounts);
-      setOrders(list);
+      // Newest order first, oldest last.
+      setOrders([...list].sort((x, y) => (y.created_at ?? '').localeCompare(x.created_at ?? '')));
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('list.loadOrdersFailed'), 'error');
     }
@@ -87,7 +88,6 @@ export default function OrderListScreen({ navigation }: OrdersScreenProps<'Order
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

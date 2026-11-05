@@ -82,7 +82,8 @@ export function OrdersScene() {
   const p = useLoop({ duration: 2200, hold: 1500, reset: 350 });
   const stitching = useAnimatedStyle(() => ({ opacity: 1 - Math.min(1, Math.max(0, (p.value - 0.85) * 8)) }));
   const ready = useAnimatedStyle(() => ({ opacity: Math.min(1, Math.max(0, (p.value - 0.85) * 8)) }));
-  const fill = useAnimatedStyle(() => ({ width: `${p.value * 100}%` }));
+  // scaleX on a left-anchored bar avoids a layout pass per frame (animating width does)
+  const fill = useAnimatedStyle(() => ({ transform: [{ translateX: -80 }, { scaleX: Math.max(0.001, p.value) }, { translateX: 80 }] }));
 
   return (
     <SceneFrame baseW={W} baseH={H}>
@@ -102,7 +103,7 @@ export function OrdersScene() {
       {/* status */}
       <View style={{ position: 'absolute', left: 80, top: 244, width: 160, alignItems: 'center', gap: 9 }}>
         <View style={{ width: 160, height: 8, borderRadius: 9999, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' }}>
-          <Animated.View style={[{ height: 8, borderRadius: 9999, backgroundColor: '#FFFFFF' }, fill]} />
+          <Animated.View style={[{ width: 160, height: 8, borderRadius: 9999, backgroundColor: '#FFFFFF' }, fill]} />
         </View>
         <View style={{ height: 26, width: 120, alignItems: 'center', justifyContent: 'center' }}>
           <Animated.View style={[{ position: 'absolute', paddingHorizontal: 12, height: 26, borderRadius: 9999, backgroundColor: 'rgba(255,255,255,0.22)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', justifyContent: 'center' }, stitching]}>

@@ -108,7 +108,7 @@
     "title": "सूचनाएं",
     "loading": "सूचनाएं लोड हो रही हैं...",
     "emptyTitle": "अभी तक कोई सूचना नहीं",
-    "emptyDescription": "ऑर्डर और भुगतान रिमाइंडर यहां दिखेंगे",
+    "emptyDescription": "डिलीवरी की तारीखें, देर वाले ऑर्डर और बाकी भुगतान यहाँ दिखेंगे",
     "errorLoad": "सूचनाएं लोड नहीं हो सकीं",
     "customer": "ग्राहक",
     "justNow": "अभी अभी",
@@ -118,6 +118,19 @@
     "types": {
       "order_ready": "ऑर्डर तैयार है",
       "payment_due": "भुगतान बकाया है"
+    },
+    "alerts": {
+      "sectionReminders": "रिमाइंडर",
+      "sectionSent": "ग्राहकों को भेजा गया",
+      "overdueTitle": "डिलीवरी में देरी",
+      "todayTitle": "आज डिलीवरी है",
+      "tomorrowTitle": "कल डिलीवरी है",
+      "soonTitle": "{{count}} दिन में डिलीवरी",
+      "paymentTitle": "भुगतान बाकी",
+      "daysLate_one": "{{count}} दिन देर",
+      "daysLate_other": "{{count}} दिन देर",
+      "dueOn": "देय {{date}}",
+      "paymentMeta": "#{{number}} के लिए {{amount}} बाकी"
     }
   },
   "welcomeBack": "वापसी पर स्वागत है",

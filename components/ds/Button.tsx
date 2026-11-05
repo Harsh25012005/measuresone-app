@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
+import { useFillSize } from './useFillSize';
 import { IconArrowRight, IconPlus, type TablerIcon } from './icons';
 import { buttonHeights, primary, status, typography } from '../../constants/tokens';
 
@@ -50,6 +51,9 @@ export function DSButton({
   const { scheme, colors } = useTheme();
   const gradId = useId().replace(/[^a-zA-Z0-9]/g, '');
   const s = SIZES[size];
+  // The gradient Svg is drawn a few px wider than the button; the pill clips it, which hides the
+  // sub-pixel shortfall that otherwise left the right cap bare.
+  const fill = useFillSize();
   const scale = useSharedValue(1);
   const pressedOpacity = useSharedValue(0);
   const inactive = disabled || loading;
@@ -110,15 +114,19 @@ export function DSButton({
         ]}
       >
         {gradient ? (
-          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
-            <Defs>
-              <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={gradient[0]} />
-                <Stop offset="1" stopColor={gradient[1]} />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill={`url(#${gradId})`} />
-          </Svg>
+          <View style={StyleSheet.absoluteFill} onLayout={fill.onLayout} pointerEvents="none">
+            {fill.w > 0 ? (
+              <Svg width={fill.w + 6} height={fill.h}>
+                <Defs>
+                  <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor={gradient[0]} />
+                    <Stop offset="1" stopColor={gradient[1]} />
+                  </LinearGradient>
+                </Defs>
+                <Rect width={fill.w + 6} height={fill.h} fill={`url(#${gradId})`} />
+              </Svg>
+            ) : null}
+          </View>
         ) : null}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: tint }, overlay]} />
         {loading ? (

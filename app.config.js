@@ -2,7 +2,7 @@ require('dotenv/config');
 
 module.exports = {
   expo: {
-    name: 'MeasuresOne',
+    name: 'TrueFit',
     slug: 'measuresone',
     owner: 'is_harsh2501',
     version: '1.0.0',

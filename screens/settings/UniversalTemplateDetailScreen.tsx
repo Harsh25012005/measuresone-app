@@ -60,7 +60,6 @@ export default function UniversalTemplateDetailScreen({
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

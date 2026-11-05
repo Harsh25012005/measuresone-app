@@ -111,7 +111,6 @@ export default function RevenueScreen({ navigation }: SettingsScreenProps<'Reven
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       void load().finally(() => setLoading(false));
     }, [load])
   );

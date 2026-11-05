@@ -51,7 +51,10 @@ function toSqliteValue(v: unknown): string | number | null {
   return v as string | number;
 }
 
-async function pullEntity(shopId: string, entity: SyncedEntity) {
+type Fetched = { entity: SyncedEntity; meta: { last_synced_at: string | null } | null; data: Record<string, unknown>[] | null };
+
+/** Network half of a pull. Kept separate so every entity can be fetched at the same time. */
+async function fetchEntity(shopId: string, entity: SyncedEntity): Promise<Fetched> {
   const db = await getDb();
   const meta = await db.getFirstAsync<{ last_synced_at: string | null }>(
     'select last_synced_at from sync_meta where entity = ?',
@@ -69,7 +72,15 @@ async function pullEntity(shopId: string, entity: SyncedEntity) {
   }
   const { data: rawData, error } = await query;
   if (error) throw error;
-  const data = rawData as unknown as Record<string, unknown>[] | null;
+  return { entity, meta, data: rawData as unknown as Record<string, unknown>[] | null };
+}
+
+/** Local half of a pull: upserts the fetched rows. These run one after another (single connection). */
+async function applyEntity({ entity, meta, data }: Fetched) {
+  const db = await getDb();
+  const watermarkCol = WATERMARK_COLUMN[entity];
+  const columns = ENTITY_COLUMNS[entity];
+
   if (!data || data.length === 0) {
     await db.runAsync(
       'insert into sync_meta (entity, last_synced_at) values (?, ?) on conflict(entity) do update set last_synced_at = excluded.last_synced_at',
@@ -146,8 +157,10 @@ export async function runSync(shopId: string): Promise<void> {
   syncing = true;
   try {
     await pushPendingOps();
-    for (const entity of SYNCED_ENTITIES) {
-      await pullEntity(shopId, entity);
+    // One round of parallel requests instead of nine back-to-back ones.
+    const fetched = await Promise.all(SYNCED_ENTITIES.map((entity) => fetchEntity(shopId, entity)));
+    for (const f of fetched) {
+      await applyEntity(f);
     }
   } finally {
     syncing = false;

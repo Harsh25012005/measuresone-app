@@ -8,6 +8,7 @@ import { DSQuantity } from '../../components/ds/Quantity';
 import { DSTabs } from '../../components/ds/Tabs';
 import { useToast } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
+import { staffRepo } from '../../lib/data/repository';
 import { formatCurrency } from '../../lib/format';
 import { useShop } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -56,6 +57,13 @@ export default function StaffWorkEntryFormScreen({
 
   useEffect(() => {
     void (async () => {
+      // Local mirror first: a staff member just added offline isn't on the server yet, which
+      // is why per-piece rates read as 0 here when this asked Supabase directly.
+      const local = await staffRepo.get(staffId);
+      if (local) {
+        setStaff(local);
+        return;
+      }
       const { data } = await supabase.from('staff').select('*').eq('id', staffId).single();
       if (data) setStaff(data);
     })();
