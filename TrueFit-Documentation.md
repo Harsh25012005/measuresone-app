@@ -41,7 +41,7 @@ Core jobs the app does for a tailor shop owner:
 | Voice | `expo-speech` (text-to-speech) + `expo-speech-recognition` (speech-to-text) for the AI Order Assistant and voice dictation/search |
 | Animation | React Native `Animated` (not Reanimated, deliberately — see below) for the Quick-Add menu/tab bar; `react-native-reanimated` is a dependency but avoided in Expo-Go-sensitive UI |
 | Fonts | Google Sans Flex (via `@expo-google-fonts/google-sans-flex`) |
-| Build/deploy | **EAS** (`eas.json`), Expo Application Services, bundle IDs `com.measuresone.app` (iOS & Android) |
+| Build/deploy | **EAS** (`eas.json`), Expo Application Services, bundle IDs `com.truefit.app` (iOS & Android) |
 | Icons | `@expo/vector-icons` (FontAwesome5, Ionicons) |
 | Calendars | `react-native-calendars` |
 
@@ -632,7 +632,7 @@ delivery date = today + 2 base days
 ## 10. Build & Environment
 
 - **Env vars** (`.env.example`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_URL_SCHEME`.
-- **App identity**: name `TrueFit` (formerly MeasuresOne), slug `measuresone`, scheme `measuresone://`, bundle/package id `com.measuresone.app` on both iOS and Android.
+- **App identity**: name `TrueFit` (formerly MeasuresOne), slug `measuresone`, scheme `measuresone://`, bundle/package id `com.truefit.app` on both iOS and Android.
 - **EAS project ID**: `4623e4e2-cc7b-421b-8aff-d3021c25c452` (`eas.json` defines build profiles).
 - **Permissions requested**: camera & photo library (design photos), microphone & speech recognition (voice dictation/search/AI assistant), notifications.
 - **iOS `LSApplicationQueriesSchemes`**: whitelist of mail-client URL schemes (Gmail, Outlook, Yahoo Mail, ProtonMail, Spark, generic `message`) so the app can detect/open the user's mail app for email-related flows.

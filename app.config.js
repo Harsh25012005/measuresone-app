@@ -12,7 +12,7 @@ module.exports = {
     scheme: 'measuresone',
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.measuresone.app',
+      bundleIdentifier: 'com.truefit.app',
       infoPlist: {
         // Required for Linking.canOpenURL to detect these mail clients —
         // without the allowlist iOS silently answers false for every scheme.
@@ -27,7 +27,7 @@ module.exports = {
       },
     },
     android: {
-      package: 'com.measuresone.app',
+      package: 'com.truefit.app',
       adaptiveIcon: {
         backgroundColor: '#FFFFFF',
         foregroundImage: './assets/android-icon-foreground.png',
